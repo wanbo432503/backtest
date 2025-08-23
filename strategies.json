@@ -1,0 +1,28 @@
+{
+  "strategies": {
+    "sma_cross": {
+      "name": "sma_cross",
+      "display_name": "双均线交叉策略",
+      "description": "短期均线上穿长期均线时买入，下穿时卖出",
+      "class_name": "SMACrossStrategy"
+    },
+    "rsi": {
+      "name": "rsi",
+      "display_name": "RSI策略",
+      "description": "RSI低于30时买入（超卖），RSI高于70时卖出（超买）",
+      "class_name": "RSIStrategy"
+    },
+    "bollinger": {
+      "name": "bollinger",
+      "display_name": "布林带策略",
+      "description": "价格跌破布林带下轨时买入，突破布林带上轨时卖出",
+      "class_name": "BollingerBandsStrategy"
+    },
+    "momentum": {
+      "name": "momentum",
+      "display_name": "动量策略",
+      "description": "动量指标为正时买入，为负时卖出",
+      "class_name": "MomentumStrategy"
+    }
+  }
+}

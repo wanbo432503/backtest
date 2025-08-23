@@ -1,0 +1,13 @@
+venv
+.vscode
+__pycache__
+*.pyc
+.DS_Store
+.idea
+*.iml
+*.log
+.env
+*.sqlite3
+media
+*.egg-info
+dist

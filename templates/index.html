@@ -100,7 +100,7 @@
         }
         .plot-iframe {
             width: 100%;
-            height: 600px;
+            height: 720px;
             border: none;
             border-radius: 8px;
         }
@@ -159,7 +159,7 @@
                         <form id="backtestForm">
                             <div class="mb-3">
                                 <label for="symbol" class="form-label">股票/加密货币代码</label>
-                                <input type="text" class="form-control" id="symbol" 
+                                <input type="text" class="form-control" id="symbol"
                                        placeholder="例如: AAPL, BTC-USD" value="AAPL" required>
                                 <div class="example-symbols">
                                     <strong>快速选择:</strong>
@@ -168,6 +168,40 @@
                                     <span class="symbol-suggestion" onclick="setSymbol('TSLA')">TSLA</span>,
                                     <span class="symbol-suggestion" onclick="setSymbol('BTC-USD')">BTC-USD</span>,
                                     <span class="symbol-suggestion" onclick="setSymbol('ETH-USD')">ETH-USD</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="strategy" class="form-label">回测策略</label>
+                                <select class="form-select" id="strategy" required>
+                                    <option value="loading">正在加载策略...</option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    选择不同的交易策略进行回测
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="loadStrategies()">
+                                        <i class="fas fa-sync-alt"></i> 刷新策略列表
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="initialCash" class="form-label">初始资金 ($)</label>
+                                <input type="number" class="form-control" id="initialCash"
+                                       min="100" max="1000000" step="100" value="10000" required>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    设置回测的初始资金金额
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="commission" class="form-label">交易手续费 (%)</label>
+                                <input type="number" class="form-control" id="commission"
+                                       min="0" max="10" step="0.001" value="0.2" required>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    设置每笔交易的手续费率 (百分比)
                                 </div>
                             </div>
                             
@@ -199,7 +233,7 @@
                                     <option value="3mo">3月</option>
                                 </select>
                                 <div class="form-text">
-                                    <i class="fas fa-info-circle"></i> 
+                                    <i class="fas fa-info-circle"></i>
                                     分钟级数据最多支持7天，小时级数据最多支持730天
                                 </div>
                             </div>
@@ -216,13 +250,18 @@
                         <i class="fas fa-info-circle"></i> 策略说明
                     </div>
                     <div class="card-body">
-                        <h6 class="card-title">双均线交叉策略</h6>
-                        <ul class="small mb-0">
-                            <li>短期均线（10日）上穿长期均线（30日）时买入</li>
-                            <li>短期均线下穿长期均线时卖出</li>
-                            <li>初始资金：$10,000</li>
-                            <li>手续费：0.2%</li>
-                        </ul>
+                        <h6 class="card-title" id="strategyTitle">双均线交叉策略</h6>
+                        <div id="strategyDescription">
+                            <ul class="small mb-0">
+                                <li>短期均线（10日）上穿长期均线（30日）时买入</li>
+                                <li>短期均线下穿长期均线时卖出</li>
+                            </ul>
+                        </div>
+                        <hr>
+                        <div class="small text-muted">
+                            <div>初始资金: <span id="currentCash">$10,000</span></div>
+                            <div>手续费: <span id="currentCommission">0.2%</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -271,24 +310,90 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 设置默认日期
+        function setSymbol(symbol) {
+            document.getElementById('symbol').value = symbol;
+        }
+
+        // 加载策略列表
+        async function loadStrategies() {
+            try {
+                const response = await fetch('/strategies');
+                if (!response.ok) {
+                    throw new Error('获取策略列表失败');
+                }
+                
+                const strategies = await response.json();
+                const strategySelect = document.getElementById('strategy');
+                
+                // 清空现有选项
+                strategySelect.innerHTML = '';
+                
+                // 添加策略选项
+                strategies.forEach(strategy => {
+                    const option = document.createElement('option');
+                    option.value = strategy.name;
+                    option.textContent = strategy.display_name;
+                    option.setAttribute('data-description', strategy.description);
+                    strategySelect.appendChild(option);
+                });
+                
+                // 默认选择第一个策略
+                if (strategies.length > 0) {
+                    strategySelect.value = strategies[0].name;
+                    updateStrategyDescription();
+                }
+                
+            } catch (error) {
+                console.error('加载策略失败:', error);
+                alert('加载策略列表失败，请刷新页面重试');
+            }
+        }
+        
+        // 更新策略说明
+        function updateStrategyDescription() {
+            const strategySelect = document.getElementById('strategy');
+            const selectedOption = strategySelect.options[strategySelect.selectedIndex];
+            const title = document.getElementById('strategyTitle');
+            const description = document.getElementById('strategyDescription');
+            
+            if (selectedOption && selectedOption.value !== 'loading') {
+                title.textContent = selectedOption.textContent;
+                description.innerHTML = `<ul class="small mb-0"><li>${selectedOption.getAttribute('data-description')}</li></ul>`;
+            } else {
+                title.textContent = '请选择策略';
+                description.innerHTML = '<ul class="small mb-0"><li>选择回测策略后显示详细信息</li></ul>';
+            }
+            
+            // 更新当前配置显示
+            document.getElementById('currentCash').textContent = '$' + document.getElementById('initialCash').value;
+            document.getElementById('currentCommission').textContent = document.getElementById('commission').value + '%';
+        }
+        
+        // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
             const today = new Date();
             const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
             
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+            
+            // 加载策略列表
+            loadStrategies();
+            
+            // 监听策略选择变化
+            document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
+            document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
+            document.getElementById('commission').addEventListener('input', updateStrategyDescription);
         });
-
-        function setSymbol(symbol) {
-            document.getElementById('symbol').value = symbol;
-        }
-
+        
         document.getElementById('backtestForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = {
                 symbol: document.getElementById('symbol').value.toUpperCase(),
+                strategy_name: document.getElementById('strategy').value,
+                initial_cash: parseFloat(document.getElementById('initialCash').value),
+                commission: parseFloat(document.getElementById('commission').value) / 100, // 转换为小数
                 start_date: document.getElementById('startDate').value,
                 end_date: document.getElementById('endDate').value,
                 interval: document.getElementById('interval').value
