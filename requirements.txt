@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+yfinance
+backtesting
+pandas
+jinja2
+python-multipart

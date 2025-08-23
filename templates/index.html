@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票回测系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .card-body {
+            padding: 1rem;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 5px;
+            transition: transform 0.2s;
+            text-align: center;
+        }
+        .stats-card:hover {
+            transform: translateY(-2px);
+        }
+        .stats-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .stats-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+        .plot-container {
+            min-height: 600px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            font-weight: 500;
+            padding: 0.5rem;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .example-symbols {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .alert {
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+        .symbol-suggestion {
+            cursor: pointer;
+            padding: 3px 6px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            font-size: 0.75rem;
+        }
+        .symbol-suggestion:hover {
+            background-color: #e9ecef;
+        }
+        .plot-iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+            gap: 8px;
+        }
+        .form-text {
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+        .form-control, .form-select {
+            font-size: 0.875rem;
+            padding: 0.375rem 0.75rem;
+        }
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+        .lead {
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+        .display-4 {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
+        .progress {
+            height: 0.5rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="text-center mb-4">
+            <h1 class="display-4">
+                <i class="fas fa-chart-line"></i> 股票回测系统
+            </h1>
+            <p class="lead text-muted">基于均线交叉策略的自动化回测工具</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-cog"></i> 回测参数设置
+                    </div>
+                    <div class="card-body">
+                        <form id="backtestForm">
+                            <div class="mb-3">
+                                <label for="symbol" class="form-label">股票/加密货币代码</label>
+                                <input type="text" class="form-control" id="symbol" 
+                                       placeholder="例如: AAPL, BTC-USD" value="AAPL" required>
+                                <div class="example-symbols">
+                                    <strong>快速选择:</strong>
+                                    <span class="symbol-suggestion" onclick="setSymbol('AAPL')">AAPL</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('MSFT')">MSFT</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('TSLA')">TSLA</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('BTC-USD')">BTC-USD</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('ETH-USD')">ETH-USD</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="startDate" class="form-label">开始日期</label>
+                                <input type="date" class="form-control" id="startDate" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="endDate" class="form-label">结束日期</label>
+                                <input type="date" class="form-control" id="endDate" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="interval" class="form-label">数据频率</label>
+                                <select class="form-select" id="interval" required>
+                                    <option value="1m">1分钟</option>
+                                    <option value="2m">2分钟</option>
+                                    <option value="5m">5分钟</option>
+                                    <option value="15m">15分钟</option>
+                                    <option value="30m">30分钟</option>
+                                    <option value="60m">60分钟</option>
+                                    <option value="90m">90分钟</option>
+                                    <option value="1h">1小时</option>
+                                    <option value="1d" selected>1天</option>
+                                    <option value="5d">5天</option>
+                                    <option value="1wk">1周</option>
+                                    <option value="1mo">1月</option>
+                                    <option value="3mo">3月</option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i> 
+                                    分钟级数据最多支持7天，小时级数据最多支持730天
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-play"></i> 开始回测
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <i class="fas fa-info-circle"></i> 策略说明
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-title">双均线交叉策略</h6>
+                        <ul class="small mb-0">
+                            <li>短期均线（10日）上穿长期均线（30日）时买入</li>
+                            <li>短期均线下穿长期均线时卖出</li>
+                            <li>初始资金：$10,000</li>
+                            <li>手续费：0.2%</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <!-- 回测统计卡片 -->
+                <div id="statsContainer" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar"></i> 回测统计
+                        </div>
+                        <div class="card-body">
+                            <div id="statsContent" class="stats-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 回测结果图表卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-area"></i> 回测结果图表
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="loadingSpinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-3 mb-0">正在执行回测，请稍候...</p>
+                            <div class="progress mt-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="plotContainer" class="plot-container">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                <p class="mb-0">请设置参数并点击"开始回测"查看结果</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 设置默认日期
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+            document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+        });
+
+        function setSymbol(symbol) {
+            document.getElementById('symbol').value = symbol;
+        }
+
+        document.getElementById('backtestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                symbol: document.getElementById('symbol').value.toUpperCase(),
+                start_date: document.getElementById('startDate').value,
+                end_date: document.getElementById('endDate').value,
+                interval: document.getElementById('interval').value
+            };
+            
+            // 验证时间范围
+            const startDate = new Date(formData.start_date);
+            const endDate = new Date(formData.end_date);
+            const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+            
+            if (formData.interval.includes('m') && daysDiff > 7) {
+                if (!confirm('分钟级数据最多支持7天，是否继续？')) {
+                    return;
+                }
+            }
+            
+            if (formData.interval === '1h' && daysDiff > 730) {
+                if (!confirm('小时级数据最多支持730天，是否继续？')) {
+                    return;
+                }
+            }
+            
+            // 显示加载动画
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('plotContainer').innerHTML = '';
+            document.getElementById('statsContainer').style.display = 'none';
+            
+            try {
+                const response = await fetch('/backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '回测失败');
+                }
+                
+                const result = await response.json();
+                
+                // 显示统计信息
+                const statsContent = document.getElementById('statsContent');
+                statsContent.innerHTML = '';
+                
+                for (const [key, value] of Object.entries(result.stats)) {
+                    const statDiv = document.createElement('div');
+                    statDiv.className = 'stats-card';
+                    statDiv.innerHTML = `
+                        <div class="stats-value">${value}</div>
+                        <div class="stats-label">${key}</div>
+                    `;
+                    statsContent.appendChild(statDiv);
+                }
+                
+                document.getElementById('statsContainer').style.display = 'block';
+                
+                // 使用iframe显示图表
+                const iframe = document.createElement('iframe');
+                iframe.className = 'plot-iframe';
+                iframe.srcdoc = result.plot_html;
+                
+                document.getElementById('plotContainer').innerHTML = '';
+                document.getElementById('plotContainer').appendChild(iframe);
+                
+            } catch (error) {
+                document.getElementById('plotContainer').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>错误:</strong> ${error.message}
+                        <hr>
+                        <small class="mb-0">
+                            <strong>提示:</strong><br>
+                            • 请检查股票代码是否正确<br>
+                            • 确保时间区间合理<br>
+                            • 分钟级数据最多支持7天<br>
+                            • 小时级数据最多支持730天
+                        </small>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
