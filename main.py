@@ -262,6 +262,11 @@ def prepare_data_for_backtesting(data):
     
     return data
 
+@app.on_event("startup")
+def startup_event():
+    """应用启动时执行"""
+    load_strategy_modules()
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
