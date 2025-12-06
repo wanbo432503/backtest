@@ -5,3 +5,5 @@ backtesting
 pandas
 jinja2
 python-multipart
+fuzzywuzzy
+python-Levenshtein

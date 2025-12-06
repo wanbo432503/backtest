@@ -17,6 +17,7 @@ import os
 import tempfile
 import importlib
 import inspect
+from stock_search import search_stocks, get_stock_info
 
 warnings.filterwarnings('ignore')
 
@@ -411,6 +412,175 @@ async def reload_strategies():
         return {"message": "策略重新加载成功", "count": len(STRATEGY_REGISTRY)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"重新加载策略失败: {str(e)}")
+
+@app.get("/search-stocks")
+async def search_stocks_endpoint(query: str = None):
+    """
+    搜索股票代码
+    参数: query - 公司名字或股票代码
+    返回: 匹配的股票列表
+    """
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="搜索关键词不能为空")
+    
+    try:
+        results = search_stocks(query.strip())
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的股票")
+        
+        return {
+            "query": query,
+            "count": len(results),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@app.get("/search-stocks-multi-market")
+async def search_stocks_multi_market(query: str = None, market: str = None):
+    """
+    搜索股票代码 - 支持多个市场
+    参数: 
+        - query: 公司名字或股票代码
+        - market: 指定市场 (US/美股, CN/A股, HK/港股)，为空时搜索所有市场
+    返回: 匹配的股票列表（包含市场信息）
+    """
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="搜索关键词不能为空")
+    
+    # 标准化市场参数
+    market_map = {
+        'us': 'US', '美股': 'US',
+        'cn': 'CN', 'a股': 'CN', 'a': 'CN',
+        'hk': 'HK', '港股': 'HK'
+    }
+    
+    target_market = None
+    if market:
+        market_lower = market.lower()
+        target_market = market_map.get(market_lower, market.upper() if len(market) <= 2 else None)
+        if target_market not in ['US', 'CN', 'HK']:
+            raise HTTPException(status_code=400, detail=f"不支持的市场: {market}，请使用 US/美股, CN/A股, HK/港股")
+    
+    try:
+        from stock_search import search_stocks as search_fn
+        results = search_fn(query.strip(), market=target_market)
+        
+        if not results:
+            market_str = f" [{target_market}]" if target_market else ""
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的股票{market_str}")
+        
+        # 为结果添加市场中文名称
+        market_names = {'US': '美股', 'CN': 'A股', 'HK': '港股'}
+        for result in results:
+            result['market_name'] = market_names.get(result.get('market'), result.get('market', '未知'))
+        
+        return {
+            "query": query,
+            "market": target_market or "所有市场",
+            "count": len(results),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@app.get("/search-us-stocks")
+async def search_us_stocks(query: str = None):
+    """搜索美股"""
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="搜索关键词不能为空")
+    
+    try:
+        from stock_search import search_us_stocks
+        results = search_us_stocks(query.strip())
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的美股")
+        
+        return {
+            "query": query,
+            "market": "美股 (US)",
+            "count": len(results),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@app.get("/search-cn-stocks")
+async def search_cn_stocks(query: str = None):
+    """搜索A股"""
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="搜索关键词不能为空")
+    
+    try:
+        from stock_search import search_cn_stocks
+        results = search_cn_stocks(query.strip())
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的A股")
+        
+        return {
+            "query": query,
+            "market": "A股 (CN)",
+            "count": len(results),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@app.get("/search-hk-stocks")
+async def search_hk_stocks(query: str = None):
+    """搜索港股"""
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="搜索关键词不能为空")
+    
+    try:
+        from stock_search import search_hk_stocks
+        results = search_hk_stocks(query.strip())
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的港股")
+        
+        return {
+            "query": query,
+            "market": "港股 (HK)",
+            "count": len(results),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@app.get("/stock-info/{symbol}")
+async def get_stock_info_endpoint(symbol: str):
+    """
+    获取股票详细信息
+    参数: symbol - 股票代码
+    """
+    if not symbol or len(symbol.strip()) == 0:
+        raise HTTPException(status_code=400, detail="股票代码不能为空")
+    
+    try:
+        info = get_stock_info(symbol.upper().strip())
+        
+        if 'error' in info:
+            raise HTTPException(status_code=404, detail=info['error'])
+        
+        return info
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取股票信息失败: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -88,6 +88,29 @@
             border-radius: 8px;
             font-size: 0.875rem;
         }
+        /* 股票搜索样式 */
+        #stockSearchPanel {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-left: 4px solid #0d6efd;
+        }
+        #searchResultsList {
+            border: 1px solid #dee2e6;
+        }
+        #searchResultsList .list-group-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            padding: 0.75rem;
+        }
+        #searchResultsList .list-group-item:hover {
+            background-color: #e7f1ff;
+            border-color: #0d6efd;
+            transform: translateX(5px);
+        }
+        .input-group .btn {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
         .symbol-suggestion {
             cursor: pointer;
             padding: 3px 6px;
@@ -158,9 +181,41 @@
                     <div class="card-body">
                         <form id="backtestForm">
                             <div class="mb-3">
-                                <label for="symbol" class="form-label">股票/加密货币代码</label>
+                                <label for="symbol" class="form-label">股票/加密货币代码 
+                                    <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="toggleStockSearch()" id="searchToggleBtn">
+                                        <i class="fas fa-search"></i> 搜索股票
+                                    </button>
+                                </label>
+                                
+                                <!-- 股票代码输入 -->
                                 <input type="text" class="form-control" id="symbol"
                                        placeholder="例如: AAPL, BTC-USD" value="AAPL" required>
+                                
+                                <!-- 搜索界面（默认隐藏） -->
+                                <div id="stockSearchPanel" class="mt-2" style="display:none; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; background-color: #f8f9fa;">
+                                    <label for="searchQuery" class="form-label small">搜索公司名称</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="searchQuery" 
+                                               placeholder="输入公司名字，如: 苹果、微软、特斯拉...">
+                                        <button class="btn btn-primary" type="button" onclick="performStockSearch()">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- 搜索结果 -->
+                                    <div id="searchResults" class="mt-2" style="display:none;">
+                                        <div class="small mb-2"><strong>搜索结果:</strong></div>
+                                        <div id="searchResultsList" class="list-group" style="max-height: 200px; overflow-y: auto;">
+                                            <!-- 结果动态插入这里 -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 搜索状态 -->
+                                    <div id="searchStatus" class="alert alert-info small mt-2" style="display:none; margin-bottom: 0;">
+                                        <i class="fas fa-spinner fa-spin"></i> 正在搜索...
+                                    </div>
+                                </div>
+                                
                                 <div class="example-symbols">
                                     <strong>快速选择:</strong>
                                     <span class="symbol-suggestion" onclick="setSymbol('AAPL')">AAPL</span>,
@@ -312,7 +367,107 @@
     <script>
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
+            closeStockSearch();
         }
+
+        // 切换搜索界面的显示/隐藏
+        function toggleStockSearch() {
+            const panel = document.getElementById('stockSearchPanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                document.getElementById('searchQuery').focus();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        // 关闭搜索界面
+        function closeStockSearch() {
+            document.getElementById('stockSearchPanel').style.display = 'none';
+            document.getElementById('searchResults').style.display = 'none';
+        }
+
+        // 执行股票搜索
+        async function performStockSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('searchStatus');
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('searchResultsList');
+            
+            // 显示加载状态
+            statusDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            resultsList.innerHTML = '';
+            
+            try {
+                const response = await fetch(`/search-stocks?query=${encodeURIComponent(query)}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '搜索失败');
+                }
+                
+                const data = await response.json();
+                
+                // 隐藏加载状态
+                statusDiv.style.display = 'none';
+                
+                // 显示结果
+                if (data.results && data.results.length > 0) {
+                    resultsDiv.style.display = 'block';
+                    resultsList.innerHTML = '';
+                    
+                    data.results.forEach(result => {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'list-group-item list-group-item-action';
+                        
+                        const confidence = result.confidence ? ` (相似度: ${result.confidence}%)` : '';
+                        item.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${result.symbol}</strong> - ${result.name}
+                                    <br>
+                                    <small class="text-muted">${result.sector || 'N/A'} | ${result.country || 'USA'}${confidence}</small>
+                                </div>
+                                <span class="badge bg-primary">${result.type === 'direct_match' ? '精确' : (result.type === 'common_match' ? '常见' : '相似')}</span>
+                            </div>
+                        `;
+                        
+                        item.onclick = () => {
+                            setSymbol(result.symbol);
+                        };
+                        
+                        resultsList.appendChild(item);
+                    });
+                } else {
+                    resultsDiv.style.display = 'none';
+                    alert('未找到匹配的股票');
+                }
+            } catch (error) {
+                statusDiv.style.display = 'none';
+                alert(`搜索失败: ${error.message}`);
+            }
+        }
+
+        // 回车键搜索
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchQuery = document.getElementById('searchQuery');
+            if (searchQuery) {
+                searchQuery.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        performStockSearch();
+                        e.preventDefault();
+                    }
+                });
+            }
+        });
 
         // 加载策略列表
         async function loadStrategies() {
