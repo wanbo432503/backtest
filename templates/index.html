@@ -567,6 +567,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        window.strategyMetadata = {};
+
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
             closeStockSearch();
@@ -784,6 +786,7 @@
                 
                 // 添加策略选项
                 strategies.forEach(strategy => {
+                    window.strategyMetadata[strategy.name] = strategy.parameters || [];
                     const option = document.createElement('option');
                     option.value = strategy.name;
                     option.textContent = strategy.display_name;
@@ -812,7 +815,16 @@
             
             if (selectedOption && selectedOption.value !== 'loading') {
                 title.textContent = selectedOption.textContent;
-                description.innerHTML = `<ul class="small mb-0"><li>${selectedOption.getAttribute('data-description')}</li></ul>`;
+                const params = window.strategyMetadata[selectedOption.value] || [];
+                const parameterSummary = params.length
+                    ? `<li>可优化参数: ${params.map(param => escapeHtml(param.label || param.name)).join(' / ')}</li>`
+                    : '';
+                description.innerHTML = `
+                    <ul class="small mb-0">
+                        <li>${escapeHtml(selectedOption.getAttribute('data-description'))}</li>
+                        ${parameterSummary}
+                    </ul>
+                `;
             } else {
                 title.textContent = '请选择策略';
                 description.innerHTML = '<ul class="small mb-0"><li>选择回测策略后显示详细信息</li></ul>';

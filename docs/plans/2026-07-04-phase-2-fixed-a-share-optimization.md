@@ -284,17 +284,17 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 创建 `strategy_metadata.py`。
-- [ ] 定义 `StrategyParamMeta`。
-- [ ] 定义 `StrategyMeta`。
-- [ ] 为现有 `sma_cross` 添加参数元数据：`n1`, `n2`。
-- [ ] 为现有 `rsi` 添加参数元数据：`rsi_period`, `rsi_lower`, `rsi_upper`。
-- [ ] 为新增策略预留 `rsi_risk_control` 元数据。
-- [ ] `/strategies` API 返回参数元数据。
-- [ ] UI 切换策略时能读取参数元数据。
-- [ ] 写测试：`/strategies` 包含参数定义。
-- [ ] 写测试：每个参数有 label、type、default、search_values。
-- [ ] Commit: `feat: expose strategy parameter metadata`。
+- [x] 创建 `strategy_metadata.py`。
+- [x] 定义 `StrategyParamMeta`。
+- [x] 定义 `StrategyMeta`。
+- [x] 为现有 `sma_cross` 添加参数元数据：`n1`, `n2`。
+- [x] 为现有 `rsi` 添加参数元数据：`rsi_period`, `rsi_lower`, `rsi_upper`。
+- [x] 为新增策略预留 `rsi_risk_control` 元数据。
+- [x] `/strategies` API 返回参数元数据。
+- [x] UI 切换策略时能读取参数元数据。
+- [x] 写测试：`/strategies` 包含参数定义。
+- [x] 写测试：每个参数有 label、type、default、search_values。
+- [x] Commit: `feat: expose strategy parameter metadata`。
 
 **Acceptance Criteria:**
 

@@ -20,6 +20,7 @@ from stock_search import search_stocks, get_stock_info
 from market_data import fetch_ohlcv
 from market_insights import get_market_insights
 from optimization_models import AShareTradingConfig, RiskConfig
+from strategy_metadata import get_strategy_parameters
 
 warnings.filterwarnings('ignore')
 
@@ -388,7 +389,8 @@ async def get_available_strategies():
             "name": name,
             "display_name": strategy_config.get("display_name", name),
             "description": strategy_config.get("description", "无描述"),
-            "class_name": strategy_config.get("class_name", "")
+            "class_name": strategy_config.get("class_name", ""),
+            "parameters": get_strategy_parameters(name),
         })
     
     return JSONResponse(content=strategies)
