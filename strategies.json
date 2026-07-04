@@ -23,6 +23,12 @@
       "display_name": "动量策略",
       "description": "动量指标为正时买入，为负时卖出",
       "class_name": "MomentumStrategy"
+    },
+    "rsi_risk_control": {
+      "name": "rsi_risk_control",
+      "display_name": "RSI风控策略",
+      "description": "RSI 上穿买入阈值且处于趋势均线上方时买入，并使用止损、止盈、持仓周期和冷却期控制风险。",
+      "class_name": "RSIRiskControlStrategy"
     }
   }
 }

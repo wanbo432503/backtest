@@ -329,19 +329,19 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 写失败测试：RSI 上穿买入阈值时买入。
-- [ ] 写失败测试：跌破止损时平仓。
-- [ ] 写失败测试：达到止盈时平仓。
-- [ ] 写失败测试：最大持仓周期强制平仓。
-- [ ] 实现 `RSIRiskControlStrategy`。
-- [ ] 支持参数：`rsi_period`, `rsi_buy`, `rsi_sell`, `trend_ma`, `stop_loss_pct`, `take_profit_pct`, `max_holding_bars`, `position_pct`, `cooldown_bars`。
-- [ ] 禁止重复开仓。
-- [ ] 冷却期内不允许再开仓。
-- [ ] 在 `strategy_metadata.py` 注册。
-- [ ] 在 `strategies.json` 中加入显示名称。
-- [ ] 运行策略测试。
-- [ ] 运行一次 API 回测 smoke test。
-- [ ] Commit: `feat: add RSI risk-control strategy`。
+- [x] 写失败测试：RSI 上穿买入阈值时买入。
+- [x] 写失败测试：跌破止损时平仓。
+- [x] 写失败测试：达到止盈时平仓。
+- [x] 写失败测试：最大持仓周期强制平仓。
+- [x] 实现 `RSIRiskControlStrategy`。
+- [x] 支持参数：`rsi_period`, `rsi_buy`, `rsi_sell`, `trend_ma`, `stop_loss_pct`, `take_profit_pct`, `max_holding_bars`, `position_pct`, `cooldown_bars`。
+- [x] 禁止重复开仓。
+- [x] 冷却期内不允许再开仓。
+- [x] 在 `strategy_metadata.py` 注册。
+- [x] 在 `strategies.json` 中加入显示名称。
+- [x] 运行策略测试。
+- [x] 运行一次 API 回测 smoke test。
+- [x] Commit: `feat: add RSI risk-control strategy`。
 
 **Acceptance Criteria:**
 

@@ -87,9 +87,10 @@ def load_strategy_modules():
                         if (inspect.isclass(obj) and
                             issubclass(obj, Strategy) and
                             obj != Strategy):
-                            # 自动注册策略
-                            strategy_name = name.lower()
-                            register_strategy(strategy_name)(obj)
+                            strategy_name = getattr(obj, "strategy_name", name.lower())
+                            display_name = getattr(obj, "display_name", None)
+                            description = getattr(obj, "description", None)
+                            register_strategy(strategy_name, display_name, description)(obj)
                 except Exception as e:
                     print(f"加载策略模块 {module_name} 失败: {e}")
 
