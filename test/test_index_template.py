@@ -63,12 +63,33 @@ def test_index_template_renders_optimization_result_table_actions():
     assert "优化结果" in template
     assert "参数摘要" in template
     assert "训练 score" in template
-    assert "应用并回测" in template
+    assert "应用参数" in template
+    assert "回测该参数" in template
     assert "applyOptimizationResult" in template
-    assert "triggerBacktestWithAppliedParams" in template
+    assert "backtestOptimizationResult" in template
+    assert "setOptimizationResultsCollapsed" in template
     assert "risk_flags" in template
     assert "badge bg-warning" in template
     assert "可能过拟合" in template
+
+
+def test_index_template_keeps_optimization_results_collapsible_after_backtest():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "optimizationResultsPanel" in template
+    assert "optimizationResultsBody" in template
+    assert "optimizationResultToggleIcon" in template
+    assert "optimization-results-collapsed" in template
+    assert "function setOptimizationResultsCollapsed" in template
+    assert "setOptimizationResultsCollapsed(true)" in template
+    assert "renderBacktestStats(result)" in template
+
+
+def test_index_template_renames_validation_start_label():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "验证区间开始" in template
+    assert "验证开始" not in template
 
 
 def test_index_template_has_collapsible_trade_settings_and_insight_panel():

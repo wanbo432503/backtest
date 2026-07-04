@@ -148,7 +148,7 @@
             display: none;
         }
         .settings-card .config-panel summary::after {
-            content: "\\f078";
+            content: "\f078";
             font-family: "Font Awesome 6 Free";
             font-weight: 900;
             float: right;
@@ -385,6 +385,34 @@
         .optimization-results-table {
             min-width: 1120px;
             table-layout: auto;
+        }
+        .optimization-results-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .optimization-results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 8px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .optimization-results-header .btn {
+            font-weight: 700;
+            padding: 0.15rem 0.35rem;
+        }
+        .optimization-results-body {
+            padding: 6px;
+        }
+        .optimization-results-collapsed .optimization-results-header {
+            border-bottom: none;
+        }
+        .optimization-results-collapsed #optimizationResultsBody {
+            display: none;
         }
         .optimization-results-table th,
         .optimization-results-table td {
@@ -676,7 +704,7 @@
                                             <input type="number" class="form-control" id="minTrades" min="1" max="100" value="5">
                                         </div>
                                         <div class="mb-3">
-                                            <label for="validateStartDate" class="form-label">验证开始</label>
+                                            <label for="validateStartDate" class="form-label">验证区间开始</label>
                                             <input type="date" class="form-control" id="validateStartDate">
                                         </div>
                                     </div>
@@ -724,6 +752,7 @@
                         </div>
                         <div class="card-body">
                             <div id="statsContent" class="stats-grid"></div>
+                            <div id="optimizationResultsHost" class="mt-2"></div>
                         </div>
                     </div>
                 </div>
@@ -1227,64 +1256,82 @@
         }
 
         function renderOptimizationSummary(result) {
-            const statsContent = document.getElementById('statsContent');
-            statsContent.innerHTML = '';
+            document.getElementById('statsContent').innerHTML = '';
+            const optimizationResultsHost = document.getElementById('optimizationResultsHost');
             const rows = result.top_results || [];
             window.lastOptimizationResults = rows;
             const tableWrap = document.createElement('div');
-            tableWrap.className = 'stats-table-wrap';
+            tableWrap.className = 'optimization-results-panel';
+            tableWrap.id = 'optimizationResultsPanel';
             tableWrap.innerHTML = `
-                <div class="fw-bold mb-2">优化结果</div>
-                <table class="table table-sm table-bordered stats-table optimization-results-table">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>股票</th>
-                            <th>策略</th>
-                            <th>验证 score</th>
-                            <th>训练 score</th>
-                            <th>年化收益</th>
-                            <th>最大回撤</th>
-                            <th>夏普</th>
-                            <th>交易次数</th>
-                            <th>参数摘要</th>
-                            <th>风险</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows.map((row, index) => {
-                            const metrics = row.validate_metrics || {};
-                            const riskFlags = row.risk_flags || [];
-                            const riskBadges = riskFlags.length
-                                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
-                                : '<span class="badge bg-success">无</span>';
-                            const isBest = index === 0 ? 'table-primary' : '';
-                            return `
-                            <tr class="${isBest}">
-                                <td>${escapeHtml(row.rank || '-')}</td>
-                                <td>${escapeHtml(row.symbol || '-')}</td>
-                                <td>${escapeHtml(row.strategy_name || '-')}</td>
-                                <td>${escapeHtml(formatMetric(row.validate_score))}</td>
-                                <td>${escapeHtml(formatMetric(row.train_score))}</td>
-                                <td>${escapeHtml(formatMetric(metrics.annual_return_pct))}</td>
-                                <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
-                                <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
-                                <td>${escapeHtml(metrics.trades ?? '-')}</td>
-                                <td class="params-cell">${escapeHtml(formatParams(row.params || {}))}</td>
-                                <td>${riskBadges}</td>
-                                <td class="action-cell">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="applyOptimizationResult(${index})">
-                                        应用并回测
-                                    </button>
-                                </td>
-                            </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
+                <div class="optimization-results-header">
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none text-dark" onclick="toggleOptimizationResults()" aria-expanded="true" aria-controls="optimizationResultsBody">
+                        <i class="fas fa-chevron-up" id="optimizationResultToggleIcon"></i>
+                        优化结果
+                    </button>
+                    <span class="small text-muted">共 ${rows.length} 组候选，可展开后切换回测</span>
+                </div>
+                <div id="optimizationResultsBody" class="optimization-results-body">
+                    <div class="stats-table-wrap">
+                        <table class="table table-sm table-bordered stats-table optimization-results-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>股票</th>
+                                    <th>策略</th>
+                                    <th>验证 score</th>
+                                    <th>训练 score</th>
+                                    <th>年化收益</th>
+                                    <th>最大回撤</th>
+                                    <th>夏普</th>
+                                    <th>交易次数</th>
+                                    <th>参数摘要</th>
+                                    <th>风险</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map((row, index) => {
+                                    const metrics = row.validate_metrics || {};
+                                    const riskFlags = row.risk_flags || [];
+                                    const riskBadges = riskFlags.length
+                                        ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
+                                        : '<span class="badge bg-success">无</span>';
+                                    const isBest = index === 0 ? 'table-primary' : '';
+                                    return `
+                                    <tr class="${isBest}">
+                                        <td>${escapeHtml(row.rank || '-')}</td>
+                                        <td>${escapeHtml(row.symbol || '-')}</td>
+                                        <td>${escapeHtml(row.strategy_name || '-')}</td>
+                                        <td>${escapeHtml(formatMetric(row.validate_score))}</td>
+                                        <td>${escapeHtml(formatMetric(row.train_score))}</td>
+                                        <td>${escapeHtml(formatMetric(metrics.annual_return_pct))}</td>
+                                        <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
+                                        <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
+                                        <td>${escapeHtml(metrics.trades ?? '-')}</td>
+                                        <td class="params-cell">${escapeHtml(formatParams(row.params || {}))}</td>
+                                        <td>${riskBadges}</td>
+                                        <td class="action-cell">
+                                            <div class="btn-group btn-group-sm" role="group" aria-label="优化结果操作">
+                                                <button type="button" class="btn btn-outline-secondary" onclick="applyOptimizationResult(${index})">
+                                                    应用参数
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="backtestOptimizationResult(${index})">
+                                                    回测该参数
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             `;
-            statsContent.appendChild(tableWrap);
+            optimizationResultsHost.innerHTML = '';
+            optimizationResultsHost.appendChild(tableWrap);
+            setOptimizationResultsCollapsed(false);
             document.getElementById('statsContainer').style.display = 'block';
             document.getElementById('plotContainer').innerHTML = `
                 <div class="text-center text-muted py-5">
@@ -1321,9 +1368,21 @@
         }
 
         function applyOptimizationResult(index) {
+            return applyOptimizationParams(index);
+        }
+
+        function backtestOptimizationResult(index) {
+            if (!applyOptimizationParams(index)) {
+                return;
+            }
+            setOptimizationResultsCollapsed(true);
+            triggerBacktestWithAppliedParams();
+        }
+
+        function applyOptimizationParams(index) {
             const row = window.lastOptimizationResults[index];
             if (!row) {
-                return;
+                return false;
             }
             document.getElementById('symbol').value = row.symbol;
             document.getElementById('strategy').value = row.strategy_name;
@@ -1335,7 +1394,7 @@
                     input.value = value;
                 }
             });
-            triggerBacktestWithAppliedParams();
+            return true;
         }
 
         function triggerBacktestWithAppliedParams() {
@@ -1343,6 +1402,60 @@
             optimizationToggle.checked = false;
             toggleOptimizationControls();
             document.getElementById('backtestForm').requestSubmit();
+        }
+
+        function toggleOptimizationResults() {
+            const panel = document.getElementById('optimizationResultsPanel');
+            const collapsed = panel ? !panel.classList.contains('optimization-results-collapsed') : false;
+            setOptimizationResultsCollapsed(collapsed);
+        }
+
+        function setOptimizationResultsCollapsed(collapsed) {
+            const panel = document.getElementById('optimizationResultsPanel');
+            const toggleIcon = document.getElementById('optimizationResultToggleIcon');
+            const toggleButton = panel ? panel.querySelector('[aria-controls="optimizationResultsBody"]') : null;
+            if (!panel) {
+                return;
+            }
+            panel.classList.toggle('optimization-results-collapsed', collapsed);
+            if (toggleIcon) {
+                toggleIcon.className = collapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+            }
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', String(!collapsed));
+            }
+        }
+
+        function renderBacktestStats(result) {
+            const statsContent = document.getElementById('statsContent');
+            statsContent.innerHTML = '';
+
+            if (result.data_provider) {
+                const providerDiv = document.createElement('div');
+                providerDiv.className = 'data-source-note';
+                const warningText = result.data_warnings && result.data_warnings.length
+                    ? `；${result.data_warnings.map(escapeHtml).join('；')}`
+                    : '';
+                providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${warningText}</span>`;
+                statsContent.appendChild(providerDiv);
+            }
+            
+            const statsEntries = Object.entries(result.stats);
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'stats-table-wrap';
+            tableWrap.innerHTML = `
+                <table class="table table-sm table-bordered stats-table">
+                    <thead>
+                        <tr>${statsEntries.map(([key]) => `<th>${escapeHtml(key)}</th>`).join('')}</tr>
+                    </thead>
+                    <tbody>
+                        <tr>${statsEntries.map(([, value]) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
+                    </tbody>
+                </table>
+            `;
+            statsContent.appendChild(tableWrap);
+            
+            document.getElementById('statsContainer').style.display = 'block';
         }
 
         function toggleInsightPanel() {
@@ -1451,36 +1564,7 @@
                     return;
                 }
                 
-                // 显示统计信息
-                const statsContent = document.getElementById('statsContent');
-                statsContent.innerHTML = '';
-
-                if (result.data_provider) {
-                    const providerDiv = document.createElement('div');
-                    providerDiv.className = 'data-source-note';
-                    const warningText = result.data_warnings && result.data_warnings.length
-                        ? `；${result.data_warnings.map(escapeHtml).join('；')}`
-                        : '';
-                    providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${warningText}</span>`;
-                    statsContent.appendChild(providerDiv);
-                }
-                
-                const statsEntries = Object.entries(result.stats);
-                const tableWrap = document.createElement('div');
-                tableWrap.className = 'stats-table-wrap';
-                tableWrap.innerHTML = `
-                    <table class="table table-sm table-bordered stats-table">
-                        <thead>
-                            <tr>${statsEntries.map(([key]) => `<th>${escapeHtml(key)}</th>`).join('')}</tr>
-                        </thead>
-                        <tbody>
-                            <tr>${statsEntries.map(([, value]) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
-                        </tbody>
-                    </table>
-                `;
-                statsContent.appendChild(tableWrap);
-                
-                document.getElementById('statsContainer').style.display = 'block';
+                renderBacktestStats(result);
                 
                 // 使用iframe显示图表
                 const iframe = document.createElement('iframe');
