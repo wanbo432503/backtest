@@ -55,3 +55,16 @@ def test_index_template_contains_risk_and_a_share_rule_controls():
     assert "collectRiskConfig" in template
     assert "collectAShareConfig" in template
     assert "strategy_params" in template
+
+
+def test_index_template_renders_optimization_result_table_actions():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "优化结果" in template
+    assert "参数摘要" in template
+    assert "训练 score" in template
+    assert "应用并回测" in template
+    assert "applyOptimizationResult" in template
+    assert "triggerBacktestWithAppliedParams" in template
+    assert "risk_flags" in template
+    assert "badge bg-warning" in template

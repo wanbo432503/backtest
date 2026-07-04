@@ -729,6 +729,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         window.strategyMetadata = {};
+        window.lastOptimizationResults = [];
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1157,25 +1158,57 @@
             const statsContent = document.getElementById('statsContent');
             statsContent.innerHTML = '';
             const rows = result.top_results || [];
+            window.lastOptimizationResults = rows;
             const tableWrap = document.createElement('div');
             tableWrap.className = 'stats-table-wrap';
             tableWrap.innerHTML = `
+                <div class="fw-bold mb-2">优化结果</div>
                 <table class="table table-sm table-bordered stats-table">
                     <thead>
                         <tr>
-                            <th>排名</th><th>标的</th><th>策略</th><th>验证 score</th><th>风险标记</th>
+                            <th>Rank</th>
+                            <th>股票</th>
+                            <th>策略</th>
+                            <th>验证 score</th>
+                            <th>训练 score</th>
+                            <th>年化收益</th>
+                            <th>最大回撤</th>
+                            <th>夏普</th>
+                            <th>交易次数</th>
+                            <th>参数摘要</th>
+                            <th>风险</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${rows.map(row => `
-                            <tr>
+                        ${rows.map((row, index) => {
+                            const metrics = row.validate_metrics || {};
+                            const riskFlags = row.risk_flags || [];
+                            const riskBadges = riskFlags.length
+                                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(flag)}</span>`).join(' ')
+                                : '<span class="badge bg-success">无</span>';
+                            const isBest = index === 0 ? 'table-primary' : '';
+                            return `
+                            <tr class="${isBest}">
                                 <td>${escapeHtml(row.rank || '-')}</td>
                                 <td>${escapeHtml(row.symbol || '-')}</td>
                                 <td>${escapeHtml(row.strategy_name || '-')}</td>
-                                <td>${escapeHtml(row.validate_score ?? '-')}</td>
-                                <td>${escapeHtml((row.risk_flags || []).join(', ') || '无')}</td>
+                                <td>${escapeHtml(formatMetric(row.validate_score))}</td>
+                                <td>${escapeHtml(formatMetric(row.train_score))}</td>
+                                <td>${escapeHtml(formatMetric(metrics.annual_return_pct))}</td>
+                                <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
+                                <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
+                                <td>${escapeHtml(metrics.trades ?? '-')}</td>
+                                <td>${escapeHtml(formatParams(row.params || {}))}</td>
+                                <td>${riskBadges}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="applyOptimizationResult(${index})">
+                                        应用并回测
+                                    </button>
+                                </td>
                             </tr>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
@@ -1187,6 +1220,47 @@
                     <div>参数优化完成，请查看上方 Top 结果。</div>
                 </div>
             `;
+        }
+
+        function formatMetric(value) {
+            if (value === null || value === undefined || value === '') {
+                return '-';
+            }
+            const numberValue = Number(value);
+            return Number.isFinite(numberValue) ? numberValue.toFixed(2) : value;
+        }
+
+        function formatParams(params) {
+            const entries = Object.entries(params || {});
+            if (!entries.length) {
+                return '默认参数';
+            }
+            return entries.map(([key, value]) => `${key}=${value}`).join(', ');
+        }
+
+        function applyOptimizationResult(index) {
+            const row = window.lastOptimizationResults[index];
+            if (!row) {
+                return;
+            }
+            document.getElementById('symbol').value = row.symbol;
+            document.getElementById('strategy').value = row.strategy_name;
+            updateStrategyDescription();
+            renderStrategyParamControls();
+            Object.entries(row.params || {}).forEach(([key, value]) => {
+                const input = document.getElementById(`strategyParam_${key}`);
+                if (input) {
+                    input.value = value;
+                }
+            });
+            triggerBacktestWithAppliedParams();
+        }
+
+        function triggerBacktestWithAppliedParams() {
+            const optimizationToggle = document.getElementById('enableOptimization');
+            optimizationToggle.checked = false;
+            toggleOptimizationControls();
+            document.getElementById('backtestForm').requestSubmit();
         }
         
         // 初始化页面

@@ -719,13 +719,13 @@ POST /optimize
 
 **Todo:**
 
-- [ ] 写模板测试：页面含“优化结果”。
-- [ ] 写 JS 渲染 `top_results`。
-- [ ] 高亮验证 score 最高的结果。
-- [ ] 风险 flags 用黄色 badge。
-- [ ] “应用并回测”将参数回填到左侧表单。
-- [ ] 点击后触发单次 `/backtest`。
-- [ ] Commit: `feat: render optimization result table`。
+- [x] 写模板测试：页面含“优化结果”。
+- [x] 写 JS 渲染 `top_results`。
+- [x] 高亮验证 score 最高的结果。
+- [x] 风险 flags 用黄色 badge。
+- [x] “应用并回测”将参数回填到左侧表单。
+- [x] 点击后触发单次 `/backtest`。
+- [x] Commit: `feat: render optimization result table`。
 
 **Acceptance Criteria:**
 
