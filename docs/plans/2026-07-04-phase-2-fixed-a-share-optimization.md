@@ -216,18 +216,18 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 创建 `analytics.py`。
-- [ ] 实现 `parse_percent(value: str | float) -> float`。
-- [ ] 实现 `calculate_score(cagr_pct, sharpe, max_drawdown_pct) -> float`。
-- [ ] 实现 `extract_core_metrics(stats: pd.Series | dict) -> dict`。
-- [ ] 最大回撤统一转绝对值。
-- [ ] 对 `nan` 夏普做容错，默认按 `0` 处理。
-- [ ] 增加 `score` 字段。
-- [ ] 写测试：正常 score。
-- [ ] 写测试：最大回撤为负数时取绝对值。
-- [ ] 写测试：夏普为空/NaN 时不报错。
-- [ ] 运行 `python -m pytest test/test_analytics.py -q`。
-- [ ] Commit: `feat: add score analytics helpers`。
+- [x] 创建 `analytics.py`。
+- [x] 实现 `parse_percent(value: str | float) -> float`。
+- [x] 实现 `calculate_score(cagr_pct, sharpe, max_drawdown_pct) -> float`。
+- [x] 实现 `extract_core_metrics(stats: pd.Series | dict) -> dict`。
+- [x] 最大回撤统一转绝对值。
+- [x] 对 `nan` 夏普做容错，默认按 `0` 处理。
+- [x] 增加 `score` 字段。
+- [x] 写测试：正常 score。
+- [x] 写测试：最大回撤为负数时取绝对值。
+- [x] 写测试：夏普为空/NaN 时不报错。
+- [x] 运行 `python -m pytest test/test_analytics.py -q`。
+- [x] Commit: `feat: add score analytics helpers`。
 
 **Acceptance Criteria:**
 
@@ -931,4 +931,3 @@ POST /optimize
   - `test: ...`
   - `docs: ...`
 - 禁止把 UI、策略、优化 runner、文档混在一个大 commit。
-
