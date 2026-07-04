@@ -374,14 +374,14 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 写失败测试：金叉买入。
-- [ ] 写失败测试：死叉卖出。
-- [ ] 写失败测试：趋势过滤阻止买入。
-- [ ] 实现策略。
-- [ ] 参数：`fast_ma`, `slow_ma`, `trend_ma`, `momentum_lookback`, `stop_loss_pct`, `take_profit_pct`, `position_pct`。
-- [ ] 注册元数据。
-- [ ] 运行测试。
-- [ ] Commit: `feat: add MA trend risk-control strategy`。
+- [x] 写失败测试：金叉买入。
+- [x] 写失败测试：死叉卖出。
+- [x] 写失败测试：趋势过滤阻止买入。
+- [x] 实现策略。
+- [x] 参数：`fast_ma`, `slow_ma`, `trend_ma`, `momentum_lookback`, `stop_loss_pct`, `take_profit_pct`, `position_pct`。
+- [x] 注册元数据。
+- [x] 运行测试。
+- [x] Commit: `feat: add MA trend risk-control strategy`。
 
 **Acceptance Criteria:**
 

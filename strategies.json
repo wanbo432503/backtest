@@ -29,6 +29,12 @@
       "display_name": "RSI风控策略",
       "description": "RSI 上穿买入阈值且处于趋势均线上方时买入，并使用止损、止盈、持仓周期和冷却期控制风险。",
       "class_name": "RSIRiskControlStrategy"
+    },
+    "ma_trend_risk_control": {
+      "name": "ma_trend_risk_control",
+      "display_name": "均线趋势风控策略",
+      "description": "短均线上穿长均线且价格位于趋势均线上方时买入，死叉或触发风控时卖出。",
+      "class_name": "MATrendRiskControlStrategy"
     }
   }
 }
