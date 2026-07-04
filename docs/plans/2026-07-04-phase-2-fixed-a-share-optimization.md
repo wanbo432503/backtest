@@ -527,18 +527,18 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 写测试：参数组合展开。
-- [ ] 写测试：超过 `max_combinations` 时截断或报错。
-- [ ] 写测试：交易次数低于 `min_trades` 时标记 `filtered`。
-- [ ] 写测试：按验证 score 排序。
-- [ ] 写测试：训练 score 高但验证 score 负时不推荐。
-- [ ] 实现参数展开。
-- [ ] 对每个 symbol、strategy、params 跑训练回测。
-- [ ] 对 Top 候选跑验证回测。
-- [ ] 生成结果表：symbol、strategy、params、train_metrics、validate_metrics、score、risk_flags。
-- [ ] 支持 `top_n`。
-- [ ] 支持进度日志。
-- [ ] Commit: `feat: add parameter optimization runner`。
+- [x] 写测试：参数组合展开。
+- [x] 写测试：超过 `max_combinations` 时截断或报错。
+- [x] 写测试：交易次数低于 `min_trades` 时标记 `filtered`。
+- [x] 写测试：按验证 score 排序。
+- [x] 写测试：训练 score 高但验证 score 负时不推荐。
+- [x] 实现参数展开。
+- [x] 对每个 symbol、strategy、params 跑训练回测。
+- [x] 对 Top 候选跑验证回测。
+- [x] 生成结果表：symbol、strategy、params、train_metrics、validate_metrics、score、risk_flags。
+- [x] 支持 `top_n`。
+- [x] 支持进度日志。
+- [x] Commit: `feat: add parameter optimization runner`。
 
 **Acceptance Criteria:**
 

@@ -42,6 +42,8 @@ def run_single_backtest(
     initial_cash: float = 10000,
     commission: float = 0.002,
     data_provider: str = "auto",
+    strategy_params: dict[str, Any] | None = None,
+    min_trades: int = 5,
 ) -> BacktestResult:
     _validate_dates(start_date, end_date)
     registry = strategy_registry or {}
@@ -60,9 +62,9 @@ def run_single_backtest(
         raise ValueError(f"策略 '{strategy_name}' 不存在")
 
     bt = Backtest(data, strategy_class, cash=initial_cash, commission=commission)
-    raw_stats = bt.run()
+    raw_stats = bt.run(**(strategy_params or {}))
     plot_html = _render_plot_html(bt)
-    metrics = extract_core_metrics(raw_stats)
+    metrics = extract_core_metrics(raw_stats, min_trades=min_trades)
     stats = _format_stats(raw_stats, metrics)
 
     return BacktestResult(
