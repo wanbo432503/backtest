@@ -109,6 +109,33 @@
         .settings-card #stockSearchPanel {
             padding: 8px !important;
         }
+        .settings-card .config-panel {
+            background: #f8fafc;
+            border-color: #d8dee7 !important;
+        }
+        .settings-card .config-panel summary {
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #394150;
+            list-style: none;
+        }
+        .settings-card .config-panel summary::-webkit-details-marker {
+            display: none;
+        }
+        .settings-card .param-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 72px 24px;
+            gap: 6px;
+            align-items: end;
+            margin-bottom: 6px;
+        }
+        .settings-card .param-row .form-check {
+            min-height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .stats-panel .card-body {
             padding: 8px 10px 10px;
         }
@@ -396,6 +423,89 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-sliders-h"></i> 策略参数</summary>
+                                <div id="strategyParamContainer" class="mt-2">
+                                    <div class="form-text">选择策略后加载参数。</div>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    勾选参数用于优化范围；未勾选时作为固定值。
+                                </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-shield-alt"></i> 风控设置</summary>
+                                <div class="compact-row mt-2">
+                                    <div class="mb-3">
+                                        <label for="stopLossPct" class="form-label">止损比例</label>
+                                        <input type="number" class="form-control" id="stopLossPct" min="0" max="30" step="0.5" value="5">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="takeProfitPct" class="form-label">止盈比例</label>
+                                        <input type="number" class="form-control" id="takeProfitPct" min="0" max="80" step="0.5" value="12">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="positionPct" class="form-label">仓位比例</label>
+                                        <input type="number" class="form-control" id="positionPct" min="0.05" max="1" step="0.05" value="0.95">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="maxHoldingBars" class="form-label">最大持仓周期</label>
+                                        <input type="number" class="form-control" id="maxHoldingBars" min="1" max="500" step="1" value="120">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="cooldownBars" class="form-label">冷却期</label>
+                                        <input type="number" class="form-control" id="cooldownBars" min="0" max="60" step="1" value="3">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="maxAccountDrawdownPct" class="form-label">最大回撤停止开仓</label>
+                                        <input type="number" class="form-control" id="maxAccountDrawdownPct" min="1" max="80" step="1" value="30">
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-scale-balanced"></i> A 股交易规则</summary>
+                                <div class="compact-row mt-2">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="tPlusOne" checked>
+                                        <label class="form-check-label" for="tPlusOne">T+1</label>
+                                    </div>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="limitUpDownFilter" checked>
+                                        <label class="form-check-label" for="limitUpDownFilter">涨跌停过滤</label>
+                                    </div>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="volumeFilter" checked>
+                                        <label class="form-check-label" for="volumeFilter">成交量过滤</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="lotSize" class="form-label">整数手</label>
+                                        <input type="number" class="form-control" id="lotSize" min="1" step="1" value="100">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="slippagePct" class="form-label">滑点</label>
+                                        <input type="number" class="form-control" id="slippagePct" min="0" max="5" step="0.01" value="0.05">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="buyCommissionPct" class="form-label">买入手续费</label>
+                                        <input type="number" class="form-control" id="buyCommissionPct" min="0" max="3" step="0.01" value="0.03">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="sellCommissionPct" class="form-label">卖出手续费</label>
+                                        <input type="number" class="form-control" id="sellCommissionPct" min="0" max="3" step="0.01" value="0.03">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="stampTaxPct" class="form-label">印花税</label>
+                                        <input type="number" class="form-control" id="stampTaxPct" min="0" max="3" step="0.01" value="0.05">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="minCommission" class="form-label">最小手续费</label>
+                                        <input type="number" class="form-control" id="minCommission" min="0" max="100" step="0.5" value="5">
+                                    </div>
+                                </div>
+                            </details>
                             
                             <div class="compact-row">
                                 <div class="mb-3">
@@ -849,6 +959,7 @@
                 if (strategies.length > 0) {
                     strategySelect.value = strategies[0].name;
                     updateStrategyDescription();
+                    renderStrategyParamControls();
                 }
                 
             } catch (error) {
@@ -886,6 +997,99 @@
             document.getElementById('currentCommission').textContent = document.getElementById('commission').value + '%';
         }
 
+        function parseParamValue(value, type) {
+            if (type === 'int') {
+                return parseInt(value, 10);
+            }
+            if (type === 'float') {
+                return parseFloat(value);
+            }
+            if (type === 'bool') {
+                return value === true || value === 'true';
+            }
+            return value;
+        }
+
+        function renderStrategyParamControls() {
+            const strategyName = document.getElementById('strategy').value;
+            const params = window.strategyMetadata[strategyName] || [];
+            const container = document.getElementById('strategyParamContainer');
+            if (!params.length) {
+                container.innerHTML = '<div class="form-text">该策略暂无可配置参数。</div>';
+                return;
+            }
+            container.innerHTML = params.map(param => `
+                <div class="param-row" data-param-name="${escapeHtml(param.name)}" data-param-type="${escapeHtml(param.type)}">
+                    <div>
+                        <label for="strategyParam_${escapeHtml(param.name)}" class="form-label">${escapeHtml(param.label || param.name)}</label>
+                        <input
+                            type="${param.type === 'str' ? 'text' : 'number'}"
+                            class="form-control strategy-param-input"
+                            id="strategyParam_${escapeHtml(param.name)}"
+                            data-param-name="${escapeHtml(param.name)}"
+                            data-param-type="${escapeHtml(param.type)}"
+                            value="${escapeHtml(param.default)}"
+                            ${param.min_value !== null && param.min_value !== undefined ? `min="${escapeHtml(param.min_value)}"` : ''}
+                            ${param.max_value !== null && param.max_value !== undefined ? `max="${escapeHtml(param.max_value)}"` : ''}
+                            ${param.step !== null && param.step !== undefined ? `step="${escapeHtml(param.step)}"` : ''}
+                        >
+                    </div>
+                    <div class="small text-muted">${escapeHtml((param.search_values || []).join('/'))}</div>
+                    <div class="form-check">
+                        <input class="form-check-input strategy-param-optimize" type="checkbox"
+                            id="optimizeParam_${escapeHtml(param.name)}"
+                            data-param-name="${escapeHtml(param.name)}"
+                            ${param.search_values && param.search_values.length ? 'checked' : ''}>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function collectRiskConfig() {
+            return {
+                enabled: true,
+                position_pct: parseFloat(document.getElementById('positionPct').value),
+                stop_loss_pct: parseFloat(document.getElementById('stopLossPct').value),
+                take_profit_pct: parseFloat(document.getElementById('takeProfitPct').value),
+                max_holding_bars: parseInt(document.getElementById('maxHoldingBars').value, 10),
+                cooldown_bars: parseInt(document.getElementById('cooldownBars').value, 10),
+                max_account_drawdown_pct: parseFloat(document.getElementById('maxAccountDrawdownPct').value),
+                atr_stop_enabled: false,
+                atr_period: 14,
+                atr_multiplier: 2.0
+            };
+        }
+
+        function collectAShareConfig() {
+            return {
+                long_only: true,
+                t_plus_one: document.getElementById('tPlusOne').checked,
+                lot_size: parseInt(document.getElementById('lotSize').value, 10),
+                limit_up_down_filter: document.getElementById('limitUpDownFilter').checked,
+                volume_filter: document.getElementById('volumeFilter').checked,
+                min_volume: 1,
+                slippage_pct: parseFloat(document.getElementById('slippagePct').value),
+                buy_commission_pct: parseFloat(document.getElementById('buyCommissionPct').value),
+                sell_commission_pct: parseFloat(document.getElementById('sellCommissionPct').value),
+                stamp_tax_pct: parseFloat(document.getElementById('stampTaxPct').value),
+                min_commission: parseFloat(document.getElementById('minCommission').value)
+            };
+        }
+
+        function collectStrategyParams() {
+            const params = {};
+            document.querySelectorAll('.strategy-param-input').forEach(input => {
+                params[input.dataset.paramName] = parseParamValue(input.value, input.dataset.paramType);
+            });
+            const risk = collectRiskConfig();
+            ['position_pct', 'stop_loss_pct', 'take_profit_pct', 'max_holding_bars', 'cooldown_bars'].forEach(key => {
+                if (Object.prototype.hasOwnProperty.call(params, key)) {
+                    params[key] = risk[key];
+                }
+            });
+            return params;
+        }
+
         function toggleOptimizationControls() {
             const enabled = document.getElementById('enableOptimization').checked;
             document.getElementById('optimizationControls').style.display = enabled ? 'block' : 'none';
@@ -909,7 +1113,8 @@
             const params = window.strategyMetadata[strategyName] || [];
             const searchSpace = {};
             params.forEach(param => {
-                if (Array.isArray(param.search_values) && param.search_values.length > 0) {
+                const checkbox = document.getElementById(`optimizeParam_${param.name}`);
+                if (checkbox && checkbox.checked && Array.isArray(param.search_values) && param.search_values.length > 0) {
                     searchSpace[param.name] = param.search_values;
                 }
             });
@@ -925,11 +1130,13 @@
                 interval: document.getElementById('interval').value,
                 data_provider: document.getElementById('dataProvider').value,
                 initial_cash: parseFloat(document.getElementById('initialCash').value),
+                risk_config: collectRiskConfig(),
+                a_share_config: collectAShareConfig(),
                 optimization_config: {
                     symbols: collectSelectedSymbols(),
                     strategies: [{
                         strategy_name: strategyName,
-                        fixed_params: {},
+                        fixed_params: collectStrategyParams(),
                         search_space: getCurrentStrategySearchSpace()
                     }],
                     objective: 'score',
@@ -995,6 +1202,7 @@
             
             // 监听策略选择变化
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
+            document.getElementById('strategy').addEventListener('change', renderStrategyParamControls);
             document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
             document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);
@@ -1011,7 +1219,10 @@
                 start_date: document.getElementById('startDate').value,
                 end_date: document.getElementById('endDate').value,
                 interval: document.getElementById('interval').value,
-                data_provider: document.getElementById('dataProvider').value
+                data_provider: document.getElementById('dataProvider').value,
+                strategy_params: collectStrategyParams(),
+                risk_config: collectRiskConfig(),
+                a_share_config: collectAShareConfig()
             };
             const optimizationEnabled = document.getElementById('enableOptimization').checked;
 

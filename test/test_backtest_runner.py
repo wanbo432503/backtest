@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
-from backtest_runner import run_single_backtest
+from backtest_runner import BacktestResult, run_single_backtest
 from market_data import DataSourceResult
 
 
@@ -110,3 +110,38 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
     assert payload["data_provider"] == "test"
     assert payload["data_warnings"] == ["source warning"]
     assert "综合评分" in payload["stats"]
+
+
+def test_backtest_api_passes_strategy_params_to_runner(monkeypatch):
+    captured = {}
+
+    def fake_run_single_backtest(**kwargs):
+        captured.update(kwargs)
+        return BacktestResult(
+            plot_html="<html>plot</html>",
+            stats={"综合评分": "1.00"},
+            metrics={"score": 1},
+            symbol=kwargs["symbol"],
+            interval=kwargs["interval"],
+            data_provider="test",
+            data_warnings=[],
+        )
+
+    monkeypatch.setattr(main, "run_single_backtest", fake_run_single_backtest)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/backtest",
+        json={
+            "symbol": "SH603019",
+            "start_date": "2025-07-03",
+            "end_date": "2025-10-01",
+            "strategy_name": "rsi_risk_control",
+            "strategy_params": {"rsi_period": 6, "stop_loss_pct": 3},
+            "risk_config": {"position_pct": 0.95},
+            "a_share_config": {"lot_size": 100},
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["strategy_params"] == {"rsi_period": 6, "stop_loss_pct": 3}

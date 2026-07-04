@@ -678,14 +678,14 @@ POST /optimize
 
 **Todo:**
 
-- [ ] 写模板测试：页面含“风控设置”。
-- [ ] 写模板测试：页面含“A 股交易规则”。
-- [ ] 写模板测试：页面含“T+1”。
-- [ ] 写模板测试：页面含“涨跌停过滤”。
-- [ ] 实现折叠 UI。
-- [ ] JS 将配置写入 `/backtest` 和 `/optimize` 请求。
-- [ ] 默认值与后端 model 保持一致。
-- [ ] Commit: `feat: add risk and A-share rule controls`。
+- [x] 写模板测试：页面含“风控设置”。
+- [x] 写模板测试：页面含“A 股交易规则”。
+- [x] 写模板测试：页面含“T+1”。
+- [x] 写模板测试：页面含“涨跌停过滤”。
+- [x] 实现折叠 UI。
+- [x] JS 将配置写入 `/backtest` 和 `/optimize` 请求。
+- [x] 默认值与后端 model 保持一致。
+- [x] Commit: `feat: add risk and A-share rule controls`。
 
 **Acceptance Criteria:**
 

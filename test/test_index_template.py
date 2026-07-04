@@ -36,3 +36,22 @@ def test_index_template_contains_optimization_controls():
     assert "score" in template
     assert "collectOptimizationRequest" in template
     assert "开始优化" in template
+
+
+def test_index_template_contains_risk_and_a_share_rule_controls():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "策略参数" in template
+    assert 'id="strategyParamContainer"' in template
+    assert "风控设置" in template
+    assert 'id="stopLossPct"' in template
+    assert 'id="takeProfitPct"' in template
+    assert 'id="positionPct"' in template
+    assert "A 股交易规则" in template
+    assert "T+1" in template
+    assert "涨跌停过滤" in template
+    assert 'id="lotSize"' in template
+    assert 'id="slippagePct"' in template
+    assert "collectRiskConfig" in template
+    assert "collectAShareConfig" in template
+    assert "strategy_params" in template

@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 import pandas as pd
 from backtesting import Strategy
 from backtesting.lib import crossover
@@ -39,6 +39,7 @@ class BacktestRequest(BaseModel):
     end_date: str
     interval: str = "1d"
     strategy_name: str = "sma_cross"
+    strategy_params: dict = Field(default_factory=dict)
     initial_cash: float = 10000
     commission: float = 0.002
     data_provider: str = "auto"
@@ -292,6 +293,7 @@ async def run_backtest(request: BacktestRequest):
             initial_cash=request.initial_cash,
             commission=request.commission,
             data_provider=request.data_provider,
+            strategy_params=request.strategy_params,
         )
         return result.to_api_response()
     except ValueError as e:
