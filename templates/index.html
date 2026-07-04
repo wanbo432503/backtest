@@ -29,6 +29,30 @@
             flex: 1;
             min-height: 0;
         }
+        .main-container.right-insights-collapsed #rightInsightColumn {
+            display: none;
+        }
+        .insight-restore-tab {
+            position: fixed;
+            top: 84px;
+            right: 0;
+            z-index: 1040;
+            display: none;
+            border-radius: 6px 0 0 6px;
+            padding: 8px 10px;
+            box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.18);
+        }
+        .main-container.right-insights-collapsed .insight-restore-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        @media (min-width: 1200px) {
+            .main-container.right-insights-collapsed #centerPaneColumn {
+                flex: 0 0 75%;
+                max-width: 75%;
+            }
+        }
         .pane-column {
             height: 100%;
             min-height: 0;
@@ -122,6 +146,17 @@
         }
         .settings-card .config-panel summary::-webkit-details-marker {
             display: none;
+        }
+        .settings-card .config-panel summary::after {
+            content: "\\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            float: right;
+            color: #6c757d;
+            transition: transform 0.15s ease;
+        }
+        .settings-card .config-panel[open] summary::after {
+            transform: rotate(180deg);
         }
         .settings-card .param-row {
             display: grid;
@@ -336,6 +371,33 @@
             border-radius: 4px;
             padding: 6px;
         }
+        .insight-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .insight-header .btn {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.75);
+            padding: 0.15rem 0.45rem;
+        }
+        .optimization-results-table {
+            min-width: 1120px;
+            table-layout: auto;
+        }
+        .optimization-results-table th,
+        .optimization-results-table td {
+            vertical-align: middle;
+        }
+        .optimization-results-table .params-cell {
+            min-width: 220px;
+            white-space: normal;
+            word-break: break-word;
+        }
+        .optimization-results-table .action-cell {
+            min-width: 108px;
+        }
         @media (max-width: 1199.98px) {
             body {
                 overflow: auto;
@@ -356,7 +418,11 @@
     </style>
 </head>
 <body>
-    <div class="main-container">
+    <div class="main-container" id="mainContainer">
+        <button type="button" class="btn btn-primary btn-sm insight-restore-tab" id="restoreInsightPanelButton" onclick="toggleInsightPanel()" aria-label="展开标的信息">
+            <i class="fas fa-newspaper"></i>
+            <span>标的信息</span>
+        </button>
         <div class="row g-3 app-layout">
             <div class="col-xl-3 col-lg-4 pane-column">
                 <div class="card settings-card">
@@ -507,65 +573,68 @@
                                 </div>
                             </details>
                             
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="initialCash" class="form-label">初始资金 ($)</label>
-                                    <input type="number" class="form-control" id="initialCash"
-                                           min="100" max="1000000" step="100" value="10000" required>
+                            <details class="config-panel border rounded p-2 mb-3" id="tradeSettingsPanel">
+                                <summary><i class="fas fa-briefcase"></i> 交易设置</summary>
+                                <div class="compact-row mt-2">
+                                    <div class="mb-3">
+                                        <label for="initialCash" class="form-label">初始资金 ($)</label>
+                                        <input type="number" class="form-control" id="initialCash"
+                                               min="100" max="1000000" step="100" value="10000" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="commission" class="form-label">交易手续费 (%)</label>
+                                        <input type="number" class="form-control" id="commission"
+                                               min="0" max="10" step="0.001" value="0.2" required>
+                                    </div>
                                 </div>
                                 
-                                <div class="mb-3">
-                                    <label for="commission" class="form-label">交易手续费 (%)</label>
-                                    <input type="number" class="form-control" id="commission"
-                                           min="0" max="10" step="0.001" value="0.2" required>
-                                </div>
-                            </div>
-                            
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="startDate" class="form-label">开始日期</label>
-                                    <input type="date" class="form-control" id="startDate" required>
+                                <div class="compact-row">
+                                    <div class="mb-3">
+                                        <label for="startDate" class="form-label">开始日期</label>
+                                        <input type="date" class="form-control" id="startDate" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="endDate" class="form-label">结束日期</label>
+                                        <input type="date" class="form-control" id="endDate" required>
+                                    </div>
                                 </div>
                                 
-                                <div class="mb-3">
-                                    <label for="endDate" class="form-label">结束日期</label>
-                                    <input type="date" class="form-control" id="endDate" required>
-                                </div>
-                            </div>
-                            
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="interval" class="form-label">数据频率</label>
-                                    <select class="form-select" id="interval" required>
-                                        <option value="1m">1分钟</option>
-                                        <option value="2m">2分钟</option>
-                                        <option value="5m">5分钟</option>
-                                        <option value="15m">15分钟</option>
-                                        <option value="30m">30分钟</option>
-                                        <option value="60m">60分钟</option>
-                                        <option value="90m">90分钟</option>
-                                        <option value="1h">1小时</option>
-                                        <option value="1d" selected>1天</option>
-                                        <option value="5d">5天</option>
-                                        <option value="1wk">1周</option>
-                                        <option value="1mo">1月</option>
-                                        <option value="3mo">3月</option>
-                                    </select>
-                                </div>
+                                <div class="compact-row mb-0">
+                                    <div class="mb-3">
+                                        <label for="interval" class="form-label">数据频率</label>
+                                        <select class="form-select" id="interval" required>
+                                            <option value="1m">1分钟</option>
+                                            <option value="2m">2分钟</option>
+                                            <option value="5m">5分钟</option>
+                                            <option value="15m">15分钟</option>
+                                            <option value="30m">30分钟</option>
+                                            <option value="60m">60分钟</option>
+                                            <option value="90m">90分钟</option>
+                                            <option value="1h">1小时</option>
+                                            <option value="1d" selected>1天</option>
+                                            <option value="5d">5天</option>
+                                            <option value="1wk">1周</option>
+                                            <option value="1mo">1月</option>
+                                            <option value="3mo">3月</option>
+                                        </select>
+                                    </div>
 
-                                <div class="mb-3">
-                                    <label for="dataProvider" class="form-label">数据源</label>
-                                    <select class="form-select" id="dataProvider" required>
-                                        <option value="auto" selected>自动选择（A股优先 mootdx）</option>
-                                        <option value="mootdx">通达信 mootdx（A股）</option>
-                                        <option value="yfinance">Yahoo Finance</option>
-                                    </select>
+                                    <div class="mb-3">
+                                        <label for="dataProvider" class="form-label">数据源</label>
+                                        <select class="form-select" id="dataProvider" required>
+                                            <option value="auto" selected>自动选择（A股优先 mootdx）</option>
+                                            <option value="mootdx">通达信 mootdx（A股）</option>
+                                            <option value="yfinance">Yahoo Finance</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-text" style="grid-column: 1 / -1;">
+                                        <i class="fas fa-info-circle"></i>
+                                        分钟级数据最多支持7天，小时级数据最多支持730天
+                                    </div>
                                 </div>
-                                <div class="form-text" style="grid-column: 1 / -1;">
-                                    <i class="fas fa-info-circle"></i>
-                                    分钟级数据最多支持7天，小时级数据最多支持730天
-                                </div>
-                            </div>
+                            </details>
 
                             <div class="optimization-panel border rounded p-2 mb-3">
                                 <div class="d-flex align-items-center justify-content-between gap-2">
@@ -646,7 +715,7 @@
                 </div>
             </div>
             
-            <div class="col-xl-6 col-lg-8 pane-column center-pane">
+            <div class="col-xl-6 col-lg-8 pane-column center-pane" id="centerPaneColumn">
                 <!-- 回测统计卡片 -->
                 <div id="statsContainer" style="display: none;">
                     <div class="card stats-panel">
@@ -686,10 +755,13 @@
                 </div>
             </div>
 
-            <div class="col-xl-3 col-lg-12 pane-column">
+            <div class="col-xl-3 col-lg-12 pane-column" id="rightInsightColumn">
                 <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-newspaper"></i> 标的信息
+                    <div class="card-header insight-header">
+                        <span><i class="fas fa-newspaper"></i> 标的信息</span>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleInsightPanelButton" onclick="toggleInsightPanel()" aria-expanded="true" aria-controls="rightInsightColumn" title="收起标的信息">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
                     </div>
                     <div class="card-body">
                         <div id="insightStatus" class="small text-muted">选择标的后加载</div>
@@ -1163,7 +1235,7 @@
             tableWrap.className = 'stats-table-wrap';
             tableWrap.innerHTML = `
                 <div class="fw-bold mb-2">优化结果</div>
-                <table class="table table-sm table-bordered stats-table">
+                <table class="table table-sm table-bordered stats-table optimization-results-table">
                     <thead>
                         <tr>
                             <th>Rank</th>
@@ -1199,9 +1271,9 @@
                                 <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
                                 <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
                                 <td>${escapeHtml(metrics.trades ?? '-')}</td>
-                                <td>${escapeHtml(formatParams(row.params || {}))}</td>
+                                <td class="params-cell">${escapeHtml(formatParams(row.params || {}))}</td>
                                 <td>${riskBadges}</td>
-                                <td>
+                                <td class="action-cell">
                                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="applyOptimizationResult(${index})">
                                         应用并回测
                                     </button>
@@ -1271,6 +1343,18 @@
             optimizationToggle.checked = false;
             toggleOptimizationControls();
             document.getElementById('backtestForm').requestSubmit();
+        }
+
+        function toggleInsightPanel() {
+            const mainContainer = document.getElementById('mainContainer');
+            const toggleButton = document.getElementById('toggleInsightPanelButton');
+            const collapsed = mainContainer.classList.toggle('right-insights-collapsed');
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', String(!collapsed));
+            }
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 160);
         }
         
         // 初始化页面

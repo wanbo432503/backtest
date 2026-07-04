@@ -69,3 +69,15 @@ def test_index_template_renders_optimization_result_table_actions():
     assert "risk_flags" in template
     assert "badge bg-warning" in template
     assert "可能过拟合" in template
+
+
+def test_index_template_has_collapsible_trade_settings_and_insight_panel():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "<summary><i class=\"fas fa-briefcase\"></i> 交易设置</summary>" in template
+    assert 'id="tradeSettingsPanel"' in template
+    assert 'id="rightInsightColumn"' in template
+    assert 'id="toggleInsightPanelButton"' in template
+    assert 'onclick="toggleInsightPanel()"' in template
+    assert "right-insights-collapsed" in template
+    assert "function toggleInsightPanel()" in template
