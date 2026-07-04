@@ -26,7 +26,13 @@ def em_get(
     if wait > 0:
         time.sleep(wait + random.uniform(0.1, 0.5))
     try:
-        return EM_SESSION.get(url, params=params, headers=headers, timeout=timeout)
+        try:
+            return EM_SESSION.get(url, params=params, headers=headers, timeout=timeout)
+        except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError):
+            direct_session = requests.Session()
+            direct_session.trust_env = False
+            direct_session.headers.update({"User-Agent": UA})
+            return direct_session.get(url, params=params, headers=headers, timeout=timeout)
     finally:
         _em_last_call[0] = time.time()
 
@@ -60,7 +66,7 @@ def get_market_insights(symbol: str) -> dict:
             sections[key] = loader(normalized.code)
         except Exception as exc:
             sections[key] = {} if key == "quote" else []
-            warnings.append(f"{key} 获取失败: {exc}")
+            warnings.append(f"{key} 获取失败: {_friendly_error(exc)}")
 
     return {"symbol": normalized.code, **sections, "warnings": warnings}
 
@@ -113,14 +119,21 @@ def fetch_fund_flow_120d(code: str, limit: int = 10) -> list[dict]:
         "fields1": "f1,f2,f3",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63",
     }
-    response = em_get(
-        "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get",
-        params=params,
-        headers={"Referer": "https://quote.eastmoney.com/"},
-        timeout=15,
-    )
-    response.raise_for_status()
-    klines = response.json().get("data", {}).get("klines", []) or []
+    try:
+        response = em_get(
+            "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get",
+            params=params,
+            headers={"Referer": "https://quote.eastmoney.com/"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        klines = response.json().get("data", {}).get("klines", []) or []
+    except requests.exceptions.RequestException:
+        return fetch_realtime_fund_flow_snapshot(code)
+
+    if not klines:
+        return fetch_realtime_fund_flow_snapshot(code)
+
     rows = []
     for line in klines[-limit:]:
         values = line.split(",")
@@ -132,6 +145,34 @@ def fetch_fund_flow_120d(code: str, limit: int = 10) -> list[dict]:
             }
         )
     return rows
+
+
+def fetch_realtime_fund_flow_snapshot(code: str) -> list[dict]:
+    params = {
+        "fltt": "2",
+        "invt": "2",
+        "secids": _secid(code),
+        "fields": "f12,f14,f62,f84",
+    }
+    response = em_get(
+        "https://push2.eastmoney.com/api/qt/ulist.np/get",
+        params=params,
+        headers={"Referer": f"https://data.eastmoney.com/zjlx/{code}.html"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    rows = response.json().get("data", {}).get("diff", []) or []
+    if not rows:
+        return []
+
+    item = rows[0]
+    return [
+        {
+            "date": "最新",
+            "main_net_inflow": _float_at_dict(item, "f62"),
+            "small_net_inflow": _float_at_dict(item, "f84"),
+        }
+    ]
 
 
 def fetch_dragon_tiger_board(code: str, look_back: int = 30) -> list[dict]:
@@ -210,3 +251,16 @@ def _float_at(values: list[str], index: int) -> float:
         return float(_value_at(values, index))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _float_at_dict(values: dict, key: str) -> float:
+    try:
+        return float(values.get(key, 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _friendly_error(exc: Exception) -> str:
+    if isinstance(exc, requests.exceptions.RequestException):
+        return "网络连接失败，可能是代理或东方财富接口临时断开"
+    return str(exc)
