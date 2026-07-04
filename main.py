@@ -19,6 +19,7 @@ import inspect
 from stock_search import search_stocks, get_stock_info
 from market_data import fetch_ohlcv
 from market_insights import get_market_insights
+from optimization_models import AShareTradingConfig, RiskConfig
 
 warnings.filterwarnings('ignore')
 
@@ -40,6 +41,8 @@ class BacktestRequest(BaseModel):
     initial_cash: float = 10000
     commission: float = 0.002
     data_provider: str = "auto"
+    risk_config: RiskConfig | None = None
+    a_share_config: AShareTradingConfig | None = None
 
 # 策略注册表 - 存储所有可用的策略
 STRATEGY_REGISTRY = {}

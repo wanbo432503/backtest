@@ -248,22 +248,22 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 创建 `optimization_models.py`。
-- [ ] 定义 `RiskConfig` Pydantic model。
-- [ ] 定义 `AShareTradingConfig` Pydantic model。
-- [ ] 定义 `StrategyParamConfig` Pydantic model。
-- [ ] 定义 `OptimizationConfig` Pydantic model。
-- [ ] 定义 `OptimizationRequest` Pydantic model。
-- [ ] 在 `BacktestRequest` 增加可选 `risk_config`。
-- [ ] 在 `BacktestRequest` 增加可选 `a_share_config`。
-- [ ] 给所有 config 提供安全默认值。
-- [ ] 校验 `position_pct` 必须在 `(0, 1]`。
-- [ ] 校验 `lot_size` 默认 100 且必须大于 0。
-- [ ] 校验 `max_combinations` 不超过 1000。
-- [ ] 写模型默认值测试。
-- [ ] 写非法参数测试。
-- [ ] 运行 `python -m pytest test/test_optimization_models.py -q`。
-- [ ] Commit: `feat: add phase 2 config models`。
+- [x] 创建 `optimization_models.py`。
+- [x] 定义 `RiskConfig` Pydantic model。
+- [x] 定义 `AShareTradingConfig` Pydantic model。
+- [x] 定义 `StrategyParamConfig` Pydantic model。
+- [x] 定义 `OptimizationConfig` Pydantic model。
+- [x] 定义 `OptimizationRequest` Pydantic model。
+- [x] 在 `BacktestRequest` 增加可选 `risk_config`。
+- [x] 在 `BacktestRequest` 增加可选 `a_share_config`。
+- [x] 给所有 config 提供安全默认值。
+- [x] 校验 `position_pct` 必须在 `(0, 1]`。
+- [x] 校验 `lot_size` 默认 100 且必须大于 0。
+- [x] 校验 `max_combinations` 不超过 1000。
+- [x] 写模型默认值测试。
+- [x] 写非法参数测试。
+- [x] 运行 `python -m pytest test/test_optimization_models.py -q`。
+- [x] Commit: `feat: add phase 2 config models`。
 
 **Acceptance Criteria:**
 
