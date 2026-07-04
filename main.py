@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import pandas as pd
 from backtesting import Strategy
 from backtesting.lib import crossover
@@ -15,10 +15,12 @@ import os
 import importlib
 import inspect
 from stock_search import search_stocks, get_stock_info
+from market_data import normalize_symbol
 from market_insights import get_market_insights
-from optimization_models import AShareTradingConfig, RiskConfig
+from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
+from optimization_runner import run_optimization
 
 warnings.filterwarnings('ignore')
 
@@ -297,6 +299,27 @@ async def run_backtest(request: BacktestRequest):
     except Exception as e:
         print(f"详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"回测执行失败: {str(e)}")
+
+@app.post("/optimize")
+async def optimize_endpoint(payload: dict):
+    """运行固定 A 股股票池的参数优化。"""
+    try:
+        request = OptimizationRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    for symbol in request.optimization_config.symbols:
+        if normalize_symbol(symbol).market != "CN":
+            raise HTTPException(status_code=400, detail=f"仅支持 A 股代码: {symbol}")
+
+    try:
+        result = run_optimization(request, strategy_registry=STRATEGY_REGISTRY)
+        return result.to_api_response()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"优化参数错误: {str(e)}")
+    except Exception as e:
+        print(f"优化详细错误信息: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"优化执行失败: {str(e)}")
 
 @app.get("/strategies")
 async def get_available_strategies():

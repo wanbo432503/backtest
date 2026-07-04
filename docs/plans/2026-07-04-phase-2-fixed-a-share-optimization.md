@@ -588,12 +588,12 @@ POST /optimize
 
 **Todo:**
 
-- [ ] 写失败测试：合法请求返回 200。
-- [ ] 写失败测试：非 A 股 symbol 返回 400。
-- [ ] 写失败测试：max_combinations 过大返回 400。
-- [ ] 接入 `run_optimization`。
-- [ ] 错误信息保持中文可读。
-- [ ] Commit: `feat: expose optimize API`。
+- [x] 写失败测试：合法请求返回 200。
+- [x] 写失败测试：非 A 股 symbol 返回 400。
+- [x] 写失败测试：max_combinations 过大返回 400。
+- [x] 接入 `run_optimization`。
+- [x] 错误信息保持中文可读。
+- [x] Commit: `feat: expose optimize API`。
 
 **Acceptance Criteria:**
 
