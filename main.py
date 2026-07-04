@@ -18,6 +18,8 @@ import tempfile
 import importlib
 import inspect
 from stock_search import search_stocks, get_stock_info
+from market_data import fetch_ohlcv
+from market_insights import get_market_insights
 
 warnings.filterwarnings('ignore')
 
@@ -38,6 +40,7 @@ class BacktestRequest(BaseModel):
     strategy_name: str = "sma_cross"
     initial_cash: float = 10000
     commission: float = 0.002
+    data_provider: str = "auto"
 
 # 策略注册表 - 存储所有可用的策略
 STRATEGY_REGISTRY = {}
@@ -270,7 +273,7 @@ def startup_event():
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html", context={})
 
 @app.post("/backtest")
 async def run_backtest(request: BacktestRequest):
@@ -283,24 +286,15 @@ async def run_backtest(request: BacktestRequest):
             raise HTTPException(status_code=400, detail="开始日期必须早于结束日期")
         
         # 获取数据
-        print(f"正在获取 {request.symbol} 的数据...")
-        ticker = yf.Ticker(request.symbol)
-        
-        # 对于加密货币，可能需要特殊的处理
-        if '-' in request.symbol and 'USD' in request.symbol:
-            # 这是加密货币
-            data = ticker.history(
-                start=request.start_date,
-                end=request.end_date,
-                interval=request.interval
-            )
-        else:
-            # 这是股票
-            data = ticker.history(
-                start=request.start_date,
-                end=request.end_date,
-                interval=request.interval
-            )
+        print(f"正在获取 {request.symbol} 的数据，数据源: {request.data_provider}...")
+        source_result = fetch_ohlcv(
+            request.symbol,
+            request.start_date,
+            request.end_date,
+            request.interval,
+            request.data_provider,
+        )
+        data = source_result.data
         
         if data.empty:
             raise HTTPException(status_code=404, detail="无法获取数据，请检查股票代码和时间区间")
@@ -367,7 +361,9 @@ async def run_backtest(request: BacktestRequest):
             "plot_html": plot_html_content,
             "stats": stats_dict,
             "symbol": request.symbol,
-            "interval": request.interval
+            "interval": request.interval,
+            "data_provider": source_result.provider,
+            "data_warnings": source_result.warnings,
         }
         
     except ValueError as e:
@@ -581,6 +577,17 @@ async def get_stock_info_endpoint(symbol: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取股票信息失败: {str(e)}")
+
+@app.get("/market-insights/{symbol}")
+async def market_insights_endpoint(symbol: str):
+    """获取右侧标的信息面板数据"""
+    if not symbol or len(symbol.strip()) == 0:
+        raise HTTPException(status_code=400, detail="股票代码不能为空")
+
+    try:
+        return get_market_insights(symbol.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取市场信息失败: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

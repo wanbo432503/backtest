@@ -12,7 +12,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         }
         .main-container {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -161,6 +161,41 @@
             height: 0.5rem;
             margin-top: 1rem;
         }
+        .data-source-note {
+            grid-column: 1 / -1;
+            margin-bottom: 0;
+        }
+        .insight-section {
+            border-top: 1px solid #e9ecef;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        .insight-section h6 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .insight-item {
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f3f5;
+        }
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        .insight-empty {
+            color: #6c757d;
+        }
+        .quote-strip {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            font-size: 0.78rem;
+        }
+        .quote-strip div {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 6px;
+        }
     </style>
 </head>
 <body>
@@ -172,8 +207,8 @@
             <p class="lead text-muted">基于均线交叉策略的自动化回测工具</p>
         </div>
 
-        <div class="row">
-            <div class="col-md-4">
+        <div class="row g-3">
+            <div class="col-xl-3 col-lg-4">
                 <div class="card">
                     <div class="card-header">
                         <i class="fas fa-cog"></i> 回测参数设置
@@ -292,6 +327,16 @@
                                     分钟级数据最多支持7天，小时级数据最多支持730天
                                 </div>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="dataProvider" class="form-label">数据源</label>
+                                <select class="form-select" id="dataProvider" required>
+                                    <option value="auto" selected>自动选择</option>
+                                    <option value="baidu">百度股市通（日线A股）</option>
+                                    <option value="mootdx">通达信 mootdx（A股）</option>
+                                    <option value="yfinance">Yahoo Finance</option>
+                                </select>
+                            </div>
                             
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-play"></i> 开始回测
@@ -321,7 +366,7 @@
                 </div>
             </div>
             
-            <div class="col-md-8">
+            <div class="col-xl-6 col-lg-8">
                 <!-- 回测统计卡片 -->
                 <div id="statsContainer" style="display: none;">
                     <div class="card">
@@ -360,6 +405,44 @@
                     </div>
                 </div>
             </div>
+
+            <div class="col-xl-3 col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-newspaper"></i> 标的信息
+                    </div>
+                    <div class="card-body">
+                        <div id="insightStatus" class="small text-muted">选择标的后加载</div>
+                        <div id="insightWarnings" class="alert alert-warning small mt-2" style="display:none;"></div>
+                        <div id="quotePanel" class="quote-strip mt-2"></div>
+
+                        <div class="insight-section">
+                            <h6>研报</h6>
+                            <div id="reportsList" class="small">
+                                <div class="insight-empty">暂无数据</div>
+                            </div>
+                        </div>
+                        <div class="insight-section">
+                            <h6>资金</h6>
+                            <div id="fundFlowList" class="small">
+                                <div class="insight-empty">暂无数据</div>
+                            </div>
+                        </div>
+                        <div class="insight-section">
+                            <h6>龙虎榜</h6>
+                            <div id="dragonTigerList" class="small">
+                                <div class="insight-empty">暂无数据</div>
+                            </div>
+                        </div>
+                        <div class="insight-section">
+                            <h6>公告</h6>
+                            <div id="announcementsList" class="small">
+                                <div class="insight-empty">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -368,6 +451,89 @@
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
             closeStockSearch();
+            loadMarketInsights(symbol);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderInsightList(containerId, items, formatter) {
+            const container = document.getElementById(containerId);
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="insight-empty">暂无数据</div>';
+                return;
+            }
+            container.innerHTML = items.map(formatter).join('');
+        }
+
+        function renderQuote(quote) {
+            const container = document.getElementById('quotePanel');
+            if (!quote || Object.keys(quote).length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = `
+                <div><strong>${escapeHtml(quote.name || '-')}</strong><br>${escapeHtml(quote.price || '-')}</div>
+                <div>涨跌幅<br>${escapeHtml(quote.change_pct || 0)}%</div>
+                <div>PE(TTM)<br>${escapeHtml(quote.pe_ttm || '-')}</div>
+                <div>PB<br>${escapeHtml(quote.pb || '-')}</div>
+            `;
+        }
+
+        async function loadMarketInsights(symbol) {
+            const status = document.getElementById('insightStatus');
+            const warnings = document.getElementById('insightWarnings');
+            status.textContent = '正在加载...';
+            warnings.style.display = 'none';
+
+            try {
+                const response = await fetch(`/market-insights/${encodeURIComponent(symbol)}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '加载失败');
+                }
+                const data = await response.json();
+                status.textContent = `标的: ${escapeHtml(data.symbol)}`;
+                renderQuote(data.quote);
+
+                if (data.warnings && data.warnings.length) {
+                    warnings.style.display = 'block';
+                    warnings.textContent = data.warnings.join('；');
+                }
+
+                renderInsightList('reportsList', data.reports, item => `
+                    <div class="insight-item">
+                        <strong>${escapeHtml(item.title || '-')}</strong><br>
+                        <span class="text-muted">${escapeHtml(item.org || '')} ${escapeHtml(item.date || '')}</span>
+                    </div>
+                `);
+                renderInsightList('fundFlowList', data.fund_flow, item => `
+                    <div class="insight-item">
+                        ${escapeHtml(item.date || '-')} 主力净流入: ${escapeHtml(item.main_net_inflow || 0)}
+                    </div>
+                `);
+                renderInsightList('dragonTigerList', data.dragon_tiger, item => `
+                    <div class="insight-item">
+                        ${escapeHtml(item.date || '-')} ${escapeHtml(item.reason || '')}<br>
+                        <span class="text-muted">净买入: ${escapeHtml(item.net_buy || '-')}</span>
+                    </div>
+                `);
+                renderInsightList('announcementsList', data.announcements, item => `
+                    <div class="insight-item">
+                        <a href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || '-')}</a><br>
+                        <span class="text-muted">${escapeHtml(item.date || '')}</span>
+                    </div>
+                `);
+            } catch (error) {
+                status.textContent = `加载失败: ${error.message}`;
+                renderQuote({});
+            }
         }
 
         // 切换搜索界面的显示/隐藏
@@ -551,7 +717,8 @@
                 commission: parseFloat(document.getElementById('commission').value) / 100, // 转换为小数
                 start_date: document.getElementById('startDate').value,
                 end_date: document.getElementById('endDate').value,
-                interval: document.getElementById('interval').value
+                interval: document.getElementById('interval').value,
+                data_provider: document.getElementById('dataProvider').value
             };
             
             // 验证时间范围
@@ -595,6 +762,16 @@
                 // 显示统计信息
                 const statsContent = document.getElementById('statsContent');
                 statsContent.innerHTML = '';
+
+                if (result.data_provider) {
+                    const providerDiv = document.createElement('div');
+                    providerDiv.className = 'alert alert-info small data-source-note';
+                    const warningText = result.data_warnings && result.data_warnings.length
+                        ? `；${result.data_warnings.join('；')}`
+                        : '';
+                    providerDiv.textContent = `数据源: ${result.data_provider}${warningText}`;
+                    statsContent.appendChild(providerDiv);
+                }
                 
                 for (const [key, value] of Object.entries(result.stats)) {
                     const statDiv = document.createElement('div');
@@ -615,6 +792,7 @@
                 
                 document.getElementById('plotContainer').innerHTML = '';
                 document.getElementById('plotContainer').appendChild(iframe);
+                loadMarketInsights(formData.symbol);
                 
             } catch (error) {
                 document.getElementById('plotContainer').innerHTML = `
