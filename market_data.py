@@ -109,81 +109,6 @@ def fetch_yfinance_ohlcv(symbol: str, start_date: str, end_date: str, interval: 
     return DataSourceResult(data=prepare_ohlcv(data), provider="yfinance", warnings=warnings)
 
 
-def parse_baidu_kline_payload(payload: dict) -> pd.DataFrame:
-    if str(payload.get("ResultCode", "-1")) != "0":
-        raise ValueError(f"百度股市通返回错误: {payload.get('ResultCode')}")
-
-    market_data = payload.get("Result", {}).get("newMarketData", {})
-    keys = market_data.get("keys", [])
-    raw_rows = market_data.get("marketData", "")
-    rows = [row for row in raw_rows.split(";") if row.strip()]
-
-    records = []
-    for row in rows:
-        values = row.split(",")
-        item = dict(zip(keys, values))
-        records.append(
-            {
-                "Date": item.get("time"),
-                "Open": item.get("open"),
-                "High": item.get("high"),
-                "Low": item.get("low"),
-                "Close": item.get("close"),
-                "Volume": item.get("volume", 0),
-                "Amount": item.get("amount", 0),
-            }
-        )
-
-    frame = pd.DataFrame(records)
-    if frame.empty:
-        raise ValueError("百度股市通返回空 K 线")
-
-    frame["Date"] = pd.to_datetime(frame["Date"])
-    frame = frame.set_index("Date")
-    return prepare_ohlcv(frame)[["Open", "High", "Low", "Close", "Volume", "Amount"]]
-
-
-def fetch_baidu_daily_ohlcv(
-    symbol: NormalizedSymbol,
-    start_date: str,
-    end_date: str,
-) -> DataSourceResult:
-    url = "https://finance.pae.baidu.com/selfselect/getstockquotation"
-    params = {
-        "all": "1",
-        "isIndex": "false",
-        "isBk": "false",
-        "isBlock": "false",
-        "isFutures": "false",
-        "isStock": "true",
-        "newFormat": "1",
-        "group": "quotation_kline_ab",
-        "finClientType": "pc",
-        "code": symbol.code,
-        "start_time": start_date.replace("-", ""),
-        "ktype": "1",
-    }
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/vnd.finance-web.v1+json",
-        "Origin": "https://gushitong.baidu.com",
-        "Referer": "https://gushitong.baidu.com/",
-    }
-    response = requests.get(url, params=params, headers=headers, timeout=10)
-    response.raise_for_status()
-
-    frame = parse_baidu_kline_payload(response.json())
-    frame = frame[(frame.index >= pd.to_datetime(start_date)) & (frame.index <= pd.to_datetime(end_date))]
-    if frame.empty:
-        raise ValueError("百度股市通在指定时间区间无数据")
-
-    return DataSourceResult(
-        data=frame,
-        provider="baidu",
-        warnings=["百度股市通日 K 线用于 A 股免费回测数据源；复权口径需后续单独校验。"],
-    )
-
-
 def parse_eastmoney_kline_payload(payload: dict) -> pd.DataFrame:
     if payload.get("rc") != 0:
         raise ValueError(f"东方财富 K 线返回错误: {payload.get('rc')}")
@@ -242,7 +167,12 @@ def fetch_eastmoney_daily_ohlcv(
     )
 
 
-def fetch_mootdx_ohlcv(symbol: NormalizedSymbol, interval: str) -> DataSourceResult:
+def fetch_mootdx_ohlcv(
+    symbol: NormalizedSymbol,
+    interval: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> DataSourceResult:
     try:
         from mootdx.quotes import Quotes
     except ImportError as exc:
@@ -264,7 +194,25 @@ def fetch_mootdx_ohlcv(symbol: NormalizedSymbol, interval: str) -> DataSourceRes
         raise ValueError(f"mootdx 不支持该频率: {interval}")
 
     client = Quotes.factory(market="std")
-    data = client.bars(symbol=symbol.code, frequency=frequency, offset=800)
+    page_size = 800
+    pages = []
+    target_start = pd.to_datetime(start_date) if start_date else None
+    for page_start in range(0, page_size * 10, page_size):
+        data_page = client.bars(symbol=symbol.code, frequency=frequency, start=page_start, offset=page_size)
+        if data_page is None or data_page.empty:
+            break
+        pages.append(data_page)
+        if target_start is None or len(data_page) < page_size:
+            break
+        page_index = pd.to_datetime(data_page.index)
+        if page_index.min().normalize() <= target_start.normalize():
+            break
+
+    if not pages:
+        raise ValueError("mootdx returned empty data")
+
+    data = pd.concat(pages).sort_index()
+    data = data[~data.index.duplicated(keep="first")]
     if data is None or data.empty:
         raise ValueError("mootdx returned empty data")
 
@@ -278,11 +226,20 @@ def fetch_mootdx_ohlcv(symbol: NormalizedSymbol, interval: str) -> DataSourceRes
             "amount": "Amount",
         }
     )
+    if "Volume" in data.columns and "volume" in data.columns:
+        data = data.drop(columns=["volume"])
     if "datetime" in data.columns:
         data = data.set_index(pd.to_datetime(data["datetime"]))
+    data = prepare_ohlcv(data)
+    if start_date:
+        data = data[data.index >= pd.to_datetime(start_date)]
+    if end_date:
+        data = data[data.index < (pd.to_datetime(end_date) + pd.Timedelta(days=1))]
+    if data.empty:
+        raise ValueError("mootdx 在指定时间区间无数据")
 
     return DataSourceResult(
-        data=prepare_ohlcv(data),
+        data=data[["Open", "High", "Low", "Close", "Volume", "Amount"]],
         provider="mootdx",
         warnings=["mootdx bars 返回不复权原始价，跨除权除息日回测需谨慎。"],
     )
@@ -360,26 +317,27 @@ def fetch_ohlcv(
 ) -> DataSourceResult:
     normalized = normalize_symbol(symbol)
     normalized_provider = provider.lower()
-    attempts: list[Callable[[], DataSourceResult]] = []
+    attempts: list[tuple[str, Callable[[], DataSourceResult]]] = []
 
-    if normalized_provider in ("auto", "baidu") and normalized.market == "CN" and interval == "1d":
-        attempts.append(lambda: fetch_baidu_daily_ohlcv(normalized, start_date, end_date))
-    if normalized_provider in ("auto", "eastmoney") and normalized.market == "CN" and interval == "1d":
-        attempts.append(lambda: fetch_eastmoney_daily_ohlcv(normalized, start_date, end_date))
     if normalized_provider in ("auto", "mootdx") and normalized.market == "CN":
-        attempts.append(lambda: fetch_mootdx_ohlcv(normalized, interval))
+        attempts.append(("mootdx", lambda: fetch_mootdx_ohlcv(normalized, interval, start_date, end_date)))
+    if normalized_provider == "eastmoney" and normalized.market == "CN" and interval == "1d":
+        attempts.append(("eastmoney", lambda: fetch_eastmoney_daily_ohlcv(normalized, start_date, end_date)))
     if normalized_provider in ("auto", "yfinance"):
-        attempts.append(lambda: fetch_yfinance_ohlcv(symbol, start_date, end_date, interval))
+        attempts.append(("yfinance", lambda: fetch_yfinance_ohlcv(symbol, start_date, end_date, interval)))
 
-    errors = []
-    for attempt in attempts:
+    errors: list[tuple[str, str]] = []
+    for provider_name, attempt in attempts:
         try:
             result = attempt()
             if not result.data.empty:
+                if errors:
+                    fallback_warnings = [f"{name} 获取失败: {error}" for name, error in errors]
+                    result.warnings = fallback_warnings + result.warnings
                 return result
         except Exception as exc:
-            errors.append(str(exc))
+            errors.append((provider_name, str(exc)))
 
     if not attempts:
         raise ValueError(f"不支持的数据源或市场组合: provider={provider}, symbol={symbol}, interval={interval}")
-    raise ValueError("所有数据源均获取失败: " + " | ".join(errors))
+    raise ValueError("所有数据源均获取失败: " + " | ".join(error for _, error in errors))

@@ -7,19 +7,45 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
         body {
             background-color: #f8f9fa;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
         }
         .main-container {
             max-width: 1800px;
             margin: 0 auto;
-            padding: 20px;
+            height: 100vh;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .app-layout {
+            flex: 1;
+            min-height: 0;
+        }
+        .pane-column {
+            height: 100%;
+            min-height: 0;
+            overflow-y: auto;
+            padding-bottom: 4px;
+        }
+        .center-pane {
+            display: flex;
+            flex-direction: column;
         }
         .card {
             border: none;
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+        }
+        .pane-column > .card:last-child {
+            margin-bottom: 0;
         }
         .card-header {
             background-color: #0d6efd;
@@ -30,38 +56,89 @@
         .card-body {
             padding: 1rem;
         }
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 5px;
-            transition: transform 0.2s;
-            text-align: center;
+        .settings-card .card-body {
+            padding: 12px;
         }
-        .stats-card:hover {
-            transform: translateY(-2px);
+        .settings-card .mb-3 {
+            margin-bottom: 0.65rem !important;
         }
-        .stats-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 2px;
+        .settings-card .form-label {
+            font-size: 0.8rem;
+            margin-bottom: 0.18rem;
+            white-space: nowrap;
         }
-        .stats-label {
-            font-size: 0.75rem;
-            opacity: 0.9;
-            font-weight: 500;
+        .settings-card .form-control,
+        .settings-card .form-select {
+            min-height: 34px;
+            font-size: 0.84rem;
+            padding: 0.28rem 0.55rem;
+        }
+        .settings-card .form-text {
+            font-size: 0.72rem;
+            line-height: 1.2;
+            margin-top: 0.18rem;
+        }
+        .settings-card .btn-sm {
+            font-size: 0.78rem;
+            padding: 0.22rem 0.45rem;
+        }
+        .settings-card .btn-primary.w-100 {
+            padding: 0.42rem;
+        }
+        .settings-card .compact-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 0.65rem;
+        }
+        .settings-card .compact-row .mb-3 {
+            margin-bottom: 0 !important;
+        }
+        .settings-card .strategy-help {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .settings-card .strategy-help .btn {
+            flex: 0 0 auto;
+        }
+        .settings-card .example-symbols {
+            line-height: 1.25;
+        }
+        .settings-card #stockSearchPanel {
+            padding: 8px !important;
+        }
+        .stats-panel .card-body {
+            padding: 8px 10px 10px;
+        }
+        .stats-panel .card-header {
+            padding: 0.45rem 1rem;
         }
         .loading-spinner {
             display: none;
             text-align: center;
             padding: 50px;
         }
+        .chart-card {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-card .card-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
         .plot-container {
-            min-height: 600px;
+            flex: 1;
+            min-height: 0;
             background-color: white;
             border-radius: 8px;
             padding: 15px;
+            overflow: auto;
         }
         .form-label {
             font-weight: 600;
@@ -123,14 +200,15 @@
         }
         .plot-iframe {
             width: 100%;
-            height: 720px;
+            height: 100%;
+            min-height: 640px;
             border: none;
             border-radius: 8px;
         }
         .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
-            gap: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
         .form-text {
             font-size: 0.75rem;
@@ -162,8 +240,43 @@
             margin-top: 1rem;
         }
         .data-source-note {
-            grid-column: 1 / -1;
             margin-bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #6c757d;
+            font-size: 0.76rem;
+            font-weight: 600;
+            padding: 0;
+        }
+        .data-source-note i {
+            color: #6c757d;
+        }
+        .stats-table-wrap {
+            overflow-x: auto;
+        }
+        .stats-table {
+            min-width: 720px;
+            margin-bottom: 0;
+            table-layout: fixed;
+            white-space: nowrap;
+        }
+        .stats-table th {
+            color: #6c757d;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 4px 8px;
+            text-align: center;
+        }
+        .stats-table td {
+            color: #212529;
+            font-size: 0.92rem;
+            font-weight: 700;
+            padding: 5px 8px;
+            text-align: center;
+            vertical-align: middle;
         }
         .insight-section {
             border-top: 1px solid #e9ecef;
@@ -196,20 +309,30 @@
             border-radius: 4px;
             padding: 6px;
         }
+        @media (max-width: 1199.98px) {
+            body {
+                overflow: auto;
+            }
+            .main-container {
+                height: auto;
+                min-height: 100vh;
+                overflow: visible;
+            }
+            .pane-column {
+                height: auto;
+                overflow: visible;
+            }
+            .chart-card {
+                min-height: 680px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="main-container">
-        <div class="text-center mb-4">
-            <h1 class="display-4">
-                <i class="fas fa-chart-line"></i> 股票回测系统
-            </h1>
-            <p class="lead text-muted">基于均线交叉策略的自动化回测工具</p>
-        </div>
-
-        <div class="row g-3">
-            <div class="col-xl-3 col-lg-4">
-                <div class="card">
+        <div class="row g-3 app-layout">
+            <div class="col-xl-3 col-lg-4 pane-column">
+                <div class="card settings-card">
                     <div class="card-header">
                         <i class="fas fa-cog"></i> 回测参数设置
                     </div>
@@ -266,76 +389,75 @@
                                 <select class="form-select" id="strategy" required>
                                     <option value="loading">正在加载策略...</option>
                                 </select>
-                                <div class="form-text">
+                                <div class="form-text strategy-help">
+                                    <span>
                                     <i class="fas fa-info-circle"></i>
                                     选择不同的交易策略进行回测
+                                    </span>
                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="loadStrategies()">
                                         <i class="fas fa-sync-alt"></i> 刷新策略列表
                                     </button>
                                 </div>
                             </div>
                             
-                            <div class="mb-3">
-                                <label for="initialCash" class="form-label">初始资金 ($)</label>
-                                <input type="number" class="form-control" id="initialCash"
-                                       min="100" max="1000000" step="100" value="10000" required>
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle"></i>
-                                    设置回测的初始资金金额
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="initialCash" class="form-label">初始资金 ($)</label>
+                                    <input type="number" class="form-control" id="initialCash"
+                                           min="100" max="1000000" step="100" value="10000" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="commission" class="form-label">交易手续费 (%)</label>
+                                    <input type="number" class="form-control" id="commission"
+                                           min="0" max="10" step="0.001" value="0.2" required>
                                 </div>
                             </div>
                             
-                            <div class="mb-3">
-                                <label for="commission" class="form-label">交易手续费 (%)</label>
-                                <input type="number" class="form-control" id="commission"
-                                       min="0" max="10" step="0.001" value="0.2" required>
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle"></i>
-                                    设置每笔交易的手续费率 (百分比)
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="startDate" class="form-label">开始日期</label>
+                                    <input type="date" class="form-control" id="startDate" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="endDate" class="form-label">结束日期</label>
+                                    <input type="date" class="form-control" id="endDate" required>
                                 </div>
                             </div>
                             
-                            <div class="mb-3">
-                                <label for="startDate" class="form-label">开始日期</label>
-                                <input type="date" class="form-control" id="startDate" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="endDate" class="form-label">结束日期</label>
-                                <input type="date" class="form-control" id="endDate" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="interval" class="form-label">数据频率</label>
-                                <select class="form-select" id="interval" required>
-                                    <option value="1m">1分钟</option>
-                                    <option value="2m">2分钟</option>
-                                    <option value="5m">5分钟</option>
-                                    <option value="15m">15分钟</option>
-                                    <option value="30m">30分钟</option>
-                                    <option value="60m">60分钟</option>
-                                    <option value="90m">90分钟</option>
-                                    <option value="1h">1小时</option>
-                                    <option value="1d" selected>1天</option>
-                                    <option value="5d">5天</option>
-                                    <option value="1wk">1周</option>
-                                    <option value="1mo">1月</option>
-                                    <option value="3mo">3月</option>
-                                </select>
-                                <div class="form-text">
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="interval" class="form-label">数据频率</label>
+                                    <select class="form-select" id="interval" required>
+                                        <option value="1m">1分钟</option>
+                                        <option value="2m">2分钟</option>
+                                        <option value="5m">5分钟</option>
+                                        <option value="15m">15分钟</option>
+                                        <option value="30m">30分钟</option>
+                                        <option value="60m">60分钟</option>
+                                        <option value="90m">90分钟</option>
+                                        <option value="1h">1小时</option>
+                                        <option value="1d" selected>1天</option>
+                                        <option value="5d">5天</option>
+                                        <option value="1wk">1周</option>
+                                        <option value="1mo">1月</option>
+                                        <option value="3mo">3月</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="dataProvider" class="form-label">数据源</label>
+                                    <select class="form-select" id="dataProvider" required>
+                                        <option value="auto" selected>自动选择（A股优先 mootdx）</option>
+                                        <option value="mootdx">通达信 mootdx（A股）</option>
+                                        <option value="yfinance">Yahoo Finance</option>
+                                    </select>
+                                </div>
+                                <div class="form-text" style="grid-column: 1 / -1;">
                                     <i class="fas fa-info-circle"></i>
                                     分钟级数据最多支持7天，小时级数据最多支持730天
                                 </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="dataProvider" class="form-label">数据源</label>
-                                <select class="form-select" id="dataProvider" required>
-                                    <option value="auto" selected>自动选择</option>
-                                    <option value="baidu">百度股市通（日线A股）</option>
-                                    <option value="mootdx">通达信 mootdx（A股）</option>
-                                    <option value="yfinance">Yahoo Finance</option>
-                                </select>
                             </div>
                             
                             <button type="submit" class="btn btn-primary w-100">
@@ -366,10 +488,10 @@
                 </div>
             </div>
             
-            <div class="col-xl-6 col-lg-8">
+            <div class="col-xl-6 col-lg-8 pane-column center-pane">
                 <!-- 回测统计卡片 -->
                 <div id="statsContainer" style="display: none;">
-                    <div class="card">
+                    <div class="card stats-panel">
                         <div class="card-header">
                             <i class="fas fa-chart-bar"></i> 回测统计
                         </div>
@@ -380,7 +502,7 @@
                 </div>
                 
                 <!-- 回测结果图表卡片 -->
-                <div class="card">
+                <div class="card chart-card">
                     <div class="card-header">
                         <i class="fas fa-chart-area"></i> 回测结果图表
                     </div>
@@ -406,7 +528,7 @@
                 </div>
             </div>
 
-            <div class="col-xl-3 col-lg-12">
+            <div class="col-xl-3 col-lg-12 pane-column">
                 <div class="card">
                     <div class="card-header">
                         <i class="fas fa-newspaper"></i> 标的信息
@@ -461,6 +583,13 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function getSearchResultBadge(type) {
+            if (type === 'direct_match') return '精确';
+            if (type === 'common_match') return '常见';
+            if (type === 'remote_name_match') return 'A股';
+            return '相似';
         }
 
         function renderInsightList(containerId, items, formatter) {
@@ -602,7 +731,7 @@
                                     <br>
                                     <small class="text-muted">${result.sector || 'N/A'} | ${result.country || 'USA'}${confidence}</small>
                                 </div>
-                                <span class="badge bg-primary">${result.type === 'direct_match' ? '精确' : (result.type === 'common_match' ? '常见' : '相似')}</span>
+                                <span class="badge bg-primary">${getSearchResultBadge(result.type)}</span>
                             </div>
                         `;
                         
@@ -765,23 +894,28 @@
 
                 if (result.data_provider) {
                     const providerDiv = document.createElement('div');
-                    providerDiv.className = 'alert alert-info small data-source-note';
+                    providerDiv.className = 'data-source-note';
                     const warningText = result.data_warnings && result.data_warnings.length
-                        ? `；${result.data_warnings.join('；')}`
+                        ? `；${result.data_warnings.map(escapeHtml).join('；')}`
                         : '';
-                    providerDiv.textContent = `数据源: ${result.data_provider}${warningText}`;
+                    providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${warningText}</span>`;
                     statsContent.appendChild(providerDiv);
                 }
                 
-                for (const [key, value] of Object.entries(result.stats)) {
-                    const statDiv = document.createElement('div');
-                    statDiv.className = 'stats-card';
-                    statDiv.innerHTML = `
-                        <div class="stats-value">${value}</div>
-                        <div class="stats-label">${key}</div>
-                    `;
-                    statsContent.appendChild(statDiv);
-                }
+                const statsEntries = Object.entries(result.stats);
+                const tableWrap = document.createElement('div');
+                tableWrap.className = 'stats-table-wrap';
+                tableWrap.innerHTML = `
+                    <table class="table table-sm table-bordered stats-table">
+                        <thead>
+                            <tr>${statsEntries.map(([key]) => `<th>${escapeHtml(key)}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            <tr>${statsEntries.map(([, value]) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
+                        </tbody>
+                    </table>
+                `;
+                statsContent.appendChild(tableWrap);
                 
                 document.getElementById('statsContainer').style.display = 'block';
                 

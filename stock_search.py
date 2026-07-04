@@ -13,6 +13,7 @@ import yfinance as yf
 import pandas as pd
 import os
 import json
+import requests
 from typing import List, Dict, Tuple, Optional
 
 # 尝试导入模糊匹配库
@@ -38,6 +39,9 @@ except ImportError:
 MARKET_US = "US"
 MARKET_CN = "CN"  # A股
 MARKET_HK = "HK"  # 港股
+
+EASTMONEY_SUGGEST_URL = "https://searchapi.eastmoney.com/api/suggest/get"
+EASTMONEY_SUGGEST_TOKEN = "D43BF722C8E33BDC906FB84D85E326E8"
 
 # 美股常见股票映射表
 COMMON_US_STOCKS = {
@@ -265,6 +269,71 @@ COMMON_STOCKS = {
     **COMMON_HK_STOCKS,
 }
 
+
+def _is_likely_symbol(value: str) -> bool:
+    """Return True when the query looks like a ticker instead of a company name."""
+    normalized = value.strip().upper()
+    if not normalized:
+        return False
+    if not normalized.isascii():
+        return False
+    if normalized.endswith(".HK"):
+        return normalized[:-3].isdigit()
+    if normalized.startswith(("SH", "SZ")):
+        return normalized[2:].isdigit()
+    return normalized.replace(".", "").replace("-", "").isalnum()
+
+
+def _normalize_a_share_symbol(code: str, market_type: str = "") -> Optional[str]:
+    """Convert Eastmoney A-share codes into the app's SH/SZ-prefixed format."""
+    code = str(code or "").strip().upper()
+    market_type = str(market_type or "").strip()
+    if not code or not code.isdigit():
+        return None
+    if market_type == "1" or code.startswith("6"):
+        return f"SH{code}"
+    if market_type == "0" or code.startswith(("0", "2", "3")):
+        return f"SZ{code}"
+    return None
+
+
+def _fetch_eastmoney_a_share_suggestions(query: str, limit: int = 8) -> List[Dict]:
+    """Search A-share names through Eastmoney's free suggestion endpoint."""
+    try:
+        response = requests.get(
+            EASTMONEY_SUGGEST_URL,
+            params={
+                "input": query,
+                "type": "14",
+                "token": EASTMONEY_SUGGEST_TOKEN,
+                "count": str(limit),
+            },
+            timeout=5,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception:
+        return []
+
+    rows = payload.get("QuotationCodeTable", {}).get("Data") or []
+    results = []
+    for row in rows[:limit]:
+        if row.get("Classify") != "AStock":
+            continue
+        symbol = _normalize_a_share_symbol(row.get("Code"), row.get("MarketType"))
+        if not symbol:
+            continue
+        results.append({
+            "symbol": symbol,
+            "name": row.get("Name") or symbol,
+            "market": MARKET_CN,
+            "sector": "N/A",
+            "country": "China",
+            "type": "remote_name_match",
+        })
+    return results
+
 class StockSearcher:
     """股票搜索引擎 - 支持美股、A股、港股"""
     
@@ -370,25 +439,26 @@ class StockSearcher:
         
         for target_market in markets:
             # 先尝试直接匹配（如果已经是股票代码）
-            try:
-                normalized_symbol, detected_market = self._normalize_symbol(query, target_market)
-                
-                if detected_market == target_market:
-                    ticker = yf.Ticker(normalized_symbol)
-                    info = ticker.info
-                    if info and 'longName' in info:
-                        results.append({
-                            'symbol': normalized_symbol,
-                            'name': info.get('longName', normalized_symbol),
-                            'market': target_market,
-                            'sector': info.get('sector', 'N/A'),
-                            'country': self._get_country_by_market(target_market),
-                            'type': 'direct_match'
-                        })
-                        if market:  # 如果指定了市场，找到了就直接返回
-                            return results
-            except:
-                pass
+            if _is_likely_symbol(query):
+                try:
+                    normalized_symbol, detected_market = self._normalize_symbol(query, target_market)
+                    
+                    if detected_market == target_market:
+                        ticker = yf.Ticker(normalized_symbol)
+                        info = ticker.info
+                        if info and 'longName' in info:
+                            results.append({
+                                'symbol': normalized_symbol,
+                                'name': info.get('longName', normalized_symbol),
+                                'market': target_market,
+                                'sector': info.get('sector', 'N/A'),
+                                'country': self._get_country_by_market(target_market),
+                                'type': 'direct_match'
+                            })
+                            if market:  # 如果指定了市场，找到了就直接返回
+                                return results
+                except:
+                    pass
             
             # 检查该市场的常见股票映射表
             stocks_dict = self._get_market_stocks_dict(target_market)
@@ -416,6 +486,9 @@ class StockSearcher:
                             'country': self._get_country_by_market(target_market),
                             'type': 'common_match'
                         })
+
+            if target_market == MARKET_CN:
+                results.extend(_fetch_eastmoney_a_share_suggestions(query))
         
         if results:
             # 去重
