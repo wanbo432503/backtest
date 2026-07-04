@@ -832,32 +832,32 @@ POST /optimize
 
 ### 功能验收
 
-- [ ] 用户可以只选择中科曙光、歌尔股份运行优化。
-- [ ] 用户可以配置至少 2 个策略参与优化。
-- [ ] 用户可以配置止损、止盈、仓位、最大持仓周期。
-- [ ] 用户可以配置 T+1、涨跌停过滤、滑点、手续费。
-- [ ] 优化结果按验证 score 排序。
-- [ ] UI 展示训练 score 和验证 score。
-- [ ] UI 可以一键应用最佳参数并生成回测图。
+- [x] 用户可以只选择中科曙光、歌尔股份运行优化。
+- [x] 用户可以配置至少 2 个策略参与优化。
+- [x] 用户可以配置止损、止盈、仓位、最大持仓周期。
+- [x] 用户可以配置 T+1、涨跌停过滤、滑点、手续费。
+- [x] 优化结果按验证 score 排序。
+- [x] UI 展示训练 score 和验证 score。
+- [x] UI 可以一键应用最佳参数并生成回测图。
 
 ### 数据和交易规则验收
 
-- [ ] 非 A 股代码仍被拒绝。
-- [ ] 涨停过滤有测试覆盖。
-- [ ] 跌停过滤有测试覆盖。
-- [ ] 100 股整数手有测试覆盖。
-- [ ] T+1 有测试覆盖。
-- [ ] 交易成本拆分有测试覆盖。
+- [x] 非 A 股代码仍被拒绝。
+- [x] 涨停过滤有测试覆盖。
+- [x] 跌停过滤有测试覆盖。
+- [x] 100 股整数手有测试覆盖。
+- [x] T+1 有测试覆盖。
+- [x] 交易成本拆分有测试覆盖。
 
 ### 测试验收
 
-- [ ] `python -m pytest test/test_analytics.py -q`
-- [ ] `python -m pytest test/test_optimization_models.py -q`
-- [ ] `python -m pytest test/test_a_share_rules.py -q`
-- [ ] `python -m pytest test/test_optimization_runner.py -q`
-- [ ] `python -m pytest test/test_optimize_api.py -q`
-- [ ] `python -m pytest test/test_index_template.py -q`
-- [ ] `python -m py_compile main.py market_data.py market_insights.py stock_search.py`
+- [x] `python -m pytest test/test_analytics.py -q`
+- [x] `python -m pytest test/test_optimization_models.py -q`
+- [x] `python -m pytest test/test_a_share_rules.py -q`
+- [x] `python -m pytest test/test_optimization_runner.py -q`
+- [x] `python -m pytest test/test_optimize_api.py -q`
+- [x] `python -m pytest test/test_index_template.py -q`
+- [x] `python -m py_compile main.py market_data.py market_insights.py stock_search.py`
 
 ---
 
