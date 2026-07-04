@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 def test_index_template_only_shows_a_share_symbol_examples():
@@ -10,4 +11,6 @@ def test_index_template_only_shows_a_share_symbol_examples():
     assert "BTC-USD" not in template
     assert "ETH-USD" not in template
     assert "A股代码" in template
-    assert "SZ002241" in template
+    assert "setSymbol('SH603019')\">中科曙光</span>" in template
+    assert "setSymbol('SZ002241')\">歌尔股份</span>" in template
+    assert len(re.findall(r'class="symbol-suggestion"', template)) == 2
