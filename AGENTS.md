@@ -2,14 +2,15 @@
 
 ## Project Overview
 
-Backtest is a FastAPI-based stock backtesting application with a browser UI. It supports configurable trading strategies, market data source selection, result charts, compact backtest statistics, and A-share information panels for research reports, capital flow, Dragon Tiger List, and announcements.
+Backtest is a FastAPI-based A-share backtesting application with a browser UI. It supports configurable trading strategies, market data source selection, result charts, compact backtest statistics, and A-share information panels for research reports, capital flow, Dragon Tiger List, and announcements.
 
 The current data-source direction is:
 
 - A-share K-line data should prefer `mootdx` when `data_provider=auto`.
-- `yfinance` is the fallback data source when `mootdx` is unavailable.
+- `yfinance` is only the fallback data source for A-share symbols when `mootdx` is unavailable.
 - Baidu Gushitong is no longer used as a backtest data source.
 - A-share search should support both stock codes and Chinese company names where possible.
+- Backtest targets must remain limited to A-share codes. Do not reintroduce US stocks, HK stocks, or cryptocurrencies as supported backtest symbols.
 
 ## Development Requirements
 

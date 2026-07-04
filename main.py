@@ -3,7 +3,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-import yfinance as yf
 import pandas as pd
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
@@ -412,15 +411,15 @@ async def reload_strategies():
 @app.get("/search-stocks")
 async def search_stocks_endpoint(query: str = None):
     """
-    搜索股票代码
-    参数: query - 公司名字或股票代码
-    返回: 匹配的股票列表
+    搜索 A 股代码
+    参数: query - A 股公司名字或股票代码
+    返回: 匹配的 A 股列表
     """
     if not query or len(query.strip()) == 0:
         raise HTTPException(status_code=400, detail="搜索关键词不能为空")
     
     try:
-        results = search_stocks(query.strip())
+        results = search_stocks(query.strip(), market="CN")
         
         if not results:
             raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的股票")
@@ -438,45 +437,44 @@ async def search_stocks_endpoint(query: str = None):
 @app.get("/search-stocks-multi-market")
 async def search_stocks_multi_market(query: str = None, market: str = None):
     """
-    搜索股票代码 - 支持多个市场
+    搜索 A 股代码
     参数: 
         - query: 公司名字或股票代码
-        - market: 指定市场 (US/美股, CN/A股, HK/港股)，为空时搜索所有市场
-    返回: 匹配的股票列表（包含市场信息）
+        - market: 仅支持 CN/A股
+    返回: 匹配的 A 股列表（包含市场信息）
     """
     if not query or len(query.strip()) == 0:
         raise HTTPException(status_code=400, detail="搜索关键词不能为空")
     
     # 标准化市场参数
     market_map = {
-        'us': 'US', '美股': 'US',
         'cn': 'CN', 'a股': 'CN', 'a': 'CN',
-        'hk': 'HK', '港股': 'HK'
     }
     
     target_market = None
     if market:
         market_lower = market.lower()
         target_market = market_map.get(market_lower, market.upper() if len(market) <= 2 else None)
-        if target_market not in ['US', 'CN', 'HK']:
-            raise HTTPException(status_code=400, detail=f"不支持的市场: {market}，请使用 US/美股, CN/A股, HK/港股")
+        if target_market != 'CN':
+            raise HTTPException(status_code=400, detail=f"不支持的市场: {market}，当前仅支持 CN/A股")
+    else:
+        target_market = "CN"
     
     try:
         from stock_search import search_stocks as search_fn
         results = search_fn(query.strip(), market=target_market)
         
         if not results:
-            market_str = f" [{target_market}]" if target_market else ""
-            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的股票{market_str}")
+            raise HTTPException(status_code=404, detail=f"未找到与 '{query}' 相关的A股")
         
         # 为结果添加市场中文名称
-        market_names = {'US': '美股', 'CN': 'A股', 'HK': '港股'}
+        market_names = {'CN': 'A股'}
         for result in results:
             result['market_name'] = market_names.get(result.get('market'), result.get('market', '未知'))
         
         return {
             "query": query,
-            "market": target_market or "所有市场",
+            "market": target_market,
             "count": len(results),
             "results": results
         }

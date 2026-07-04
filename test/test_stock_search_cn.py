@@ -69,3 +69,17 @@ def test_general_search_includes_remote_a_share_name_lookup(monkeypatch):
     results = search_stocks("中科曙光")
 
     assert any(result["symbol"] == "SH603019" for result in results)
+
+
+def test_general_search_does_not_return_non_a_share_results(monkeypatch):
+    monkeypatch.setattr("stock_search.yf.Ticker", DummyTicker)
+    monkeypatch.setattr(
+        stock_search,
+        "_fetch_eastmoney_a_share_suggestions",
+        lambda query: [],
+        raising=False,
+    )
+
+    results = search_stocks("AAPL")
+
+    assert results == []

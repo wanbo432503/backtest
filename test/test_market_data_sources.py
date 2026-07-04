@@ -24,10 +24,15 @@ def test_normalizes_a_share_to_plain_code():
     assert normalize_symbol("SZ000001").code == "000001"
 
 
-def test_non_cn_symbols_remain_yfinance_compatible():
+def test_non_cn_symbols_can_still_be_detected_before_rejection():
     assert normalize_symbol("AAPL").symbol == "AAPL"
     assert normalize_symbol("0700.HK").symbol == "0700.HK"
     assert normalize_symbol("BTC-USD").symbol == "BTC-USD"
+
+
+def test_fetch_ohlcv_rejects_non_a_share_symbols():
+    with pytest.raises(ValueError, match="仅支持 A 股代码"):
+        fetch_ohlcv("BTC-USD", "2026-07-01", "2026-07-04", "1d", "auto")
 
 
 def test_converts_a_share_symbol_for_yfinance_fallback():

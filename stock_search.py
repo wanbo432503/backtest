@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
 股票代码搜索模块 - 通过公司名字查找股票代码
-支持多个市场和数据源：
-1. 美股 (US Stocks) - 通过 yfinance
-2. A股 (Chinese Stocks) - 通过符号转换
-3. 港股 (Hong Kong Stocks) - 通过符号转换
-4. 本地 CSV 数据库（可选）
-5. 常见股票映射表
+当前主路径仅支持 A 股：
+1. A 股代码直接识别并规范化
+2. A 股中文公司名通过本地映射和东方财富建议接口查询
+3. 美股、港股和加密货币不作为回测对象支持
 """
 
 import yfinance as yf
@@ -297,6 +295,16 @@ def _normalize_a_share_symbol(code: str, market_type: str = "") -> Optional[str]
     return None
 
 
+def _is_a_share_code(value: str) -> bool:
+    normalized = value.strip().upper()
+    if normalized.startswith(("SH", "SZ", "BJ")) and normalized[2:].isdigit() and len(normalized[2:]) == 6:
+        return True
+    if normalized.endswith((".SH", ".SZ", ".BJ")):
+        code = normalized.split(".")[0]
+        return code.isdigit() and len(code) == 6
+    return normalized.isdigit() and len(normalized) == 6
+
+
 def _fetch_eastmoney_a_share_suggestions(query: str, limit: int = 8) -> List[Dict]:
     """Search A-share names through Eastmoney's free suggestion endpoint."""
     try:
@@ -335,7 +343,7 @@ def _fetch_eastmoney_a_share_suggestions(query: str, limit: int = 8) -> List[Dic
     return results
 
 class StockSearcher:
-    """股票搜索引擎 - 支持美股、A股、港股"""
+    """股票搜索引擎 - 仅支持 A 股主路径"""
     
     def __init__(self):
         """初始化搜索引擎"""
@@ -410,11 +418,16 @@ class StockSearcher:
         
         # A股标准化：添加后缀
         if market == MARKET_CN:
-            if not (symbol.startswith('SH') or symbol.startswith('SZ')):
+            if symbol.endswith((".SH", ".SZ", ".BJ")):
+                code, suffix = symbol.split(".")
+                symbol = f"{suffix}{code}"
+            elif not symbol.startswith(('SH', 'SZ', 'BJ')):
                 # 如果是纯数字，根据首位数字判断交易所
                 if symbol.isdigit():
                     if symbol.startswith('6'):
                         symbol = 'SH' + symbol
+                    elif symbol.startswith('8'):
+                        symbol = 'BJ' + symbol
                     else:
                         symbol = 'SZ' + symbol
         
@@ -434,31 +447,22 @@ class StockSearcher:
         query = query.strip()
         results = []
         
-        # 如果指定了市场，只在该市场搜索；否则在所有市场搜索
-        markets = [market] if market else [MARKET_US, MARKET_CN, MARKET_HK]
+        if market and market != MARKET_CN:
+            return []
+
+        markets = [MARKET_CN]
         
         for target_market in markets:
-            # 先尝试直接匹配（如果已经是股票代码）
-            if _is_likely_symbol(query):
-                try:
-                    normalized_symbol, detected_market = self._normalize_symbol(query, target_market)
-                    
-                    if detected_market == target_market:
-                        ticker = yf.Ticker(normalized_symbol)
-                        info = ticker.info
-                        if info and 'longName' in info:
-                            results.append({
-                                'symbol': normalized_symbol,
-                                'name': info.get('longName', normalized_symbol),
-                                'market': target_market,
-                                'sector': info.get('sector', 'N/A'),
-                                'country': self._get_country_by_market(target_market),
-                                'type': 'direct_match'
-                            })
-                            if market:  # 如果指定了市场，找到了就直接返回
-                                return results
-                except:
-                    pass
+            if _is_a_share_code(query):
+                normalized_symbol, _ = self._normalize_symbol(query, target_market)
+                results.append({
+                    'symbol': normalized_symbol,
+                    'name': normalized_symbol,
+                    'market': target_market,
+                    'sector': 'N/A',
+                    'country': self._get_country_by_market(target_market),
+                    'type': 'direct_match'
+                })
             
             # 检查该市场的常见股票映射表
             stocks_dict = self._get_market_stocks_dict(target_market)
@@ -466,12 +470,15 @@ class StockSearcher:
             
             for name, symbol in stocks_dict.items():
                 if name.lower() in query_lower or query_lower in name.lower():
+                    if not _is_a_share_code(symbol):
+                        continue
+                    normalized_symbol, _ = self._normalize_symbol(symbol, target_market)
                     try:
                         ticker = yf.Ticker(symbol)
                         info = ticker.info
                         results.append({
-                            'symbol': symbol,
-                            'name': info.get('longName', symbol),
+                            'symbol': normalized_symbol,
+                            'name': info.get('longName', normalized_symbol),
                             'market': target_market,
                             'sector': info.get('sector', 'N/A'),
                             'country': self._get_country_by_market(target_market),
@@ -479,7 +486,7 @@ class StockSearcher:
                         })
                     except:
                         results.append({
-                            'symbol': symbol,
+                            'symbol': normalized_symbol,
                             'name': name,
                             'market': target_market,
                             'sector': 'N/A',
@@ -500,10 +507,10 @@ class StockSearcher:
                     seen_symbols.add(result['symbol'])
             return unique_results
         
-        # 4. 使用模糊匹配（仅在没有明确指定市场或搜索所有市场时）
-        if not market:
+        # 4. 使用模糊匹配（仅限 A 股本地映射表）
+        if not market or market == MARKET_CN:
             best_matches = []
-            all_names = list(COMMON_STOCKS.keys())
+            all_names = list(COMMON_CN_STOCKS.keys())
             
             for name in all_names:
                 if HAS_FUZZYWUZZY:
@@ -520,27 +527,30 @@ class StockSearcher:
             for name, score in best_matches[:5]:  # 最多返回 5 个结果
                 # 找到该名称所属的市场
                 symbol = COMMON_STOCKS[name]
+                if not _is_a_share_code(symbol):
+                    continue
+                normalized_symbol, _ = self._normalize_symbol(symbol, MARKET_CN)
                 detected_market = self._detect_market(symbol)
                 
                 try:
                     ticker = yf.Ticker(symbol)
                     info = ticker.info
                     results.append({
-                        'symbol': symbol,
-                        'name': info.get('longName', symbol),
-                        'market': detected_market,
+                        'symbol': normalized_symbol,
+                        'name': info.get('longName', normalized_symbol),
+                        'market': MARKET_CN,
                         'sector': info.get('sector', 'N/A'),
-                        'country': self._get_country_by_market(detected_market),
+                        'country': self._get_country_by_market(MARKET_CN),
                         'type': 'fuzzy_match',
                         'confidence': int(score)
                     })
                 except:
                     results.append({
-                        'symbol': symbol,
+                        'symbol': normalized_symbol,
                         'name': name,
-                        'market': detected_market,
+                        'market': MARKET_CN,
                         'sector': 'N/A',
-                        'country': self._get_country_by_market(detected_market),
+                        'country': self._get_country_by_market(MARKET_CN),
                         'type': 'fuzzy_match',
                         'confidence': int(score)
                     })
@@ -606,7 +616,7 @@ class StockSearcher:
         return currency_map.get(market, "Unknown")
 
 def search_stocks(query: str, market: Optional[str] = None) -> List[Dict]:
-    """便利函数 - 搜索股票（支持多个市场）"""
+    """便利函数 - 搜索 A 股"""
     searcher = StockSearcher()
     return searcher.search_by_name(query, market)
 
@@ -616,7 +626,7 @@ def get_stock_info(symbol: str, market: Optional[str] = None) -> Dict:
     return searcher.get_stock_info(symbol, market)
 
 def search_us_stocks(query: str) -> List[Dict]:
-    """便利函数 - 搜索美股"""
+    """兼容旧接口：当前不再支持美股搜索。"""
     return search_stocks(query, MARKET_US)
 
 def search_cn_stocks(query: str) -> List[Dict]:
@@ -624,26 +634,15 @@ def search_cn_stocks(query: str) -> List[Dict]:
     return search_stocks(query, MARKET_CN)
 
 def search_hk_stocks(query: str) -> List[Dict]:
-    """便利函数 - 搜索港股"""
+    """兼容旧接口：当前不再支持港股搜索。"""
     return search_stocks(query, MARKET_HK)
 
 if __name__ == "__main__":
     # 测试
     print("=" * 60)
-    print("股票搜索测试 - 支持美股、A股、港股")
+    print("股票搜索测试 - 仅支持 A 股")
     print("=" * 60)
-    
-    # 测试美股
-    print("\n【美股搜索】")
-    us_queries = ["苹果", "微软", "特斯拉", "nvidia"]
-    for query in us_queries:
-        print(f"\n搜索: {query}")
-        results = search_us_stocks(query)
-        for result in results[:2]:  # 只显示前2个结果
-            market_name = "美股" if result.get('market') == MARKET_US else result.get('market', 'N/A')
-            print(f"  ✅ {result['symbol']:10s} - {result['name'][:30]:30s} [{market_name}]")
-    
-    # 测试A股
+
     print("\n\n【A股搜索】")
     cn_queries = ["阿里巴巴", "贵州茅台", "中国平安", "工商银行"]
     for query in cn_queries:
@@ -651,25 +650,4 @@ if __name__ == "__main__":
         results = search_cn_stocks(query)
         for result in results[:2]:  # 只显示前2个结果
             market_name = "A股" if result.get('market') == MARKET_CN else result.get('market', 'N/A')
-            print(f"  ✅ {result['symbol']:10s} - {result['name'][:30]:30s} [{market_name}]")
-    
-    # 测试港股
-    print("\n\n【港股搜索】")
-    hk_queries = ["腾讯", "阿里巴巴", "小米", "美团"]
-    for query in hk_queries:
-        print(f"\n搜索: {query}")
-        results = search_hk_stocks(query)
-        for result in results[:2]:  # 只显示前2个结果
-            market_name = "港股" if result.get('market') == MARKET_HK else result.get('market', 'N/A')
-            print(f"  ✅ {result['symbol']:10s} - {result['name'][:30]:30s} [{market_name}]")
-    
-    # 测试跨市场搜索（搜索所有市场）
-    print("\n\n【跨市场搜索 - 同时搜索多个市场】")
-    cross_queries = ["阿里巴巴", "腾讯"]
-    for query in cross_queries:
-        print(f"\n搜索: {query} (所有市场)")
-        results = search_stocks(query)
-        for result in results[:3]:  # 显示前3个结果
-            market_map = {MARKET_US: "美股", MARKET_CN: "A股", MARKET_HK: "港股"}
-            market_name = market_map.get(result.get('market'), result.get('market', 'N/A'))
             print(f"  ✅ {result['symbol']:10s} - {result['name'][:30]:30s} [{market_name}]")

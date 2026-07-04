@@ -339,7 +339,7 @@
                     <div class="card-body">
                         <form id="backtestForm">
                             <div class="mb-3">
-                                <label for="symbol" class="form-label">股票/加密货币代码 
+                                <label for="symbol" class="form-label">A股代码 
                                     <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="toggleStockSearch()" id="searchToggleBtn">
                                         <i class="fas fa-search"></i> 搜索股票
                                     </button>
@@ -347,14 +347,14 @@
                                 
                                 <!-- 股票代码输入 -->
                                 <input type="text" class="form-control" id="symbol"
-                                       placeholder="例如: AAPL, BTC-USD" value="AAPL" required>
+                                       placeholder="例如: SZ002241, SH600519" value="SZ002241" required>
                                 
                                 <!-- 搜索界面（默认隐藏） -->
                                 <div id="stockSearchPanel" class="mt-2" style="display:none; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; background-color: #f8f9fa;">
                                     <label for="searchQuery" class="form-label small">搜索公司名称</label>
                                     <div class="input-group">
                                         <input type="text" class="form-control" id="searchQuery" 
-                                               placeholder="输入公司名字，如: 苹果、微软、特斯拉...">
+                                               placeholder="输入A股公司名称，如: 中科曙光、贵州茅台">
                                         <button class="btn btn-primary" type="button" onclick="performStockSearch()">
                                             <i class="fas fa-search"></i>
                                         </button>
@@ -376,11 +376,10 @@
                                 
                                 <div class="example-symbols">
                                     <strong>快速选择:</strong>
-                                    <span class="symbol-suggestion" onclick="setSymbol('AAPL')">AAPL</span>,
-                                    <span class="symbol-suggestion" onclick="setSymbol('MSFT')">MSFT</span>,
-                                    <span class="symbol-suggestion" onclick="setSymbol('TSLA')">TSLA</span>,
-                                    <span class="symbol-suggestion" onclick="setSymbol('BTC-USD')">BTC-USD</span>,
-                                    <span class="symbol-suggestion" onclick="setSymbol('ETH-USD')">ETH-USD</span>
+                                    <span class="symbol-suggestion" onclick="setSymbol('SZ002241')">SZ002241</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('SH600519')">SH600519</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('SZ000001')">SZ000001</span>,
+                                    <span class="symbol-suggestion" onclick="setSymbol('SH601398')">SH601398</span>
                                 </div>
                             </div>
                             
@@ -592,6 +591,13 @@
             return '相似';
         }
 
+        function isAShareSymbol(symbol) {
+            const value = symbol.trim().toUpperCase();
+            return /^\d{6}$/.test(value)
+                || /^(SH|SZ|BJ)\d{6}$/.test(value)
+                || /^\d{6}\.(SH|SZ|BJ)$/.test(value);
+        }
+
         function renderInsightList(containerId, items, formatter) {
             const container = document.getElementById(containerId);
             if (!items || items.length === 0) {
@@ -729,7 +735,7 @@
                                 <div>
                                     <strong>${result.symbol}</strong> - ${result.name}
                                     <br>
-                                    <small class="text-muted">${result.sector || 'N/A'} | ${result.country || 'USA'}${confidence}</small>
+                                    <small class="text-muted">${result.sector || 'N/A'} | ${result.country || 'China'}${confidence}</small>
                                 </div>
                                 <span class="badge bg-primary">${getSearchResultBadge(result.type)}</span>
                             </div>
@@ -840,7 +846,7 @@
             e.preventDefault();
             
             const formData = {
-                symbol: document.getElementById('symbol').value.toUpperCase(),
+                symbol: document.getElementById('symbol').value.trim().toUpperCase(),
                 strategy_name: document.getElementById('strategy').value,
                 initial_cash: parseFloat(document.getElementById('initialCash').value),
                 commission: parseFloat(document.getElementById('commission').value) / 100, // 转换为小数
@@ -849,6 +855,11 @@
                 interval: document.getElementById('interval').value,
                 data_provider: document.getElementById('dataProvider').value
             };
+
+            if (!isAShareSymbol(formData.symbol)) {
+                alert('仅支持 A 股代码，请输入 6 位代码或 SH/SZ/BJ 前缀代码');
+                return;
+            }
             
             // 验证时间范围
             const startDate = new Date(formData.start_date);

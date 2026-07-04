@@ -316,6 +316,9 @@ def fetch_ohlcv(
     provider: str = "auto",
 ) -> DataSourceResult:
     normalized = normalize_symbol(symbol)
+    if normalized.market != "CN":
+        raise ValueError("仅支持 A 股代码，请输入 6 位 A 股代码或 SH/SZ/BJ 前缀代码")
+
     normalized_provider = provider.lower()
     attempts: list[tuple[str, Callable[[], DataSourceResult]]] = []
 
