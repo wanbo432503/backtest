@@ -11,6 +11,10 @@ The current data-source direction is:
 - Baidu Gushitong is no longer used as a backtest data source.
 - A-share search should support both stock codes and Chinese company names where possible.
 - Backtest targets must remain limited to A-share codes. Do not reintroduce US stocks, HK stocks, or cryptocurrencies as supported backtest symbols.
+- Strategy optimization should prioritize fixed, small A-share target pools, usually 1-3 stocks such as `SH603019` and `SZ002241`.
+- Do not introduce multi-stock portfolio rotation, weighting, or portfolio-combination complexity unless the user explicitly asks for it.
+- Phase 2.0 score uses: `annual_return_pct * 0.4 + sharpe * 0.3 - abs(max_drawdown_pct) * 0.3`.
+- Optimization results should emphasize validation score and risk flags over attractive training-only performance.
 
 ## Development Requirements
 

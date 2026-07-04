@@ -779,13 +779,13 @@ POST /optimize
 
 **Todo:**
 
-- [ ] README 增加 Phase 2.0 使用说明。
-- [ ] README 增加 score 公式。
-- [ ] README 增加训练/验证建议。
-- [ ] README 增加 A 股交易规则说明。
-- [ ] AGENTS.md 增加“策略优化优先考虑固定少数 A 股标的”。
-- [ ] AGENTS.md 增加“不要引入多股票组合复杂度，除非用户明确要求”。
-- [ ] Commit: `docs: document phase 2 optimization workflow`。
+- [x] README 增加 Phase 2.0 使用说明。
+- [x] README 增加 score 公式。
+- [x] README 增加训练/验证建议。
+- [x] README 增加 A 股交易规则说明。
+- [x] AGENTS.md 增加“策略优化优先考虑固定少数 A 股标的”。
+- [x] AGENTS.md 增加“不要引入多股票组合复杂度，除非用户明确要求”。
+- [x] Commit: `docs: document phase 2 optimization workflow`。
 
 **Acceptance Criteria:**
 
