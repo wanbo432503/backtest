@@ -627,15 +627,15 @@ POST /optimize
 
 **Todo:**
 
-- [ ] 写模板测试：页面含“股票池”。
-- [ ] 写模板测试：页面含中科曙光、歌尔股份 checkbox。
-- [ ] 写模板测试：页面含“启用参数优化”。
-- [ ] 写模板测试：页面含 `score`。
-- [ ] 实现 UI 区域。
-- [ ] JS 收集 OptimizationRequest。
-- [ ] 参数优化启用时显示“开始优化”按钮。
-- [ ] 参数优化禁用时保留现有“开始回测”。
-- [ ] Commit: `feat: add optimization controls to UI`。
+- [x] 写模板测试：页面含“股票池”。
+- [x] 写模板测试：页面含中科曙光、歌尔股份 checkbox。
+- [x] 写模板测试：页面含“启用参数优化”。
+- [x] 写模板测试：页面含 `score`。
+- [x] 实现 UI 区域。
+- [x] JS 收集 OptimizationRequest。
+- [x] 参数优化启用时显示“开始优化”按钮。
+- [x] 参数优化禁用时保留现有“开始回测”。
+- [x] Commit: `feat: add optimization controls to UI`。
 
 **Acceptance Criteria:**
 

@@ -456,8 +456,59 @@
                                     分钟级数据最多支持7天，小时级数据最多支持730天
                                 </div>
                             </div>
+
+                            <div class="optimization-panel border rounded p-2 mb-3">
+                                <div class="d-flex align-items-center justify-content-between gap-2">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="enableOptimization">
+                                        <label class="form-check-label" for="enableOptimization">启用参数优化</label>
+                                    </div>
+                                    <span class="badge bg-light text-dark">目标: score</span>
+                                </div>
+                                <div id="optimizationControls" class="mt-2" style="display:none;">
+                                    <div class="small fw-bold mb-1">股票池</div>
+                                    <div class="compact-row">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input optimization-symbol" type="checkbox" value="SH603019" id="poolSH603019" checked>
+                                            <label class="form-check-label" for="poolSH603019">中科曙光</label>
+                                        </div>
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input optimization-symbol" type="checkbox" value="SZ002241" id="poolSZ002241" checked>
+                                            <label class="form-check-label" for="poolSZ002241">歌尔股份</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="thirdPoolSymbol" class="form-label">第三只 A 股</label>
+                                        <input type="text" class="form-control" id="thirdPoolSymbol" placeholder="可选，例如 SH600519">
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="mb-3">
+                                            <label for="optimizationTopN" class="form-label">Top N</label>
+                                            <input type="number" class="form-control" id="optimizationTopN" min="1" max="30" value="10">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="maxCombinations" class="form-label">最大组合数</label>
+                                            <input type="number" class="form-control" id="maxCombinations" min="1" max="1000" value="300">
+                                        </div>
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="mb-3">
+                                            <label for="minTrades" class="form-label">最小交易次数</label>
+                                            <input type="number" class="form-control" id="minTrades" min="1" max="100" value="5">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="validateStartDate" class="form-label">验证开始</label>
+                                            <input type="date" class="form-control" id="validateStartDate">
+                                        </div>
+                                    </div>
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle"></i>
+                                        参数范围来自当前策略元数据，按验证区间 score 排名。
+                                    </div>
+                                </div>
+                            </div>
                             
-                            <button type="submit" class="btn btn-primary w-100">
+                            <button type="submit" class="btn btn-primary w-100" id="submitBacktestButton">
                                 <i class="fas fa-play"></i> 开始回测
                             </button>
                         </form>
@@ -834,6 +885,102 @@
             document.getElementById('currentCash').textContent = '$' + document.getElementById('initialCash').value;
             document.getElementById('currentCommission').textContent = document.getElementById('commission').value + '%';
         }
+
+        function toggleOptimizationControls() {
+            const enabled = document.getElementById('enableOptimization').checked;
+            document.getElementById('optimizationControls').style.display = enabled ? 'block' : 'none';
+            document.getElementById('submitBacktestButton').innerHTML = enabled
+                ? '<i class="fas fa-ranking-star"></i> 开始优化'
+                : '<i class="fas fa-play"></i> 开始回测';
+        }
+
+        function collectSelectedSymbols() {
+            const symbols = Array.from(document.querySelectorAll('.optimization-symbol:checked'))
+                .map(item => item.value);
+            const thirdSymbol = document.getElementById('thirdPoolSymbol').value.trim().toUpperCase();
+            if (thirdSymbol) {
+                symbols.push(thirdSymbol);
+            }
+            return Array.from(new Set(symbols));
+        }
+
+        function getCurrentStrategySearchSpace() {
+            const strategyName = document.getElementById('strategy').value;
+            const params = window.strategyMetadata[strategyName] || [];
+            const searchSpace = {};
+            params.forEach(param => {
+                if (Array.isArray(param.search_values) && param.search_values.length > 0) {
+                    searchSpace[param.name] = param.search_values;
+                }
+            });
+            return searchSpace;
+        }
+
+        function collectOptimizationRequest() {
+            const strategyName = document.getElementById('strategy').value;
+            const validateStartDate = document.getElementById('validateStartDate').value;
+            return {
+                start_date: document.getElementById('startDate').value,
+                end_date: document.getElementById('endDate').value,
+                interval: document.getElementById('interval').value,
+                data_provider: document.getElementById('dataProvider').value,
+                initial_cash: parseFloat(document.getElementById('initialCash').value),
+                optimization_config: {
+                    symbols: collectSelectedSymbols(),
+                    strategies: [{
+                        strategy_name: strategyName,
+                        fixed_params: {},
+                        search_space: getCurrentStrategySearchSpace()
+                    }],
+                    objective: 'score',
+                    top_n: parseInt(document.getElementById('optimizationTopN').value, 10),
+                    max_combinations: parseInt(document.getElementById('maxCombinations').value, 10),
+                    min_trades: parseInt(document.getElementById('minTrades').value, 10),
+                    train_start_date: document.getElementById('startDate').value,
+                    train_end_date: validateStartDate || document.getElementById('endDate').value,
+                    validate_start_date: validateStartDate || document.getElementById('startDate').value,
+                    validate_end_date: document.getElementById('endDate').value,
+                    interval: document.getElementById('interval').value,
+                    data_provider: document.getElementById('dataProvider').value
+                }
+            };
+        }
+
+        function renderOptimizationSummary(result) {
+            const statsContent = document.getElementById('statsContent');
+            statsContent.innerHTML = '';
+            const rows = result.top_results || [];
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'stats-table-wrap';
+            tableWrap.innerHTML = `
+                <table class="table table-sm table-bordered stats-table">
+                    <thead>
+                        <tr>
+                            <th>排名</th><th>标的</th><th>策略</th><th>验证 score</th><th>风险标记</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(row => `
+                            <tr>
+                                <td>${escapeHtml(row.rank || '-')}</td>
+                                <td>${escapeHtml(row.symbol || '-')}</td>
+                                <td>${escapeHtml(row.strategy_name || '-')}</td>
+                                <td>${escapeHtml(row.validate_score ?? '-')}</td>
+                                <td>${escapeHtml((row.risk_flags || []).join(', ') || '无')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            statsContent.appendChild(tableWrap);
+            document.getElementById('statsContainer').style.display = 'block';
+            document.getElementById('plotContainer').innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-ranking-star fa-2x mb-3"></i>
+                    <div>参数优化完成，请查看上方 Top 结果。</div>
+                </div>
+            `;
+        }
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
@@ -850,6 +997,7 @@
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
             document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
+            document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);
         });
         
         document.getElementById('backtestForm').addEventListener('submit', async function(e) {
@@ -865,10 +1013,18 @@
                 interval: document.getElementById('interval').value,
                 data_provider: document.getElementById('dataProvider').value
             };
+            const optimizationEnabled = document.getElementById('enableOptimization').checked;
 
-            if (!isAShareSymbol(formData.symbol)) {
+            if (!optimizationEnabled && !isAShareSymbol(formData.symbol)) {
                 alert('仅支持 A 股代码，请输入 6 位代码或 SH/SZ/BJ 前缀代码');
                 return;
+            }
+            if (optimizationEnabled) {
+                const symbols = collectSelectedSymbols();
+                if (symbols.length === 0 || symbols.length > 3 || symbols.some(symbol => !isAShareSymbol(symbol))) {
+                    alert('股票池需选择 1-3 只 A 股代码');
+                    return;
+                }
             }
             
             // 验证时间范围
@@ -894,20 +1050,27 @@
             document.getElementById('statsContainer').style.display = 'none';
             
             try {
-                const response = await fetch('/backtest', {
+                const requestBody = optimizationEnabled ? collectOptimizationRequest() : formData;
+                const endpoint = optimizationEnabled ? '/optimize' : '/backtest';
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(requestBody)
                 });
                 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.detail || '回测失败');
+                    throw new Error(errorData.detail || (optimizationEnabled ? '优化失败' : '回测失败'));
                 }
                 
                 const result = await response.json();
+
+                if (optimizationEnabled) {
+                    renderOptimizationSummary(result);
+                    return;
+                }
                 
                 // 显示统计信息
                 const statsContent = document.getElementById('statsContent');
