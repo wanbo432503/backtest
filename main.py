@@ -4,23 +4,21 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 import pandas as pd
-from backtesting import Backtest, Strategy
+from backtesting import Strategy
 from backtesting.lib import crossover
 from backtesting.test import SMA
 import io
 import base64
 import json
-from datetime import datetime
 import warnings
 import os
-import tempfile
 import importlib
 import inspect
 from stock_search import search_stocks, get_stock_info
-from market_data import fetch_ohlcv
 from market_insights import get_market_insights
 from optimization_models import AShareTradingConfig, RiskConfig
 from strategy_metadata import get_strategy_parameters
+from backtest_runner import run_single_backtest
 
 warnings.filterwarnings('ignore')
 
@@ -282,94 +280,18 @@ async def read_root(request: Request):
 @app.post("/backtest")
 async def run_backtest(request: BacktestRequest):
     try:
-        # 验证日期格式
-        start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
-        end_date = datetime.strptime(request.end_date, "%Y-%m-%d")
-        
-        if start_date >= end_date:
-            raise HTTPException(status_code=400, detail="开始日期必须早于结束日期")
-        
-        # 获取数据
-        print(f"正在获取 {request.symbol} 的数据，数据源: {request.data_provider}...")
-        source_result = fetch_ohlcv(
-            request.symbol,
-            request.start_date,
-            request.end_date,
-            request.interval,
-            request.data_provider,
+        result = run_single_backtest(
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            interval=request.interval,
+            strategy_name=request.strategy_name,
+            strategy_registry=STRATEGY_REGISTRY,
+            initial_cash=request.initial_cash,
+            commission=request.commission,
+            data_provider=request.data_provider,
         )
-        data = source_result.data
-        
-        if data.empty:
-            raise HTTPException(status_code=404, detail="无法获取数据，请检查股票代码和时间区间")
-        
-        print(f"原始数据形状: {data.shape}")
-        print(f"原始数据列: {data.columns.tolist()}")
-        
-        # 准备数据
-        data = prepare_data_for_backtesting(data)
-        
-        print(f"处理后数据形状: {data.shape}")
-        print(f"处理后数据列: {data.columns.tolist()}")
-        
-        # 确保有足够的数据点
-        if len(data) < 50:
-            raise HTTPException(status_code=400, detail="数据点太少，无法进行有意义的回测")
-        
-        # 获取策略类
-        strategy_class = STRATEGY_REGISTRY.get(request.strategy_name)
-        if not strategy_class:
-            raise HTTPException(status_code=400, detail=f"策略 '{request.strategy_name}' 不存在")
-        
-        # 执行回测
-        print(f"正在执行回测，策略: {request.strategy_name}, 初始资金: {request.initial_cash}, 手续费: {request.commission}")
-        bt = Backtest(data, strategy_class, cash=request.initial_cash, commission=request.commission)
-        stats = bt.run()
-        
-        # 生成图表
-        print("正在生成图表...")
-        # 创建临时文件
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as tmp_file:
-            temp_filename = tmp_file.name
-        
-        try:
-            # 生成图表并保存到临时文件
-            bt.plot(filename=temp_filename, open_browser=False)
-            
-            # 读取HTML文件内容
-            with open(temp_filename, 'r', encoding='utf-8') as f:
-                plot_html_content = f.read()
-            
-            # 删除临时文件
-            os.unlink(temp_filename)
-            
-        except Exception as e:
-            # 确保删除临时文件
-            if os.path.exists(temp_filename):
-                os.unlink(temp_filename)
-            raise e
-        
-        # 提取统计信息
-        stats_dict = {
-            "策略收益率": f"{stats['Return [%]']:.2f}%",
-            "最大回撤": f"{stats['Max. Drawdown [%]']:.2f}%",
-            "基准收益率": f"{stats['Buy & Hold Return [%]']:.2f}%",
-            "持仓时间": f"{stats['Exposure Time [%]']:.2f}%",
-            "年复合增长率": f"{stats['CAGR [%]']:.2f}%",        
-            "交易次数": int(stats['# Trades']),
-            "交易胜率": f"{stats['Win Rate [%]']:.2f}%",
-            "夏普比率": f"{stats['Sharpe Ratio']:.2f}",
-        }
-        
-        return {
-            "plot_html": plot_html_content,
-            "stats": stats_dict,
-            "symbol": request.symbol,
-            "interval": request.interval,
-            "data_provider": source_result.provider,
-            "data_warnings": source_result.warnings,
-        }
-        
+        return result.to_api_response()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"数据格式错误: {str(e)}")
     except Exception as e:

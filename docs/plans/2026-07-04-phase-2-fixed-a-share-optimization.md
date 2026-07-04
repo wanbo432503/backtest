@@ -491,15 +491,15 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 创建 `BacktestResult` dataclass 或 Pydantic model。
-- [ ] 创建 `run_single_backtest(...)`。
-- [ ] 将 `main.py /backtest` 逻辑迁移到 runner。
-- [ ] 保持 API 响应兼容现有 UI。
-- [ ] 新增 `score` 到 stats。
-- [ ] 测试 runner 返回 score。
-- [ ] 测试错误数据抛出可读错误。
-- [ ] 测试旧 `/backtest` API 仍返回 plot/stats/provider。
-- [ ] Commit: `refactor: extract backtest runner`。
+- [x] 创建 `BacktestResult` dataclass 或 Pydantic model。
+- [x] 创建 `run_single_backtest(...)`。
+- [x] 将 `main.py /backtest` 逻辑迁移到 runner。
+- [x] 保持 API 响应兼容现有 UI。
+- [x] 新增 `score` 到 stats。
+- [x] 测试 runner 返回 score。
+- [x] 测试错误数据抛出可读错误。
+- [x] 测试旧 `/backtest` API 仍返回 plot/stats/provider。
+- [x] Commit: `refactor: extract backtest runner`。
 
 **Acceptance Criteria:**
 

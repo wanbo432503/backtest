@@ -1,6 +1,7 @@
 import pandas as pd
 from fastapi.testclient import TestClient
 
+import backtest_runner
 import main
 from market_data import DataSourceResult
 from strategies.rsi_risk_control import should_enter_long, get_exit_reason
@@ -89,7 +90,7 @@ def test_rsi_risk_control_strategy_is_available_via_api(monkeypatch):
     )
 
     monkeypatch.setattr(
-        main,
+        backtest_runner,
         "fetch_ohlcv",
         lambda *args, **kwargs: DataSourceResult(
             data=data,
@@ -102,7 +103,7 @@ def test_rsi_risk_control_strategy_is_available_via_api(monkeypatch):
         with open(filename, "w", encoding="utf-8") as file:
             file.write("<html>plot</html>")
 
-    monkeypatch.setattr(main.Backtest, "plot", fake_plot)
+    monkeypatch.setattr(backtest_runner.Backtest, "plot", fake_plot)
 
     response = client.post(
         "/backtest",
