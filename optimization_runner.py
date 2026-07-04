@@ -8,6 +8,9 @@ from backtest_runner import BacktestResult, run_single_backtest
 from optimization_models import OptimizationRequest, StrategyParamConfig
 
 
+OVERFIT_SCORE_GAP = 5
+
+
 @dataclass
 class OptimizationResult:
     objective: str
@@ -142,9 +145,11 @@ def _decorate_result(row: dict[str, Any], min_trades: int) -> dict[str, Any]:
     risk_flags = []
     validate_metrics = row.get("validate_metrics", {})
     if int(validate_metrics.get("trades", 0)) < min_trades:
-        risk_flags.append("filtered_low_trades")
+        risk_flags.append("too_few_trades")
     if row.get("validate_score", 0) < 0:
-        risk_flags.append("negative_validate_score")
+        risk_flags.append("validation_score_negative")
+    if row.get("train_score", 0) - row.get("validate_score", 0) > OVERFIT_SCORE_GAP:
+        risk_flags.append("possible_overfit")
     if validate_metrics.get("is_high_risk"):
         risk_flags.append("high_drawdown")
 

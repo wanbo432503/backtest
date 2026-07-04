@@ -68,3 +68,4 @@ def test_index_template_renders_optimization_result_table_actions():
     assert "triggerBacktestWithAppliedParams" in template
     assert "risk_flags" in template
     assert "badge bg-warning" in template
+    assert "可能过拟合" in template

@@ -1185,7 +1185,7 @@
                             const metrics = row.validate_metrics || {};
                             const riskFlags = row.risk_flags || [];
                             const riskBadges = riskFlags.length
-                                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(flag)}</span>`).join(' ')
+                                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
                                 : '<span class="badge bg-success">无</span>';
                             const isBest = index === 0 ? 'table-primary' : '';
                             return `
@@ -1236,6 +1236,16 @@
                 return '默认参数';
             }
             return entries.map(([key, value]) => `${key}=${value}`).join(', ');
+        }
+
+        function riskFlagLabel(flag) {
+            const labels = {
+                validation_score_negative: '验证 score 为负',
+                possible_overfit: '可能过拟合',
+                too_few_trades: '交易次数不足',
+                high_drawdown: '高回撤'
+            };
+            return labels[flag] || flag;
         }
 
         function applyOptimizationResult(index) {

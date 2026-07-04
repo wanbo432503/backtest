@@ -56,7 +56,7 @@ def test_run_optimization_marks_low_trade_results_filtered(monkeypatch):
 
     result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
 
-    assert result.top_results[0]["risk_flags"] == ["filtered_low_trades"]
+    assert result.top_results[0]["risk_flags"] == ["too_few_trades"]
     assert result.top_results[0]["recommended"] is False
 
 
@@ -121,7 +121,33 @@ def test_run_optimization_flags_negative_validation_score(monkeypatch):
 
     result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
 
-    assert "negative_validate_score" in result.top_results[0]["risk_flags"]
+    assert "validation_score_negative" in result.top_results[0]["risk_flags"]
+    assert result.top_results[0]["recommended"] is False
+
+
+def test_run_optimization_flags_possible_overfit(monkeypatch):
+    def fake_run_single_backtest(**kwargs):
+        is_validate = kwargs["start_date"] == "2026-01-01"
+        return _fake_result(kwargs["symbol"], score=2 if is_validate else 12, trades=8)
+
+    monkeypatch.setattr("optimization_runner.run_single_backtest", fake_run_single_backtest)
+
+    request = OptimizationRequest(
+        start_date="2025-07-03",
+        end_date="2026-07-04",
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[StrategyParamConfig(strategy_name="rsi_risk_control")],
+            train_start_date="2025-07-03",
+            train_end_date="2025-12-31",
+            validate_start_date="2026-01-01",
+            validate_end_date="2026-07-04",
+        ),
+    )
+
+    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+
+    assert "possible_overfit" in result.top_results[0]["risk_flags"]
     assert result.top_results[0]["recommended"] is False
 
 

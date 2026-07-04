@@ -753,12 +753,12 @@ POST /optimize
 
 **Todo:**
 
-- [ ] 实现 risk flags。
-- [ ] 测试验证 score 为负。
-- [ ] 测试训练/验证差异过大。
-- [ ] 测试交易次数不足。
-- [ ] UI 显示风险提示。
-- [ ] Commit: `feat: flag overfitting in optimization results`。
+- [x] 实现 risk flags。
+- [x] 测试验证 score 为负。
+- [x] 测试训练/验证差异过大。
+- [x] 测试交易次数不足。
+- [x] UI 显示风险提示。
+- [x] Commit: `feat: flag overfitting in optimization results`。
 
 **Acceptance Criteria:**
 
