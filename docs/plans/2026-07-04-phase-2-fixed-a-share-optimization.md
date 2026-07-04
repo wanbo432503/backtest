@@ -413,14 +413,14 @@ score = 年化收益率 * 0.4 + 夏普比率 * 0.3 - 最大回撤绝对值 * 0.3
 
 **Todo:**
 
-- [ ] 写失败测试：突破且放量买入。
-- [ ] 写失败测试：无量突破不买入。
-- [ ] 写失败测试：涨停过滤阻止买入。
-- [ ] 实现策略。
-- [ ] 参数：`breakout_lookback`, `volume_lookback`, `volume_multiplier`, `stop_loss_pct`, `take_profit_pct`, `position_pct`。
-- [ ] 注册元数据。
-- [ ] 运行测试。
-- [ ] Commit: `feat: add volume breakout strategy`。
+- [x] 写失败测试：突破且放量买入。
+- [x] 写失败测试：无量突破不买入。
+- [x] 写失败测试：涨停过滤阻止买入。
+- [x] 实现策略。
+- [x] 参数：`breakout_lookback`, `volume_lookback`, `volume_multiplier`, `stop_loss_pct`, `take_profit_pct`, `position_pct`。
+- [x] 注册元数据。
+- [x] 运行测试。
+- [x] Commit: `feat: add volume breakout strategy`。
 
 **Acceptance Criteria:**
 
