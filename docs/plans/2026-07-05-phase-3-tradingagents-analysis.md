@@ -396,7 +396,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
 - [x] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
 - [x] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
-- [ ] T7: 新增 FastAPI `/tradingagents/*` endpoints。
+- [x] T7: 新增 FastAPI `/tradingagents/*` endpoints。
 - [ ] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
 - [ ] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
 - [ ] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
@@ -736,26 +736,26 @@ git commit -m "feat: run tradingagents analysis through adapter"
 
 **Todo:**
 
-- [ ] 写测试：`GET /tradingagents/config` 返回 200，且不含 key 明文。
-- [ ] 写测试：`PUT /tradingagents/config` 保存 backend URL 和 models。
-- [ ] 写测试：`POST /tradingagents/config/test` 返回 checks。
-- [ ] 写测试：`POST /tradingagents/analysis` invalid symbol 返回 400。
-- [ ] 写测试：`POST /tradingagents/analysis` mock adapter 成功返回 reports。
-- [ ] 在 `main.py` import 新模型和 helper。
-- [ ] 新增 `GET /tradingagents/config`。
-- [ ] 新增 `PUT /tradingagents/config`。
-- [ ] 新增 `POST /tradingagents/config/test`。
-- [ ] 新增 `POST /tradingagents/analysis`。
-- [ ] 分析 endpoint 用 `fastapi.concurrency.run_in_threadpool(...)` 包住同步 adapter。
-- [ ] 捕获 `TradingAgentsAdapterError` 返回 502 或 500，消息 sanitized。
-- [ ] 捕获 validation error 返回 400/422。
-- [ ] 运行：
+- [x] 写测试：`GET /tradingagents/config` 返回 200，且不含 key 明文。
+- [x] 写测试：`PUT /tradingagents/config` 保存 backend URL 和 models。
+- [x] 写测试：`POST /tradingagents/config/test` 返回 checks。
+- [x] 写测试：`POST /tradingagents/analysis` invalid symbol 返回 400。
+- [x] 写测试：`POST /tradingagents/analysis` mock adapter 成功返回 reports。
+- [x] 在 `main.py` import 新模型和 helper。
+- [x] 新增 `GET /tradingagents/config`。
+- [x] 新增 `PUT /tradingagents/config`。
+- [x] 新增 `POST /tradingagents/config/test`。
+- [x] 新增 `POST /tradingagents/analysis`。
+- [x] 分析 endpoint 用 `fastapi.concurrency.run_in_threadpool(...)` 包住同步 adapter。
+- [x] 捕获 `TradingAgentsAdapterError` 返回 502 或 500，消息 sanitized。
+- [x] 捕获 validation error 返回 400/422。
+- [x] 运行：
 
 ```bash
 pytest test/test_tradingagents_api.py -v
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add main.py test/test_tradingagents_api.py

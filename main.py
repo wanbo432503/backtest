@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -20,6 +21,13 @@ from optimization_models import AShareTradingConfig, OptimizationRequest, RiskCo
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
+from tradingagents_adapter import TradingAgentsAdapterError, run_tradingagents_analysis
+from tradingagents_config import (
+    get_config_view as get_tradingagents_config_view,
+    test_config as test_tradingagents_config,
+    update_config as update_tradingagents_config,
+)
+from tradingagents_models import TradingAgentsAnalysisRequest, TradingAgentsConfigUpdate
 
 warnings.filterwarnings('ignore')
 
@@ -506,6 +514,45 @@ async def search_hk_stocks(query: str = None):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+
+@app.get("/tradingagents/config")
+async def get_tradingagents_config_endpoint():
+    try:
+        return get_tradingagents_config_view()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取 TradingAgents 配置失败: {str(e)}")
+
+
+@app.put("/tradingagents/config")
+async def update_tradingagents_config_endpoint(payload: TradingAgentsConfigUpdate):
+    try:
+        return update_tradingagents_config(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存 TradingAgents 配置失败: {str(e)}")
+
+
+@app.post("/tradingagents/config/test")
+async def test_tradingagents_config_endpoint():
+    try:
+        return test_tradingagents_config()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"检查 TradingAgents 配置失败: {str(e)}")
+
+
+@app.post("/tradingagents/analysis")
+async def run_tradingagents_analysis_endpoint(payload: TradingAgentsAnalysisRequest):
+    try:
+        return await run_in_threadpool(run_tradingagents_analysis, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except TradingAgentsAdapterError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TradingAgents 分析失败: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
