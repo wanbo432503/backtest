@@ -383,127 +383,566 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 
 ---
 
-## 7. 任务拆分
+## 7. 详细子任务和 Todo List
 
-### Task 1: 删除旧市场信息面板后端
+### 7.1 全局 Todo List
+
+按顺序执行，不跳任务；每个任务完成后运行本任务 focused tests，再提交。
+
+- [ ] T0: 建立 Phase 3.0 基线检查，确认旧面板入口、测试入口和 TradingAgents repo 可用。
+- [ ] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
+- [ ] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
+- [ ] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
+- [ ] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
+- [ ] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
+- [ ] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
+- [ ] T7: 新增 FastAPI `/tradingagents/*` endpoints。
+- [ ] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
+- [ ] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
+- [ ] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
+- [ ] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
+
+### T0: 基线检查和保护栏
+
+**Goal:** 在改代码前确认当前工作树、旧入口和 TradingAgents repo 状态，避免误删仍被使用的逻辑。
+
+**Files:**
+
+- Read: `main.py`
+- Read: `templates/index.html`
+- Read: `test/test_market_insights_api.py`
+- Read: `/Users/wanbo/knowledge/knowledge/repo/TradingAgents/tradingagents/default_config.py`
+- Read: `/Users/wanbo/knowledge/knowledge/repo/TradingAgents/cli/main.py`
+
+**Todo:**
+
+- [ ] 运行 `git status --short`，确认是否有用户未提交改动。
+- [ ] 用 CodeGraph 或 `rg` 列出旧入口引用：
+
+```bash
+rg -n "market-insights|stock-info|loadMarketInsights|renderInsightList|renderQuote|quotePanel|dragonTiger|fundFlow|标的信息|龙虎榜" main.py templates test static
+```
+
+- [ ] 记录哪些测试依赖 `market_insights.py`。
+- [ ] 确认 TradingAgents repo 路径存在：
+
+```bash
+test -d /Users/wanbo/knowledge/knowledge/repo/TradingAgents && test -f /Users/wanbo/knowledge/knowledge/repo/TradingAgents/.env
+```
+
+- [ ] 只做检查，不改文件。
+
+**Expected:** 工作树状态明确，旧入口清单明确，TradingAgents `.env` 存在。
+
+### T1: 删除旧市场信息后端
+
+**Goal:** 后端不再提供旧右侧“标的信息”数据源。
 
 **Files:**
 
 - Modify: `main.py`
 - Delete: `market_insights.py`
-- Delete or rewrite: `test/test_market_insights_api.py`
-- Modify tests that import `stock_search.get_stock_info(...)` only because the old `/stock-info` endpoint existed.
+- Modify/Delete: `test/test_market_insights_api.py`
+- Possibly modify: `stock_search.py`
+- Possibly modify: `test/test_comprehensive.py`
 
-**Steps:**
+**Todo:**
 
-- 写 failing test，确认 `/market-insights/SZ002241` 不再是受支持 API。
-- 删除 `from market_insights import get_market_insights`。
-- 删除 `market_insights_endpoint(...)`。
-- 删除 `get_stock_info_endpoint(...)`，如果 `stock_search.get_stock_info(...)` 无其他真实用途，也删除该 helper 和相关测试。
-- 运行 focused tests。
-- Commit: `refactor: remove obsolete market insights backend`
+- [ ] 先改测试：将旧 `test/test_market_insights_api.py` 替换为 `test/test_removed_market_insights_api.py`，断言 `/market-insights/SZ002241` 返回 404。
+- [ ] 运行新测试，确认当前代码 FAIL，因为 endpoint 仍存在：
 
-### Task 2: 新增 TradingAgents 配置模型和 env 管理
+```bash
+pytest test/test_removed_market_insights_api.py -v
+```
 
-**Files:**
+- [ ] 从 `main.py` 删除 `from market_insights import get_market_insights`。
+- [ ] 从 `main.py` 删除 `market_insights_endpoint(...)`。
+- [ ] 从 `main.py` 删除 `get_stock_info_endpoint(...)`，除非基线检查发现其他前端仍需要它。
+- [ ] 如果 `/stock-info` 删除后 `stock_search.get_stock_info(...)` 无调用，删除 `StockSearcher.get_stock_info(...)` 和 module-level `get_stock_info(...)`。
+- [ ] 删除 `market_insights.py`。
+- [ ] 运行：
 
-- Create: `tradingagents_models.py`
-- Create: `tradingagents_config.py`
-- Create: `test/test_tradingagents_config.py`
+```bash
+pytest test/test_removed_market_insights_api.py -v
+pytest test/test_comprehensive.py -v
+```
 
-**Steps:**
+- [ ] 搜索确认后端旧入口无残留：
 
-- 先写密钥遮罩、白名单保存、atomic replace 的测试。
-- 实现 env parser/writer。
-- 实现 Pydantic config model 和 validation。
-- 运行 `pytest test/test_tradingagents_config.py -v`。
-- Commit: `feat: add tradingagents config management`
+```bash
+rg -n "market_insights|get_market_insights|/market-insights|/stock-info|get_stock_info_endpoint" .
+```
 
-### Task 3: 新增 TradingAgents Adapter
+- [ ] Commit:
 
-**Files:**
+```bash
+git add main.py stock_search.py test/test_removed_market_insights_api.py test/test_market_insights_api.py market_insights.py
+git commit -m "refactor: remove obsolete market insights backend"
+```
 
-- Create: `tradingagents_adapter.py`
-- Create: `test/test_tradingagents_adapter.py`
+**Expected:** `/market-insights/*` 不再是 FastAPI route；删除旧模块后测试通过。
 
-**Steps:**
+### T2: 删除旧右侧信息面板 UI
 
-- 先写 A 股 symbol 转换测试。
-- 写 mock graph 的报告提取测试。
-- 实现 repo path 校验、env loading、analyst validation、report extraction。
-- 实现真实 TradingAgents import 的错误包装，错误信息必须可行动且不泄露 secret。
-- 运行 adapter tests。
-- Commit: `feat: add tradingagents analysis adapter`
-
-### Task 4: 新增 FastAPI endpoints
-
-**Files:**
-
-- Modify: `main.py`
-- Create: `test/test_tradingagents_api.py`
-
-**Steps:**
-
-- 先写 API tests，使用 mock config/adapter。
-- 新增：
-  - `GET /tradingagents/config`
-  - `PUT /tradingagents/config`
-  - `POST /tradingagents/config/test`
-  - `POST /tradingagents/analysis`
-- 长耗时分析用线程池执行，避免阻塞 event loop。
-- 运行 `pytest test/test_tradingagents_api.py -v`。
-- Commit: `feat: expose tradingagents api`
-
-### Task 5: 替换右侧前端 UI
+**Goal:** 前端完全移除旧“标的信息”区域，不再请求旧 API。
 
 **Files:**
 
 - Modify: `templates/index.html`
 
-**Steps:**
+**Todo:**
 
-- 删除旧 insight CSS、HTML、JS。
-- 新增 TradingAgents tabs、forms、状态区、报告区。
-- 新增 JS：
-  - `loadTradingAgentsConfig`
-  - `saveTradingAgentsConfig`
-  - `testTradingAgentsConfig`
-  - `syncTradingAgentsSymbol`
-  - `runTradingAgentsAnalysis`
-  - `renderTradingAgentsReports`
-- 保留布局稳定性，右侧列高度仍跟随页面。
-- 手动检查移动端和桌面宽度没有文字溢出。
-- Commit: `feat: replace right panel with tradingagents ui`
+- [ ] 删除 `.insight-restore-tab` 旧样式，或改名为 `.analysis-restore-tab`。
+- [ ] 删除旧 `.insight-section`、`.insight-item`、`.insight-empty`、`.quote-strip`、`.insight-header` 中只服务旧面板的样式。
+- [ ] 删除旧 restore button：
 
-### Task 6: 集成验证和清理
+```html
+<button id="restoreInsightPanelButton" ...>
+```
+
+- [ ] 用空的 `智能分析` card 替换 `#rightInsightColumn` 旧内容，先只保留 header 和占位 body。
+- [ ] 从 `setSymbol(symbol)` 删除 `loadMarketInsights(symbol)`，改为调用后续会实现的 `syncTradingAgentsSymbol(symbol)`；此时可先放 no-op 函数。
+- [ ] 删除 `renderInsightList(...)`。
+- [ ] 删除 `renderQuote(...)`。
+- [ ] 删除 `loadMarketInsights(...)`。
+- [ ] 将 `toggleInsightPanel(...)` 改名为 `toggleAnalysisPanel(...)`，并同步按钮 id、class、aria-label 文案。
+- [ ] 删除 `/backtest` 成功后的 `loadMarketInsights(formData.symbol)` 调用。
+- [ ] 搜索确认旧 UI 字符串无残留，计划文档除外：
+
+```bash
+rg -n "标的信息|研报|资金|龙虎榜|公告|loadMarketInsights|renderInsightList|renderQuote|quotePanel|fundFlow|dragonTiger" templates static main.py
+```
+
+- [ ] Commit:
+
+```bash
+git add templates/index.html
+git commit -m "refactor: remove obsolete right info panel ui"
+```
+
+**Expected:** 首页不再出现旧面板内容；前端不再引用 `/market-insights`。
+
+### T3: 新增 TradingAgents Pydantic 模型
+
+**Goal:** 先定义 API 合同，避免 adapter/API/UI 各写各的字段。
+
+**Files:**
+
+- Create: `tradingagents_models.py`
+- Create: `test/test_tradingagents_models.py`
+
+**Todo:**
+
+- [ ] 新增 `TradingAgentsConfigView`：
+  - `provider: str = "openai_compatible"`
+  - `backend_url: str | None`
+  - `deep_model: str | None`
+  - `quick_model: str | None`
+  - `output_language: str = "Chinese"`
+  - `max_debate_rounds: int = 1`
+  - `max_risk_rounds: int = 1`
+  - `checkpoint_enabled: bool = False`
+  - `temperature: float | None = None`
+  - `openai_reasoning_effort: str | None = None`
+  - `api_key_set: bool = False`
+- [ ] 新增 `TradingAgentsConfigUpdate`，包含 `api_key: str | None = None` 和 `clear_api_key: bool = False`。
+- [ ] 新增 `TradingAgentsConfigResponse`，包含 `repo_path`、`env_path`、`config`。
+- [ ] 新增 `TradingAgentsConfigTestResponse`，包含 `ok: bool`、`checks: list[dict]`、`warnings: list[str]`。
+- [ ] 新增 `TradingAgentsAnalysisRequest`：
+  - `symbol`
+  - `analysis_date`
+  - `analysts`
+  - `max_debate_rounds`
+  - `max_risk_rounds`
+- [ ] 新增 `TradingAgentsReports`：
+  - `market_report`
+  - `sentiment_report`
+  - `news_report`
+  - `fundamentals_report`
+  - `research_decision`
+  - `trader_plan`
+  - `risk_discussion`
+  - `portfolio_decision`
+- [ ] 新增 `TradingAgentsAnalysisResponse`。
+- [ ] 写模型测试：
+  - invalid provider 被拒绝。
+  - invalid backend URL 被拒绝。
+  - rounds 超出范围被拒绝。
+  - `analysts=[]` 被拒绝。
+  - 非白名单 analyst 被拒绝。
+- [ ] 运行：
+
+```bash
+pytest test/test_tradingagents_models.py -v
+```
+
+- [ ] Commit:
+
+```bash
+git add tradingagents_models.py test/test_tradingagents_models.py
+git commit -m "feat: add tradingagents api models"
+```
+
+**Expected:** API 字段和基础校验稳定。
+
+### T4: 新增 `.env` 配置管理
+
+**Goal:** 安全读取和保存 TradingAgents OpenAI-compatible 配置，不泄露密钥。
+
+**Files:**
+
+- Create: `tradingagents_config.py`
+- Create: `test/test_tradingagents_config.py`
+- Use: `tradingagents_models.py`
+
+**Todo:**
+
+- [ ] 定义常量：
+  - `TRADINGAGENTS_REPO_PATH`
+  - `TRADINGAGENTS_ENV_PATH`
+  - `ALLOWED_ENV_KEYS`
+  - `SECRET_ENV_KEYS = {"OPENAI_COMPATIBLE_API_KEY"}`
+- [ ] 实现 `parse_env_file(path: Path) -> tuple[list[str], dict[str, str]]`，保留原始行。
+- [ ] 实现 `get_config_view(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigResponse`。
+- [ ] 实现 `update_config(update: TradingAgentsConfigUpdate, env_path: Path = ...) -> TradingAgentsConfigResponse`。
+- [ ] 实现 `test_config(env_path: Path = ...) -> TradingAgentsConfigTestResponse`。
+- [ ] 写测试：读取时 `api_key_set=True` 但 response 不含 key 明文。
+- [ ] 写测试：保存 `backend_url` 后保留未知键和注释。
+- [ ] 写测试：`api_key=None` 不覆盖已有 key。
+- [ ] 写测试：`api_key=""` 不覆盖已有 key。
+- [ ] 写测试：`clear_api_key=True` 清空 key。
+- [ ] 写测试：写入使用临时文件和 replace，可通过 monkeypatch `Path.replace` 或检查结果文件完整性。
+- [ ] 运行：
+
+```bash
+pytest test/test_tradingagents_config.py -v
+```
+
+- [ ] Commit:
+
+```bash
+git add tradingagents_config.py test/test_tradingagents_config.py
+git commit -m "feat: manage tradingagents env config"
+```
+
+**Expected:** 配置可安全读取/保存，API key 永不出现在返回对象。
+
+### T5: 新增 symbol 转换和报告提取 adapter
+
+**Goal:** 把 backtest 的 A 股代码与 TradingAgents 输出结构集中适配。
+
+**Files:**
+
+- Create: `tradingagents_adapter.py`
+- Create: `test/test_tradingagents_adapter.py`
+- Use: `tradingagents_models.py`
+
+**Todo:**
+
+- [ ] 实现 `normalize_a_share_symbol(symbol: str) -> str`，输出 backtest 标准 `SH603019` / `SZ002241` / `BJxxxxxx`。
+- [ ] 实现 `to_tradingagents_ticker(symbol: str) -> str`：
+  - `SH603019 -> 603019.SS`
+  - `603019.SH -> 603019.SS`
+  - `SZ002241 -> 002241.SZ`
+  - `002241.SZ -> 002241.SZ`
+  - `BJxxxxxx -> xxxxxx.BJ`，如后续验证 TradingAgents 不支持北交所，则改为明确 400。
+- [ ] 实现 `validate_analysts(analysts: list[str]) -> list[str]`，只允许 `market`、`social`、`news`、`fundamentals`。
+- [ ] 实现 `extract_reports(final_state: dict) -> TradingAgentsReports`。
+- [ ] 报告提取规则：
+  - `market_report` 从 `final_state["market_report"]`。
+  - `sentiment_report` 从 `final_state["sentiment_report"]`。
+  - `news_report` 从 `final_state["news_report"]`。
+  - `fundamentals_report` 从 `final_state["fundamentals_report"]`。
+  - `research_decision` 优先 `investment_debate_state.judge_decision`，否则 `investment_plan`。
+  - `trader_plan` 从 `trader_investment_plan`。
+  - `risk_discussion` 合并 `risk_debate_state.aggressive_history`、`conservative_history`、`neutral_history`。
+  - `portfolio_decision` 优先 `risk_debate_state.judge_decision`，否则 `final_trade_decision`。
+- [ ] 写测试覆盖 symbol 转换。
+- [ ] 写测试覆盖 invalid symbols：
+  - `AAPL`
+  - `0700.HK`
+  - `BTC-USD`
+  - 空字符串。
+- [ ] 写测试覆盖 final_state 缺字段时返回 `None`，不抛异常。
+- [ ] 运行：
+
+```bash
+pytest test/test_tradingagents_adapter.py -v
+```
+
+- [ ] Commit:
+
+```bash
+git add tradingagents_adapter.py test/test_tradingagents_adapter.py
+git commit -m "feat: adapt a-share symbols and tradingagents reports"
+```
+
+**Expected:** 转换和报告提取无需真实 LLM 即可测试。
+
+### T6: 新增 TradingAgents 分析执行 adapter
+
+**Goal:** 提供一个可 mock 的 `run_analysis(...)` 函数，真实运行 TradingAgents 时不污染 backtest 全局状态。
+
+**Files:**
+
+- Modify: `tradingagents_adapter.py`
+- Modify: `test/test_tradingagents_adapter.py`
+
+**Todo:**
+
+- [ ] 定义 `TradingAgentsAdapterError(Exception)`，错误消息经过 secret sanitization。
+- [ ] 实现 `sanitize_error_message(message: str, env_values: dict[str, str]) -> str`。
+- [ ] 实现 context manager `temporary_sys_path(path: Path)`，退出时恢复原值。
+- [ ] 实现 context manager `temporary_environ(overrides: dict[str, str])`，退出时恢复原值。
+- [ ] 实现 `load_tradingagents_env(env_path: Path) -> dict[str, str]`，复用 T4 parser。
+- [ ] 实现 `build_run_config(...)`：
+  - provider/backend/model 从 `.env` 和 request override 合并。
+  - output language 默认 `Chinese`。
+  - debate/risk rounds 使用 request 优先，其次 `.env`。
+- [ ] 实现 `run_tradingagents_analysis(request: TradingAgentsAnalysisRequest) -> TradingAgentsAnalysisResponse`。
+- [ ] 真实 import 路径：
+  - `from tradingagents.graph.trading_graph import TradingAgentsGraph`
+  - `from tradingagents.graph.analyst_execution import build_analyst_execution_plan`
+  - 依照 TradingAgents CLI 的 graph stream 合并 chunks。
+- [ ] 测试中 monkeypatch `TradingAgentsGraph`，不调用真实 LLM。
+- [ ] 测试分析成功时 response 包含 `elapsed_seconds`、`tradingagents_ticker`、reports。
+- [ ] 测试 import 失败时抛出 `TradingAgentsAdapterError`，错误不包含 API key。
+- [ ] 运行：
+
+```bash
+pytest test/test_tradingagents_adapter.py -v
+```
+
+- [ ] Commit:
+
+```bash
+git add tradingagents_adapter.py test/test_tradingagents_adapter.py
+git commit -m "feat: run tradingagents analysis through adapter"
+```
+
+**Expected:** Web 层只调用 adapter，不直接碰 TradingAgents internals。
+
+### T7: 新增 FastAPI endpoints
+
+**Goal:** 暴露配置和分析 API，前端只依赖 `/tradingagents/*`。
+
+**Files:**
+
+- Modify: `main.py`
+- Create: `test/test_tradingagents_api.py`
+- Use: `tradingagents_config.py`
+- Use: `tradingagents_adapter.py`
+- Use: `tradingagents_models.py`
+
+**Todo:**
+
+- [ ] 写测试：`GET /tradingagents/config` 返回 200，且不含 key 明文。
+- [ ] 写测试：`PUT /tradingagents/config` 保存 backend URL 和 models。
+- [ ] 写测试：`POST /tradingagents/config/test` 返回 checks。
+- [ ] 写测试：`POST /tradingagents/analysis` invalid symbol 返回 400。
+- [ ] 写测试：`POST /tradingagents/analysis` mock adapter 成功返回 reports。
+- [ ] 在 `main.py` import 新模型和 helper。
+- [ ] 新增 `GET /tradingagents/config`。
+- [ ] 新增 `PUT /tradingagents/config`。
+- [ ] 新增 `POST /tradingagents/config/test`。
+- [ ] 新增 `POST /tradingagents/analysis`。
+- [ ] 分析 endpoint 用 `fastapi.concurrency.run_in_threadpool(...)` 包住同步 adapter。
+- [ ] 捕获 `TradingAgentsAdapterError` 返回 502 或 500，消息 sanitized。
+- [ ] 捕获 validation error 返回 400/422。
+- [ ] 运行：
+
+```bash
+pytest test/test_tradingagents_api.py -v
+```
+
+- [ ] Commit:
+
+```bash
+git add main.py test/test_tradingagents_api.py
+git commit -m "feat: expose tradingagents web api"
+```
+
+**Expected:** 后端 API 层不泄露 secret，不阻塞 event loop。
+
+### T8: 新增右侧 `分析` subtab UI
+
+**Goal:** 右侧区域能输入分析参数、触发分析、展示报告。
+
+**Files:**
+
+- Modify: `templates/index.html`
+
+**Todo:**
+
+- [ ] 将右侧 header 改为 `智能分析`，图标可用 `fas fa-brain` 或当前 Font Awesome 可用图标。
+- [ ] 新增 Bootstrap nav tabs：`分析` 和 `设置`。
+- [ ] 在分析 tab 中新增：
+  - `#taSymbol`
+  - `#taAnalysisDate`
+  - analyst checkboxes: `market`、`news`、`fundamentals`、`social`
+  - `#taRunButton`
+  - `#taClearButton`
+  - `#taStatus`
+  - `#taReportTabs`
+  - `#taReportContent`
+- [ ] 实现 `syncTradingAgentsSymbol(symbol)`。
+- [ ] DOMContentLoaded 时：
+  - 设置 `#taAnalysisDate` 为今天。
+  - 从左侧 `#symbol` 同步默认 symbol。
+- [ ] 实现 `getSelectedTradingAgentsAnalysts()`。
+- [ ] 实现 `setTradingAgentsStatus(kind, message)`，支持 idle/running/succeeded/failed。
+- [ ] 实现 `renderTradingAgentsReports(reports)`，空报告不渲染 tab。
+- [ ] 报告内容先用 escaped text + `<pre class="ta-report">`，不要引入新 Markdown 依赖。
+- [ ] 点击 clear 时清空报告和状态。
+- [ ] Commit:
+
+```bash
+git add templates/index.html
+git commit -m "feat: add tradingagents analysis tab"
+```
+
+**Expected:** 不接 API 时 UI 也可静态加载，字段不溢出。
+
+### T9: 新增右侧 `设置` subtab UI
+
+**Goal:** 用户能查看和保存 OpenAI-compatible 模型配置。
+
+**Files:**
+
+- Modify: `templates/index.html`
+
+**Todo:**
+
+- [ ] 在设置 tab 中新增 provider readonly/select，MVP 默认 `openai_compatible`。
+- [ ] 新增 `#taBackendUrl`。
+- [ ] 新增 `#taApiKey`，placeholder 根据 `api_key_set` 显示 `已设置，留空则不修改` 或 `未设置`。
+- [ ] 新增 `#taClearApiKey` checkbox。
+- [ ] 新增 `#taDeepModel`。
+- [ ] 新增 `#taQuickModel`。
+- [ ] 新增 `#taOutputLanguage`。
+- [ ] 新增 `#taDebateRounds`。
+- [ ] 新增 `#taRiskRounds`。
+- [ ] 新增 `#taCheckpointEnabled`。
+- [ ] 新增 `#taTemperature`。
+- [ ] 新增 `#taReasoningEffort`。
+- [ ] 新增按钮：
+  - `#taSaveConfigButton`
+  - `#taReloadConfigButton`
+  - `#taTestConfigButton`
+- [ ] 实现 `populateTradingAgentsConfig(config)`。
+- [ ] 实现 `collectTradingAgentsConfigPayload()`。
+- [ ] 实现设置 tab 的状态 alert：`#taConfigStatus`。
+- [ ] Commit:
+
+```bash
+git add templates/index.html
+git commit -m "feat: add tradingagents settings tab"
+```
+
+**Expected:** 设置表单能表达 `.env` 白名单字段，API key 不回填。
+
+### T10: 接通前端 API
+
+**Goal:** 完成前端和 `/tradingagents/*` API 的交互。
+
+**Files:**
+
+- Modify: `templates/index.html`
+
+**Todo:**
+
+- [ ] 实现 `loadTradingAgentsConfig()`：
+  - GET `/tradingagents/config`
+  - 成功后填充设置表单。
+  - 失败后显示 config warning。
+- [ ] 实现 `saveTradingAgentsConfig()`：
+  - PUT `/tradingagents/config`
+  - 保存时禁用按钮。
+  - 成功后清空 API key input，并刷新配置。
+- [ ] 实现 `testTradingAgentsConfig()`：
+  - POST `/tradingagents/config/test`
+  - 渲染 checks/warnings。
+- [ ] 实现 `runTradingAgentsAnalysis()`：
+  - POST `/tradingagents/analysis`
+  - 请求体包含 symbol、analysis_date、analysts、rounds。
+  - running 时禁用 run button。
+  - 成功后渲染 reports。
+  - 失败时显示 response detail。
+- [ ] 统一 `fetchJson(url, options)` helper，处理非 2xx。
+- [ ] 所有用户可见错误都走 `escapeHtml(...)`。
+- [ ] `setSymbol(symbol)`、搜索结果点击、快速选择按钮都同步 `#taSymbol`。
+- [ ] 运行服务手动打开页面，检查 console 无 JS error。
+- [ ] Commit:
+
+```bash
+git add templates/index.html
+git commit -m "feat: connect tradingagents panel to api"
+```
+
+**Expected:** UI 能保存配置、测试配置、发起 mock/真实分析并展示结果。
+
+### T11: 集成验证和清理
+
+**Goal:** 证明 Phase 3.0 改动没有残留旧面板路径，也没有破坏核心回测功能。
 
 **Files:**
 
 - Modify as needed.
 
-**Steps:**
+**Todo:**
 
-- 运行：
-
-```bash
-pytest test/test_tradingagents_config.py test/test_tradingagents_adapter.py test/test_tradingagents_api.py -v
-```
-
-- 运行现有核心测试：
+- [ ] 运行 TradingAgents focused tests：
 
 ```bash
-pytest test/test_market_data_sources.py test/test_optimization_runner.py -v
+pytest test/test_tradingagents_models.py test/test_tradingagents_config.py test/test_tradingagents_adapter.py test/test_tradingagents_api.py -v
 ```
 
-- 启动本地服务并手动验证 UI。
-- 搜索旧字符串：
+- [ ] 运行删除旧面板测试：
 
 ```bash
-rg -n "market-insights|标的信息|龙虎榜|dragonTiger|fundFlow|quotePanel|loadMarketInsights" .
+pytest test/test_removed_market_insights_api.py -v
 ```
 
-- 确认只剩历史计划或无结果。
-- Commit: `test: verify tradingagents phase 3 integration`
+- [ ] 运行核心回归：
+
+```bash
+pytest test/test_market_data_sources.py test/test_optimization_runner.py test/test_analytics.py -v
+```
+
+- [ ] 搜索旧路径，结果只能出现在历史 docs/plans 中：
+
+```bash
+rg -n "market-insights|标的信息|龙虎榜|dragonTiger|fundFlow|quotePanel|loadMarketInsights|renderInsightList|renderQuote" .
+```
+
+- [ ] 搜索 secret 泄露风险：
+
+```bash
+rg -n "OPENAI_COMPATIBLE_API_KEY|api_key|Authorization" main.py tradingagents_*.py templates/index.html test
+```
+
+- [ ] 启动服务：
+
+```bash
+uvicorn main:app --reload
+```
+
+- [ ] 手动验证：
+  - 首页加载无 console error。
+  - 输入 `SZ002241` 后分析 tab 同步。
+  - 设置 tab 能显示 API key 已设置/未设置但无明文。
+  - 保存设置后 `.env` 保留未知键。
+  - 无 backend URL 时测试配置给出可行动 warning。
+  - invalid symbol `AAPL` 分析返回错误。
+  - mock 或真实分析成功后报告分区展示。
+- [ ] 最终提交：
+
+```bash
+git add .
+git commit -m "test: verify tradingagents phase 3 integration"
+```
+
+**Expected:** Focused tests 通过，核心回归通过，旧面板调用清零，UI 手动验收通过。
 
 ---
 
