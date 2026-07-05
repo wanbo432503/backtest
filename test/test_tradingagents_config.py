@@ -1,5 +1,7 @@
 from pathlib import Path
+import importlib.util
 
+import tradingagents_config
 from tradingagents_config import get_config_view, parse_env_file, test_config as run_config_check, update_config
 from tradingagents_models import TradingAgentsConfigUpdate
 
@@ -115,3 +117,46 @@ def test_test_config_reports_missing_backend_url(tmp_path):
 
     assert response.ok is False
     assert any(check["name"] == "backend_url" and check["ok"] is False for check in response.checks)
+
+
+def test_test_config_reports_missing_tradingagents_runtime_dependencies(tmp_path, monkeypatch):
+    env_path = write_env(
+        tmp_path / ".env",
+        """
+        TRADINGAGENTS_LLM_PROVIDER=openai_compatible
+        TRADINGAGENTS_LLM_BACKEND_URL=http://localhost:1234/v1
+        TRADINGAGENTS_DEEP_THINK_LLM=deep-model
+        TRADINGAGENTS_QUICK_THINK_LLM=quick-model
+        """,
+    )
+
+    def fake_find_spec(module_name):
+        if module_name == "langchain_core":
+            return None
+        return object()
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+
+    response = run_config_check(env_path=env_path)
+    dependency_check = next(check for check in response.checks if check["name"] == "python_dependencies")
+
+    assert response.ok is False
+    assert dependency_check["ok"] is False
+    assert dependency_check["missing"] == ["langchain_core"]
+    assert str(tradingagents_config.TRADINGAGENTS_REPO_PATH) in dependency_check["install_command"]
+
+
+def test_backtest_requirements_do_not_install_tradingagents_into_main_environment():
+    content = Path("requirements.txt").read_text(encoding="utf-8")
+
+    assert "-e /Users/wanbo/knowledge/knowledge/repo/TradingAgents" not in content
+
+
+def test_setup_script_installs_tradingagents_into_dedicated_venv():
+    script = Path("scripts/setup_tradingagents_env.sh")
+
+    assert script.exists()
+    content = script.read_text(encoding="utf-8")
+    assert "python -m venv" in content
+    assert "pip install -e" in content
+    assert str(tradingagents_config.TRADINGAGENTS_REPO_PATH) in content

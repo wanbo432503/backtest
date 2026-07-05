@@ -28,6 +28,14 @@ pip install -r requirements.txt
 PORT=8010 ./scripts/start_server.sh
 ```
 
+首次使用右侧 TradingAgents 智能分析前，先创建独立 TradingAgents Python 环境：
+
+```bash
+./scripts/setup_tradingagents_env.sh
+```
+
+TradingAgents 依赖链和 backtest 的 A 股数据源依赖存在版本差异，尤其是 `httpx`，因此不要把 TradingAgents 全量依赖直接安装进 backtest 主环境。backtest 会优先使用 `/Users/wanbo/knowledge/knowledge/repo/TradingAgents/.venv/bin/python` 子进程运行分析。
+
 ## 数据源
 
 - `mootdx`：A 股 K 线主数据源，默认优先使用。

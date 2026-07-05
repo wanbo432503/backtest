@@ -1,7 +1,9 @@
 import re
 from contextlib import contextmanager
+import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 from time import monotonic
 
@@ -17,6 +19,7 @@ from tradingagents_models import (
 A_SHARE_PREFIX_PATTERN = re.compile(r"^(SH|SZ|BJ)(\d{6})$")
 A_SHARE_SUFFIX_PATTERN = re.compile(r"^(\d{6})\.(SH|SZ|BJ)$")
 A_SHARE_NUMERIC_PATTERN = re.compile(r"^\d{6}$")
+SUBPROCESS_JSON_PREFIX = "__BACKTEST_TRADINGAGENTS_JSON__"
 
 
 class TradingAgentsAdapterError(Exception):
@@ -105,6 +108,16 @@ def load_tradingagents_env(env_path: Path = TRADINGAGENTS_ENV_PATH) -> dict[str,
     return values
 
 
+def find_tradingagents_python(repo_path: Path = TRADINGAGENTS_REPO_PATH) -> Path | None:
+    configured = os.environ.get("TRADINGAGENTS_PYTHON")
+    candidates = [Path(configured)] if configured else []
+    candidates.append(repo_path / ".venv" / "bin" / "python")
+    for candidate in candidates:
+        if candidate.exists() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def build_run_config(
     request: TradingAgentsAnalysisRequest,
     env_values: dict[str, str],
@@ -143,10 +156,16 @@ def run_tradingagents_analysis(
     repo_path: Path = TRADINGAGENTS_REPO_PATH,
     graph_class=None,
 ) -> TradingAgentsAnalysisResponse:
-    env_values = load_tradingagents_env(env_path)
     selected_analysts = validate_analysts(request.analysts)
     normalized_symbol = normalize_a_share_symbol(request.symbol)
     ticker = to_tradingagents_ticker(normalized_symbol)
+
+    if graph_class is None and not os.environ.get("TRADINGAGENTS_DISABLE_SUBPROCESS"):
+        python_path = find_tradingagents_python(repo_path)
+        if python_path is not None:
+            return _run_tradingagents_analysis_subprocess(request, env_path, repo_path, python_path)
+
+    env_values = load_tradingagents_env(env_path)
     started_at = monotonic()
 
     try:
@@ -168,6 +187,45 @@ def run_tradingagents_analysis(
         reports=extract_reports(final_state or {}),
         warnings=[],
     )
+
+
+def _run_tradingagents_analysis_subprocess(
+    request: TradingAgentsAnalysisRequest,
+    env_path: Path,
+    repo_path: Path,
+    python_path: Path,
+) -> TradingAgentsAnalysisResponse:
+    env_values = load_tradingagents_env(env_path)
+    payload = request.model_dump()
+    payload["env_path"] = str(env_path)
+    payload["repo_path"] = str(repo_path)
+    command = [str(python_path), str(Path(__file__).parent / "scripts" / "run_tradingagents_analysis.py")]
+    env = os.environ.copy()
+    env["TRADINGAGENTS_DISABLE_SUBPROCESS"] = "1"
+
+    try:
+        completed = subprocess.run(
+            command,
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            cwd=str(Path(__file__).parent),
+            env=env,
+            timeout=900,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        message = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise TradingAgentsAdapterError(sanitize_error_message(message, env_values)) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise TradingAgentsAdapterError("TradingAgents analysis timed out") from exc
+
+    for line in reversed(completed.stdout.splitlines()):
+        if line.startswith(SUBPROCESS_JSON_PREFIX):
+            return TradingAgentsAnalysisResponse.model_validate_json(
+                line.removeprefix(SUBPROCESS_JSON_PREFIX)
+            )
+    raise TradingAgentsAdapterError("TradingAgents subprocess did not return a JSON response")
 
 
 def extract_reports(final_state: dict) -> TradingAgentsReports:

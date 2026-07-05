@@ -1,5 +1,8 @@
 from pathlib import Path
+import importlib.util
+import json
 import os
+import subprocess
 import tempfile
 from typing import Any
 
@@ -14,6 +17,27 @@ from tradingagents_models import (
 
 TRADINGAGENTS_REPO_PATH = Path("/Users/wanbo/knowledge/knowledge/repo/TradingAgents")
 TRADINGAGENTS_ENV_PATH = TRADINGAGENTS_REPO_PATH / ".env"
+TRADINGAGENTS_INSTALL_COMMAND = (
+    f"TRADINGAGENTS_REPO={TRADINGAGENTS_REPO_PATH} ./scripts/setup_tradingagents_env.sh"
+)
+TRADINGAGENTS_REQUIRED_IMPORTS = [
+    "backtrader",
+    "dotenv",
+    "langchain_anthropic",
+    "langchain_core",
+    "langchain_experimental",
+    "langchain_google_genai",
+    "langchain_openai",
+    "langgraph",
+    "langgraph.checkpoint.sqlite",
+    "parsel",
+    "questionary",
+    "redis",
+    "rich",
+    "stockstats",
+    "tqdm",
+    "typer",
+]
 
 ALLOWED_ENV_KEYS = {
     "TRADINGAGENTS_LLM_PROVIDER",
@@ -108,6 +132,8 @@ def update_config(
 
 def test_config(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigTestResponse:
     _, values = parse_env_file(env_path)
+    python_path = _find_tradingagents_python(env_path.parent)
+    missing_dependencies = _missing_tradingagents_dependencies(python_path)
     checks: list[dict[str, Any]] = [
         {"name": "repo_path", "ok": env_path.parent.exists(), "path": str(env_path.parent)},
         {"name": "env_file", "ok": env_path.exists(), "path": str(env_path)},
@@ -124,10 +150,23 @@ def test_config(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigT
         {"name": "backend_url", "ok": bool(_value_or_none(values.get("TRADINGAGENTS_LLM_BACKEND_URL")))},
         {"name": "deep_model", "ok": bool(_value_or_none(values.get("TRADINGAGENTS_DEEP_THINK_LLM")))},
         {"name": "quick_model", "ok": bool(_value_or_none(values.get("TRADINGAGENTS_QUICK_THINK_LLM")))},
+        {
+            "name": "python_dependencies",
+            "ok": not missing_dependencies,
+            "missing": missing_dependencies,
+            "python": str(python_path) if python_path else "current",
+            "install_command": TRADINGAGENTS_INSTALL_COMMAND,
+        },
     ]
     warnings = []
     if not _value_or_none(values.get("OPENAI_COMPATIBLE_API_KEY")):
         warnings.append("OPENAI_COMPATIBLE_API_KEY is not set; keyless local endpoints may still work.")
+    if missing_dependencies:
+        warnings.append(
+            "Missing TradingAgents Python dependencies: "
+            + ", ".join(missing_dependencies)
+            + f". Run `{TRADINGAGENTS_INSTALL_COMMAND}`."
+        )
 
     return TradingAgentsConfigTestResponse(
         ok=all(bool(check["ok"]) for check in checks),
@@ -176,6 +215,60 @@ def _atomic_write(path: Path, content: str) -> None:
         tmp_file.write(content)
         tmp_name = tmp_file.name
     Path(tmp_name).replace(path)
+
+
+def _find_tradingagents_python(repo_path: Path = TRADINGAGENTS_REPO_PATH) -> Path | None:
+    configured = os.environ.get("TRADINGAGENTS_PYTHON")
+    candidates = [Path(configured)] if configured else []
+    candidates.append(repo_path / ".venv" / "bin" / "python")
+    for candidate in candidates:
+        if candidate.exists() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _missing_tradingagents_dependencies(python_path: Path | None = None) -> list[str]:
+    if python_path is not None:
+        return _missing_tradingagents_dependencies_in_python(python_path)
+    return [
+        module_name
+        for module_name in TRADINGAGENTS_REQUIRED_IMPORTS
+        if _is_missing_module(module_name)
+    ]
+
+
+def _missing_tradingagents_dependencies_in_python(python_path: Path) -> list[str]:
+    code = """
+import importlib.util
+import json
+modules = %r
+missing = []
+for module_name in modules:
+    try:
+        if importlib.util.find_spec(module_name) is None:
+            missing.append(module_name)
+    except ModuleNotFoundError:
+        missing.append(module_name)
+print(json.dumps(missing))
+""" % TRADINGAGENTS_REQUIRED_IMPORTS
+    try:
+        completed = subprocess.run(
+            [str(python_path), "-c", code],
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=30,
+        )
+    except Exception:
+        return list(TRADINGAGENTS_REQUIRED_IMPORTS)
+    return json.loads(completed.stdout or "[]")
+
+
+def _is_missing_module(module_name: str) -> bool:
+    try:
+        return importlib.util.find_spec(module_name) is None
+    except ModuleNotFoundError:
+        return True
 
 
 def _value_or_none(value: str | None) -> str | None:

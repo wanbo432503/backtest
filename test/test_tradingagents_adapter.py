@@ -1,9 +1,13 @@
 import pytest
+import json
+from pathlib import Path
 
+import tradingagents_adapter
 from tradingagents_adapter import (
     TradingAgentsAdapterError,
     build_run_config,
     extract_reports,
+    find_tradingagents_python,
     load_tradingagents_env,
     normalize_a_share_symbol,
     run_tradingagents_analysis,
@@ -164,6 +168,91 @@ def test_build_run_config_merges_env_and_request_rounds(tmp_path):
     assert config["output_language"] == "Chinese"
     assert config["max_debate_rounds"] == 2
     assert config["max_risk_discuss_rounds"] == 3
+
+
+def test_find_tradingagents_python_prefers_env_var(monkeypatch, tmp_path):
+    python_path = tmp_path / "bin" / "python"
+    python_path.parent.mkdir()
+    python_path.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    python_path.chmod(0o755)
+    monkeypatch.setenv("TRADINGAGENTS_PYTHON", str(python_path))
+
+    assert find_tradingagents_python(tmp_path) == python_path
+
+
+def test_run_tradingagents_analysis_uses_subprocess_python(monkeypatch, tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("TRADINGAGENTS_LLM_BACKEND_URL=http://localhost:1234/v1\n", encoding="utf-8")
+    python_path = tmp_path / "python"
+    python_path.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    python_path.chmod(0o755)
+    captured = {}
+
+    def fake_find_python(repo_path):
+        return python_path
+
+    def fake_run(command, input, text, capture_output, cwd, env, timeout, check):
+        captured["command"] = command
+        captured["payload"] = json.loads(input)
+        payload = {
+            "status": "succeeded",
+            "symbol": "SZ002241",
+            "tradingagents_ticker": "002241.SZ",
+            "analysis_date": "2026-07-05",
+            "elapsed_seconds": 0.1,
+            "reports": {"market_report": "market"},
+            "warnings": [],
+        }
+        return type("Completed", (), {"stdout": "__BACKTEST_TRADINGAGENTS_JSON__" + json.dumps(payload) + "\n"})()
+
+    monkeypatch.setattr(tradingagents_adapter, "find_tradingagents_python", fake_find_python)
+    monkeypatch.setattr(tradingagents_adapter.subprocess, "run", fake_run)
+
+    response = run_tradingagents_analysis(
+        TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
+        env_path=env_path,
+        repo_path=tmp_path,
+    )
+
+    assert captured["command"][0] == str(python_path)
+    assert captured["payload"]["symbol"] == "SZ002241"
+    assert captured["payload"]["env_path"] == str(env_path)
+    assert response.reports.market_report == "market"
+
+
+def test_run_tradingagents_analysis_sanitizes_subprocess_errors(monkeypatch, tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TRADINGAGENTS_LLM_BACKEND_URL=http://localhost:1234/v1\n"
+        "OPENAI_COMPATIBLE_API_KEY=dummy\n",
+        encoding="utf-8",
+    )
+    python_path = tmp_path / "python"
+    python_path.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    python_path.chmod(0o755)
+
+    def fake_find_python(repo_path):
+        return python_path
+
+    def fake_run(*args, **kwargs):
+        raise tradingagents_adapter.subprocess.CalledProcessError(
+            returncode=1,
+            cmd=args[0],
+            stderr="failed with dummy",
+        )
+
+    monkeypatch.setattr(tradingagents_adapter, "find_tradingagents_python", fake_find_python)
+    monkeypatch.setattr(tradingagents_adapter.subprocess, "run", fake_run)
+
+    with pytest.raises(TradingAgentsAdapterError) as exc_info:
+        run_tradingagents_analysis(
+            TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
+            env_path=env_path,
+            repo_path=tmp_path,
+        )
+
+    assert "dummy" not in str(exc_info.value)
+    assert "<redacted>" in str(exc_info.value)
 
 
 def test_run_tradingagents_analysis_uses_fake_graph(tmp_path):
