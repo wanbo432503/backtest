@@ -60,6 +60,28 @@ def test_index_template_contains_risk_and_a_share_rule_controls():
     assert "strategy_params" in template
 
 
+def test_index_template_aligns_a_share_rule_number_inputs_in_three_rows():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'class="trade-rule-number-grid"' in template
+    grid_match = re.search(
+        r'<div class="trade-rule-number-grid">(.*?)</div>\s*</details>',
+        template,
+        flags=re.S,
+    )
+    assert grid_match is not None
+    grid_html = grid_match.group(1)
+    for control_id in [
+        "slippagePct",
+        "lotSize",
+        "buyCommissionPct",
+        "sellCommissionPct",
+        "stampTaxPct",
+        "minCommission",
+    ]:
+        assert f'id="{control_id}"' in grid_html
+
+
 def test_index_template_renders_optimization_result_table_actions():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
