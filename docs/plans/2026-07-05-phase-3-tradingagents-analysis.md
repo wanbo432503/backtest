@@ -398,7 +398,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
 - [x] T7: 新增 FastAPI `/tradingagents/*` endpoints。
 - [x] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
-- [ ] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
+- [x] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
 - [ ] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
 - [ ] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
 
@@ -813,26 +813,26 @@ git commit -m "feat: add tradingagents analysis tab"
 
 **Todo:**
 
-- [ ] 在设置 tab 中新增 provider readonly/select，MVP 默认 `openai_compatible`。
-- [ ] 新增 `#taBackendUrl`。
-- [ ] 新增 `#taApiKey`，placeholder 根据 `api_key_set` 显示 `已设置，留空则不修改` 或 `未设置`。
-- [ ] 新增 `#taClearApiKey` checkbox。
-- [ ] 新增 `#taDeepModel`。
-- [ ] 新增 `#taQuickModel`。
-- [ ] 新增 `#taOutputLanguage`。
-- [ ] 新增 `#taDebateRounds`。
-- [ ] 新增 `#taRiskRounds`。
-- [ ] 新增 `#taCheckpointEnabled`。
-- [ ] 新增 `#taTemperature`。
-- [ ] 新增 `#taReasoningEffort`。
-- [ ] 新增按钮：
+- [x] 在设置 tab 中新增 provider readonly/select，MVP 默认 `openai_compatible`。
+- [x] 新增 `#taBackendUrl`。
+- [x] 新增 `#taApiKey`，placeholder 根据 `api_key_set` 显示 `已设置，留空则不修改` 或 `未设置`。
+- [x] 新增 `#taClearApiKey` checkbox。
+- [x] 新增 `#taDeepModel`。
+- [x] 新增 `#taQuickModel`。
+- [x] 新增 `#taOutputLanguage`。
+- [x] 新增 `#taDebateRounds`。
+- [x] 新增 `#taRiskRounds`。
+- [x] 新增 `#taCheckpointEnabled`。
+- [x] 新增 `#taTemperature`。
+- [x] 新增 `#taReasoningEffort`。
+- [x] 新增按钮：
   - `#taSaveConfigButton`
   - `#taReloadConfigButton`
   - `#taTestConfigButton`
-- [ ] 实现 `populateTradingAgentsConfig(config)`。
-- [ ] 实现 `collectTradingAgentsConfigPayload()`。
-- [ ] 实现设置 tab 的状态 alert：`#taConfigStatus`。
-- [ ] Commit:
+- [x] 实现 `populateTradingAgentsConfig(config)`。
+- [x] 实现 `collectTradingAgentsConfigPayload()`。
+- [x] 实现设置 tab 的状态 alert：`#taConfigStatus`。
+- [x] Commit:
 
 ```bash
 git add templates/index.html

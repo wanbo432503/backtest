@@ -184,3 +184,27 @@ def test_index_template_contains_tradingagents_analysis_tab_shell():
     assert "function getSelectedTradingAgentsAnalysts()" in template
     assert "function setTradingAgentsStatus" in template
     assert "function renderTradingAgentsReports" in template
+
+
+def test_index_template_contains_tradingagents_settings_tab_shell():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="taProvider"' in template
+    assert 'id="taBackendUrl"' in template
+    assert 'id="taApiKey"' in template
+    assert 'id="taClearApiKey"' in template
+    assert 'id="taDeepModel"' in template
+    assert 'id="taQuickModel"' in template
+    assert 'id="taOutputLanguage"' in template
+    assert 'id="taDebateRounds"' in template
+    assert 'id="taRiskRounds"' in template
+    assert 'id="taCheckpointEnabled"' in template
+    assert 'id="taTemperature"' in template
+    assert 'id="taReasoningEffort"' in template
+    assert 'id="taSaveConfigButton"' in template
+    assert 'id="taReloadConfigButton"' in template
+    assert 'id="taTestConfigButton"' in template
+    assert 'id="taConfigStatus"' in template
+    assert "function populateTradingAgentsConfig(config)" in template
+    assert "function collectTradingAgentsConfigPayload()" in template
+    assert "function setTradingAgentsConfigStatus" in template

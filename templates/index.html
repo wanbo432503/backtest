@@ -948,7 +948,75 @@
                                 </div>
                             </div>
                             <div class="tab-pane fade" id="taSettingsPane" role="tabpanel" aria-labelledby="taSettingsTab">
-                                <div class="analysis-placeholder" id="taSettingsPlaceholder">待配置</div>
+                                <div class="ta-panel">
+                                    <div>
+                                        <label for="taProvider" class="form-label">Provider</label>
+                                        <input type="text" class="form-control form-control-sm" id="taProvider" value="openai_compatible" readonly>
+                                    </div>
+                                    <div>
+                                        <label for="taBackendUrl" class="form-label">Backend URL</label>
+                                        <input type="url" class="form-control form-control-sm" id="taBackendUrl" placeholder="http://localhost:1234/v1">
+                                    </div>
+                                    <div>
+                                        <label for="taApiKey" class="form-label">API Key</label>
+                                        <input type="password" class="form-control form-control-sm" id="taApiKey" autocomplete="off">
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="taClearApiKey">
+                                        <label class="form-check-label" for="taClearApiKey">清空 API Key</label>
+                                    </div>
+                                    <div class="ta-form-grid">
+                                        <div>
+                                            <label for="taDeepModel" class="form-label">Deep Model</label>
+                                            <input type="text" class="form-control form-control-sm" id="taDeepModel">
+                                        </div>
+                                        <div>
+                                            <label for="taQuickModel" class="form-label">Quick Model</label>
+                                            <input type="text" class="form-control form-control-sm" id="taQuickModel">
+                                        </div>
+                                        <div>
+                                            <label for="taOutputLanguage" class="form-label">输出语言</label>
+                                            <input type="text" class="form-control form-control-sm" id="taOutputLanguage" value="Chinese">
+                                        </div>
+                                        <div>
+                                            <label for="taReasoningEffort" class="form-label">Reasoning</label>
+                                            <select class="form-select form-select-sm" id="taReasoningEffort">
+                                                <option value="">默认</option>
+                                                <option value="low">low</option>
+                                                <option value="medium">medium</option>
+                                                <option value="high">high</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="taDebateRounds" class="form-label">Debate</label>
+                                            <input type="number" class="form-control form-control-sm" id="taDebateRounds" min="0" max="5" value="1">
+                                        </div>
+                                        <div>
+                                            <label for="taRiskRounds" class="form-label">Risk</label>
+                                            <input type="number" class="form-control form-control-sm" id="taRiskRounds" min="0" max="5" value="1">
+                                        </div>
+                                        <div>
+                                            <label for="taTemperature" class="form-label">Temperature</label>
+                                            <input type="number" class="form-control form-control-sm" id="taTemperature" min="0" max="2" step="0.1">
+                                        </div>
+                                        <div class="form-check align-self-end mb-1">
+                                            <input class="form-check-input" type="checkbox" id="taCheckpointEnabled">
+                                            <label class="form-check-label" for="taCheckpointEnabled">Checkpoint</label>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-primary btn-sm" id="taSaveConfigButton">
+                                            <i class="fas fa-save"></i> 保存设置
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="taReloadConfigButton">
+                                            <i class="fas fa-sync-alt"></i> 重新加载
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="taTestConfigButton">
+                                            <i class="fas fa-vial"></i> 测试配置
+                                        </button>
+                                    </div>
+                                    <div class="ta-status" id="taConfigStatus">等待配置</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1066,6 +1134,53 @@
                 `);
             });
             content.className = 'tab-content mt-2';
+        }
+
+        function setTradingAgentsConfigStatus(kind, message) {
+            const status = document.getElementById('taConfigStatus');
+            if (!status) {
+                return;
+            }
+            status.className = `ta-status ${kind || ''}`.trim();
+            status.textContent = message || '等待配置';
+        }
+
+        function populateTradingAgentsConfig(config) {
+            if (!config) {
+                return;
+            }
+            document.getElementById('taProvider').value = config.provider || 'openai_compatible';
+            document.getElementById('taBackendUrl').value = config.backend_url || '';
+            document.getElementById('taApiKey').value = '';
+            document.getElementById('taApiKey').placeholder = config.api_key_set ? '已设置，留空则不修改' : '未设置';
+            document.getElementById('taClearApiKey').checked = false;
+            document.getElementById('taDeepModel').value = config.deep_model || '';
+            document.getElementById('taQuickModel').value = config.quick_model || '';
+            document.getElementById('taOutputLanguage').value = config.output_language || 'Chinese';
+            document.getElementById('taDebateRounds').value = config.max_debate_rounds ?? 1;
+            document.getElementById('taRiskRounds').value = config.max_risk_rounds ?? 1;
+            document.getElementById('taCheckpointEnabled').checked = Boolean(config.checkpoint_enabled);
+            document.getElementById('taTemperature').value = config.temperature ?? '';
+            document.getElementById('taReasoningEffort').value = config.openai_reasoning_effort || '';
+        }
+
+        function collectTradingAgentsConfigPayload() {
+            const apiKey = document.getElementById('taApiKey').value.trim();
+            const temperatureValue = document.getElementById('taTemperature').value;
+            return {
+                provider: document.getElementById('taProvider').value,
+                backend_url: document.getElementById('taBackendUrl').value.trim(),
+                api_key: apiKey || null,
+                clear_api_key: document.getElementById('taClearApiKey').checked,
+                deep_model: document.getElementById('taDeepModel').value.trim() || null,
+                quick_model: document.getElementById('taQuickModel').value.trim() || null,
+                output_language: document.getElementById('taOutputLanguage').value.trim() || 'Chinese',
+                max_debate_rounds: Number(document.getElementById('taDebateRounds').value || 1),
+                max_risk_rounds: Number(document.getElementById('taRiskRounds').value || 1),
+                checkpoint_enabled: document.getElementById('taCheckpointEnabled').checked,
+                temperature: temperatureValue === '' ? null : Number(temperatureValue),
+                openai_reasoning_effort: document.getElementById('taReasoningEffort').value || null,
+            };
         }
 
         // 切换搜索界面的显示/隐藏
