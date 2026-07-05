@@ -397,7 +397,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
 - [x] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
 - [x] T7: 新增 FastAPI `/tradingagents/*` endpoints。
-- [ ] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
+- [x] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
 - [ ] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
 - [ ] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
 - [ ] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
@@ -774,9 +774,9 @@ git commit -m "feat: expose tradingagents web api"
 
 **Todo:**
 
-- [ ] 将右侧 header 改为 `智能分析`，图标可用 `fas fa-brain` 或当前 Font Awesome 可用图标。
-- [ ] 新增 Bootstrap nav tabs：`分析` 和 `设置`。
-- [ ] 在分析 tab 中新增：
+- [x] 将右侧 header 改为 `智能分析`，图标可用 `fas fa-brain` 或当前 Font Awesome 可用图标。
+- [x] 新增 Bootstrap nav tabs：`分析` 和 `设置`。
+- [x] 在分析 tab 中新增：
   - `#taSymbol`
   - `#taAnalysisDate`
   - analyst checkboxes: `market`、`news`、`fundamentals`、`social`
@@ -785,16 +785,16 @@ git commit -m "feat: expose tradingagents web api"
   - `#taStatus`
   - `#taReportTabs`
   - `#taReportContent`
-- [ ] 实现 `syncTradingAgentsSymbol(symbol)`。
-- [ ] DOMContentLoaded 时：
+- [x] 实现 `syncTradingAgentsSymbol(symbol)`。
+- [x] DOMContentLoaded 时：
   - 设置 `#taAnalysisDate` 为今天。
   - 从左侧 `#symbol` 同步默认 symbol。
-- [ ] 实现 `getSelectedTradingAgentsAnalysts()`。
-- [ ] 实现 `setTradingAgentsStatus(kind, message)`，支持 idle/running/succeeded/failed。
-- [ ] 实现 `renderTradingAgentsReports(reports)`，空报告不渲染 tab。
-- [ ] 报告内容先用 escaped text + `<pre class="ta-report">`，不要引入新 Markdown 依赖。
-- [ ] 点击 clear 时清空报告和状态。
-- [ ] Commit:
+- [x] 实现 `getSelectedTradingAgentsAnalysts()`。
+- [x] 实现 `setTradingAgentsStatus(kind, message)`，支持 idle/running/succeeded/failed。
+- [x] 实现 `renderTradingAgentsReports(reports)`，空报告不渲染 tab。
+- [x] 报告内容先用 escaped text + `<pre class="ta-report">`，不要引入新 Markdown 依赖。
+- [x] 点击 clear 时清空报告和状态。
+- [x] Commit:
 
 ```bash
 git add templates/index.html

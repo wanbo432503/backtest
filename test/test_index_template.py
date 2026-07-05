@@ -151,13 +151,36 @@ def test_index_template_renames_validation_start_label():
     assert "验证开始" not in template
 
 
-def test_index_template_has_collapsible_trade_settings_and_insight_panel():
+def test_index_template_has_collapsible_trade_settings_and_analysis_panel():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
     assert "<summary><i class=\"fas fa-briefcase\"></i> 交易设置</summary>" in template
     assert 'id="tradeSettingsPanel"' in template
-    assert 'id="rightInsightColumn"' in template
-    assert 'id="toggleInsightPanelButton"' in template
-    assert 'onclick="toggleInsightPanel()"' in template
-    assert "right-insights-collapsed" in template
-    assert "function toggleInsightPanel()" in template
+    assert 'id="rightAnalysisColumn"' in template
+    assert 'id="toggleAnalysisPanelButton"' in template
+    assert 'onclick="toggleAnalysisPanel()"' in template
+    assert "right-analysis-collapsed" in template
+    assert "function toggleAnalysisPanel()" in template
+
+
+def test_index_template_contains_tradingagents_analysis_tab_shell():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "智能分析" in template
+    assert 'id="tradingAgentsTabs"' in template
+    assert 'id="taAnalysisTab"' in template
+    assert 'id="taSettingsTab"' in template
+    assert 'id="taSymbol"' in template
+    assert 'id="taAnalysisDate"' in template
+    assert 'id="taAnalystMarket"' in template
+    assert 'id="taAnalystNews"' in template
+    assert 'id="taAnalystFundamentals"' in template
+    assert 'id="taAnalystSocial"' in template
+    assert 'id="taRunButton"' in template
+    assert 'id="taClearButton"' in template
+    assert 'id="taStatus"' in template
+    assert 'id="taReportTabs"' in template
+    assert 'id="taReportContent"' in template
+    assert "function getSelectedTradingAgentsAnalysts()" in template
+    assert "function setTradingAgentsStatus" in template
+    assert "function renderTradingAgentsReports" in template

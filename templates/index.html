@@ -373,6 +373,63 @@
             font-size: 0.88rem;
             text-align: center;
         }
+        .ta-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .ta-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .ta-analyst-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 10px;
+        }
+        .ta-status {
+            min-height: 34px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 7px 9px;
+            font-size: 0.82rem;
+            color: #6c757d;
+            background: #f8f9fa;
+        }
+        .ta-status.running {
+            color: #084298;
+            border-color: #b6d4fe;
+            background: #e7f1ff;
+        }
+        .ta-status.succeeded {
+            color: #0f5132;
+            border-color: #badbcc;
+            background: #d1e7dd;
+        }
+        .ta-status.failed {
+            color: #842029;
+            border-color: #f5c2c7;
+            background: #f8d7da;
+        }
+        .ta-report-tabs {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        .ta-report {
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+            max-height: 420px;
+            overflow: auto;
+            font-size: 0.8rem;
+            line-height: 1.45;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+        }
         .optimization-results-table {
             min-width: 1120px;
             table-layout: auto;
@@ -826,7 +883,74 @@
                         </button>
                     </div>
                     <div class="card-body" id="tradingAgentsPanelShell">
-                        <div class="analysis-placeholder" id="taPanelPlaceholder">等待分析</div>
+                        <ul class="nav nav-tabs nav-fill mb-3" id="tradingAgentsTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="taAnalysisTab" data-bs-toggle="tab" data-bs-target="#taAnalysisPane" type="button" role="tab" aria-controls="taAnalysisPane" aria-selected="true">
+                                    <i class="fas fa-chart-line"></i> 分析
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="taSettingsTab" data-bs-toggle="tab" data-bs-target="#taSettingsPane" type="button" role="tab" aria-controls="taSettingsPane" aria-selected="false">
+                                    <i class="fas fa-sliders-h"></i> 设置
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="tradingAgentsTabContent">
+                            <div class="tab-pane fade show active" id="taAnalysisPane" role="tabpanel" aria-labelledby="taAnalysisTab">
+                                <div class="ta-panel">
+                                    <div class="ta-form-grid">
+                                        <div>
+                                            <label for="taSymbol" class="form-label">标的</label>
+                                            <input type="text" class="form-control form-control-sm" id="taSymbol" value="SZ002241">
+                                        </div>
+                                        <div>
+                                            <label for="taAnalysisDate" class="form-label">日期</label>
+                                            <input type="date" class="form-control form-control-sm" id="taAnalysisDate">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label">Analysts</label>
+                                        <div class="ta-analyst-grid">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" value="market" id="taAnalystMarket" checked>
+                                                <label class="form-check-label" for="taAnalystMarket">Market</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" value="news" id="taAnalystNews" checked>
+                                                <label class="form-check-label" for="taAnalystNews">News</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" value="fundamentals" id="taAnalystFundamentals" checked>
+                                                <label class="form-check-label" for="taAnalystFundamentals">Fundamentals</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" value="social" id="taAnalystSocial">
+                                                <label class="form-check-label" for="taAnalystSocial">Sentiment</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-primary btn-sm" id="taRunButton">
+                                            <i class="fas fa-play"></i> 开始分析
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="taClearButton">
+                                            <i class="fas fa-eraser"></i> 清空结果
+                                        </button>
+                                    </div>
+
+                                    <div class="ta-status" id="taStatus">等待分析</div>
+
+                                    <ul class="nav nav-pills nav-fill ta-report-tabs" id="taReportTabs"></ul>
+                                    <div id="taReportContent"></div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="taSettingsPane" role="tabpanel" aria-labelledby="taSettingsTab">
+                                <div class="analysis-placeholder" id="taSettingsPlaceholder">待配置</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -874,6 +998,74 @@
             if (symbolInput) {
                 symbolInput.value = symbol;
             }
+        }
+
+        function getSelectedTradingAgentsAnalysts() {
+            return Array.from(document.querySelectorAll('[id^="taAnalyst"]:checked'))
+                .map(input => input.value);
+        }
+
+        function setTradingAgentsStatus(kind, message) {
+            const status = document.getElementById('taStatus');
+            if (!status) {
+                return;
+            }
+            status.className = `ta-status ${kind || ''}`.trim();
+            status.textContent = message || '等待分析';
+        }
+
+        function clearTradingAgentsReports() {
+            const tabs = document.getElementById('taReportTabs');
+            const content = document.getElementById('taReportContent');
+            if (tabs) {
+                tabs.innerHTML = '';
+            }
+            if (content) {
+                content.innerHTML = '';
+            }
+            setTradingAgentsStatus('', '等待分析');
+        }
+
+        function renderTradingAgentsReports(reports) {
+            const tabs = document.getElementById('taReportTabs');
+            const content = document.getElementById('taReportContent');
+            if (!tabs || !content) {
+                return;
+            }
+
+            const sections = [
+                ['market_report', 'Market'],
+                ['sentiment_report', 'Sentiment'],
+                ['news_report', 'News'],
+                ['fundamentals_report', 'Fundamentals'],
+                ['research_decision', 'Research'],
+                ['trader_plan', 'Trader'],
+                ['risk_discussion', 'Risk'],
+                ['portfolio_decision', 'Portfolio'],
+            ].filter(([key]) => reports && reports[key]);
+
+            tabs.innerHTML = '';
+            content.innerHTML = '';
+            if (sections.length === 0) {
+                content.innerHTML = '<div class="analysis-placeholder">暂无报告</div>';
+                return;
+            }
+
+            sections.forEach(([key, label], index) => {
+                const tabId = `taReportTab_${key}`;
+                const paneId = `taReportPane_${key}`;
+                tabs.insertAdjacentHTML('beforeend', `
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${index === 0 ? 'active' : ''}" id="${tabId}" data-bs-toggle="pill" data-bs-target="#${paneId}" type="button" role="tab" aria-controls="${paneId}" aria-selected="${index === 0 ? 'true' : 'false'}">${escapeHtml(label)}</button>
+                    </li>
+                `);
+                content.insertAdjacentHTML('beforeend', `
+                    <div class="tab-pane fade ${index === 0 ? 'show active' : ''}" id="${paneId}" role="tabpanel" aria-labelledby="${tabId}">
+                        <pre class="ta-report">${escapeHtml(reports[key])}</pre>
+                    </div>
+                `);
+            });
+            content.className = 'tab-content mt-2';
         }
 
         // 切换搜索界面的显示/隐藏
@@ -1599,6 +1791,9 @@
             
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+            document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
+            syncTradingAgentsSymbol(document.getElementById('symbol').value);
+            document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
             
             // 加载策略列表
             loadStrategies();
