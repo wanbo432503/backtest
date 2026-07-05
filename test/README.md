@@ -103,7 +103,6 @@ python test/test_comprehensive.py --search --verbose
 **测试端点：**
 - `GET /strategies` - 获取策略列表
 - `GET /search-stocks?query=苹果` - 搜索股票
-- `GET /stock-info/AAPL` - 获取股票信息
 
 **前置条件：**
 需要运行 FastAPI 服务：

@@ -389,8 +389,8 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 
 按顺序执行，不跳任务；每个任务完成后运行本任务 focused tests，再提交。
 
-- [ ] T0: 建立 Phase 3.0 基线检查，确认旧面板入口、测试入口和 TradingAgents repo 可用。
-- [ ] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
+- [x] T0: 建立 Phase 3.0 基线检查，确认旧面板入口、测试入口和 TradingAgents repo 可用。
+- [x] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
 - [ ] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
 - [ ] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
 - [ ] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
@@ -416,21 +416,21 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 
 **Todo:**
 
-- [ ] 运行 `git status --short`，确认是否有用户未提交改动。
-- [ ] 用 CodeGraph 或 `rg` 列出旧入口引用：
+- [x] 运行 `git status --short`，确认是否有用户未提交改动。
+- [x] 用 CodeGraph 或 `rg` 列出旧入口引用：
 
 ```bash
 rg -n "market-insights|stock-info|loadMarketInsights|renderInsightList|renderQuote|quotePanel|dragonTiger|fundFlow|标的信息|龙虎榜" main.py templates test static
 ```
 
-- [ ] 记录哪些测试依赖 `market_insights.py`。
-- [ ] 确认 TradingAgents repo 路径存在：
+- [x] 记录哪些测试依赖 `market_insights.py`。
+- [x] 确认 TradingAgents repo 路径存在：
 
 ```bash
 test -d /Users/wanbo/knowledge/knowledge/repo/TradingAgents && test -f /Users/wanbo/knowledge/knowledge/repo/TradingAgents/.env
 ```
 
-- [ ] 只做检查，不改文件。
+- [x] 只做检查，不改文件。
 
 **Expected:** 工作树状态明确，旧入口清单明确，TradingAgents `.env` 存在。
 
@@ -448,32 +448,32 @@ test -d /Users/wanbo/knowledge/knowledge/repo/TradingAgents && test -f /Users/wa
 
 **Todo:**
 
-- [ ] 先改测试：将旧 `test/test_market_insights_api.py` 替换为 `test/test_removed_market_insights_api.py`，断言 `/market-insights/SZ002241` 返回 404。
-- [ ] 运行新测试，确认当前代码 FAIL，因为 endpoint 仍存在：
+- [x] 先改测试：将旧 `test/test_market_insights_api.py` 替换为 `test/test_removed_market_insights_api.py`，断言 `/market-insights/SZ002241` 返回 404。
+- [x] 运行新测试，确认当前代码 FAIL，因为 endpoint 仍存在：
 
 ```bash
 pytest test/test_removed_market_insights_api.py -v
 ```
 
-- [ ] 从 `main.py` 删除 `from market_insights import get_market_insights`。
-- [ ] 从 `main.py` 删除 `market_insights_endpoint(...)`。
-- [ ] 从 `main.py` 删除 `get_stock_info_endpoint(...)`，除非基线检查发现其他前端仍需要它。
-- [ ] 如果 `/stock-info` 删除后 `stock_search.get_stock_info(...)` 无调用，删除 `StockSearcher.get_stock_info(...)` 和 module-level `get_stock_info(...)`。
-- [ ] 删除 `market_insights.py`。
-- [ ] 运行：
+- [x] 从 `main.py` 删除 `from market_insights import get_market_insights`。
+- [x] 从 `main.py` 删除 `market_insights_endpoint(...)`。
+- [x] 从 `main.py` 删除 `get_stock_info_endpoint(...)`，除非基线检查发现其他前端仍需要它。
+- [x] 如果 `/stock-info` 删除后 `stock_search.get_stock_info(...)` 无调用，删除 `StockSearcher.get_stock_info(...)` 和 module-level `get_stock_info(...)`。
+- [x] 删除 `market_insights.py`。
+- [x] 运行：
 
 ```bash
 pytest test/test_removed_market_insights_api.py -v
 pytest test/test_comprehensive.py -v
 ```
 
-- [ ] 搜索确认后端旧入口无残留：
+- [x] 搜索确认后端旧入口无残留：
 
 ```bash
 rg -n "market_insights|get_market_insights|/market-insights|/stock-info|get_stock_info_endpoint" .
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add main.py stock_search.py test/test_removed_market_insights_api.py test/test_market_insights_api.py market_insights.py

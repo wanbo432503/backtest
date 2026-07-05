@@ -566,64 +566,10 @@ class StockSearcher:
         }
         return market_to_country.get(market, "Unknown")
     
-    def get_stock_info(self, symbol: str, market: Optional[str] = None) -> Dict:
-        """
-        获取股票详细信息
-        
-        Args:
-            symbol: 股票代码
-            market: 指定市场（可选）
-        
-        Returns:
-            股票信息字典
-        """
-        try:
-            if market is None:
-                market = self._detect_market(symbol)
-            
-            normalized_symbol, _ = self._normalize_symbol(symbol, market)
-            ticker = yf.Ticker(normalized_symbol)
-            info = ticker.info
-            
-            return {
-                'symbol': normalized_symbol,
-                'name': info.get('longName', normalized_symbol),
-                'market': market,
-                'sector': info.get('sector', 'N/A'),
-                'industry': info.get('industry', 'N/A'),
-                'country': self._get_country_by_market(market),
-                'currency': info.get('currency', self._get_currency_by_market(market)),
-                'description': info.get('longBusinessSummary', 'N/A')[:200],  # 限制长度
-                'market_cap': info.get('marketCap', 'N/A'),
-                'pe_ratio': info.get('trailingPE', 'N/A'),
-                'dividend_yield': info.get('dividendYield', 'N/A')
-            }
-        except Exception as e:
-            return {
-                'symbol': symbol,
-                'name': 'Unknown',
-                'market': market or 'Unknown',
-                'error': f'Failed to fetch stock info: {str(e)}'
-            }
-    
-    def _get_currency_by_market(self, market: str) -> str:
-        """根据市场获取货币"""
-        currency_map = {
-            MARKET_US: "USD",
-            MARKET_CN: "CNY",
-            MARKET_HK: "HKD",
-        }
-        return currency_map.get(market, "Unknown")
-
 def search_stocks(query: str, market: Optional[str] = None) -> List[Dict]:
     """便利函数 - 搜索 A 股"""
     searcher = StockSearcher()
     return searcher.search_by_name(query, market)
-
-def get_stock_info(symbol: str, market: Optional[str] = None) -> Dict:
-    """便利函数 - 获取股票信息"""
-    searcher = StockSearcher()
-    return searcher.get_stock_info(symbol, market)
 
 def search_us_stocks(query: str) -> List[Dict]:
     """兼容旧接口：当前不再支持美股搜索。"""

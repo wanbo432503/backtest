@@ -14,9 +14,8 @@ import warnings
 import os
 import importlib
 import inspect
-from stock_search import search_stocks, get_stock_info
+from stock_search import search_stocks
 from market_data import normalize_symbol
-from market_insights import get_market_insights
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
@@ -507,38 +506,6 @@ async def search_hk_stocks(query: str = None):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
-
-@app.get("/stock-info/{symbol}")
-async def get_stock_info_endpoint(symbol: str):
-    """
-    获取股票详细信息
-    参数: symbol - 股票代码
-    """
-    if not symbol or len(symbol.strip()) == 0:
-        raise HTTPException(status_code=400, detail="股票代码不能为空")
-    
-    try:
-        info = get_stock_info(symbol.upper().strip())
-        
-        if 'error' in info:
-            raise HTTPException(status_code=404, detail=info['error'])
-        
-        return info
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取股票信息失败: {str(e)}")
-
-@app.get("/market-insights/{symbol}")
-async def market_insights_endpoint(symbol: str):
-    """获取右侧标的信息面板数据"""
-    if not symbol or len(symbol.strip()) == 0:
-        raise HTTPException(status_code=400, detail="股票代码不能为空")
-
-    try:
-        return get_market_insights(symbol.strip())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取市场信息失败: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
