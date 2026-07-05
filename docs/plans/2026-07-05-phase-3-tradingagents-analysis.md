@@ -395,7 +395,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
 - [x] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
 - [x] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
-- [ ] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
+- [x] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
 - [ ] T7: 新增 FastAPI `/tradingagents/*` endpoints。
 - [ ] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
 - [ ] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
@@ -690,30 +690,30 @@ git commit -m "feat: adapt a-share symbols and tradingagents reports"
 
 **Todo:**
 
-- [ ] 定义 `TradingAgentsAdapterError(Exception)`，错误消息经过 secret sanitization。
-- [ ] 实现 `sanitize_error_message(message: str, env_values: dict[str, str]) -> str`。
-- [ ] 实现 context manager `temporary_sys_path(path: Path)`，退出时恢复原值。
-- [ ] 实现 context manager `temporary_environ(overrides: dict[str, str])`，退出时恢复原值。
-- [ ] 实现 `load_tradingagents_env(env_path: Path) -> dict[str, str]`，复用 T4 parser。
-- [ ] 实现 `build_run_config(...)`：
+- [x] 定义 `TradingAgentsAdapterError(Exception)`，错误消息经过 secret sanitization。
+- [x] 实现 `sanitize_error_message(message: str, env_values: dict[str, str]) -> str`。
+- [x] 实现 context manager `temporary_sys_path(path: Path)`，退出时恢复原值。
+- [x] 实现 context manager `temporary_environ(overrides: dict[str, str])`，退出时恢复原值。
+- [x] 实现 `load_tradingagents_env(env_path: Path) -> dict[str, str]`，复用 T4 parser。
+- [x] 实现 `build_run_config(...)`：
   - provider/backend/model 从 `.env` 和 request override 合并。
   - output language 默认 `Chinese`。
   - debate/risk rounds 使用 request 优先，其次 `.env`。
-- [ ] 实现 `run_tradingagents_analysis(request: TradingAgentsAnalysisRequest) -> TradingAgentsAnalysisResponse`。
-- [ ] 真实 import 路径：
+- [x] 实现 `run_tradingagents_analysis(request: TradingAgentsAnalysisRequest) -> TradingAgentsAnalysisResponse`。
+- [x] 真实 import 路径：
   - `from tradingagents.graph.trading_graph import TradingAgentsGraph`
   - `from tradingagents.graph.analyst_execution import build_analyst_execution_plan`
   - 依照 TradingAgents CLI 的 graph stream 合并 chunks。
-- [ ] 测试中 monkeypatch `TradingAgentsGraph`，不调用真实 LLM。
-- [ ] 测试分析成功时 response 包含 `elapsed_seconds`、`tradingagents_ticker`、reports。
-- [ ] 测试 import 失败时抛出 `TradingAgentsAdapterError`，错误不包含 API key。
-- [ ] 运行：
+- [x] 测试中 monkeypatch `TradingAgentsGraph`，不调用真实 LLM。
+- [x] 测试分析成功时 response 包含 `elapsed_seconds`、`tradingagents_ticker`、reports。
+- [x] 测试 import 失败时抛出 `TradingAgentsAdapterError`，错误不包含 API key。
+- [x] 运行：
 
 ```bash
 pytest test/test_tradingagents_adapter.py -v
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add tradingagents_adapter.py test/test_tradingagents_adapter.py

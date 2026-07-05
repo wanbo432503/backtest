@@ -1,11 +1,26 @@
 import re
+from contextlib import contextmanager
+import os
+from pathlib import Path
+import sys
+from time import monotonic
 
-from tradingagents_models import ALLOWED_ANALYSTS, TradingAgentsReports
+from tradingagents_config import TRADINGAGENTS_ENV_PATH, TRADINGAGENTS_REPO_PATH, parse_env_file
+from tradingagents_models import (
+    ALLOWED_ANALYSTS,
+    TradingAgentsAnalysisRequest,
+    TradingAgentsAnalysisResponse,
+    TradingAgentsReports,
+)
 
 
 A_SHARE_PREFIX_PATTERN = re.compile(r"^(SH|SZ|BJ)(\d{6})$")
 A_SHARE_SUFFIX_PATTERN = re.compile(r"^(\d{6})\.(SH|SZ|BJ)$")
 A_SHARE_NUMERIC_PATTERN = re.compile(r"^\d{6}$")
+
+
+class TradingAgentsAdapterError(Exception):
+    pass
 
 
 def normalize_a_share_symbol(symbol: str) -> str:
@@ -54,6 +69,107 @@ def validate_analysts(analysts: list[str]) -> list[str]:
     return analysts
 
 
+def sanitize_error_message(message: str, env_values: dict[str, str]) -> str:
+    sanitized = message
+    for key, value in env_values.items():
+        if not value:
+            continue
+        if key.endswith("_API_KEY") or "SECRET" in key or "TOKEN" in key:
+            sanitized = sanitized.replace(value, "<redacted>")
+    return sanitized
+
+
+@contextmanager
+def temporary_sys_path(path: Path):
+    original = list(sys.path)
+    sys.path.insert(0, str(path))
+    try:
+        yield
+    finally:
+        sys.path[:] = original
+
+
+@contextmanager
+def temporary_environ(overrides: dict[str, str]):
+    original = os.environ.copy()
+    os.environ.update({key: value for key, value in overrides.items() if value is not None})
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+
+
+def load_tradingagents_env(env_path: Path = TRADINGAGENTS_ENV_PATH) -> dict[str, str]:
+    _, values = parse_env_file(env_path)
+    return values
+
+
+def build_run_config(
+    request: TradingAgentsAnalysisRequest,
+    env_values: dict[str, str],
+    repo_path: Path = TRADINGAGENTS_REPO_PATH,
+    base_config: dict | None = None,
+) -> dict:
+    config = dict(base_config or {})
+    home = Path.home() / ".tradingagents"
+    config.setdefault("project_dir", str(repo_path))
+    config.setdefault("results_dir", str(home / "logs"))
+    config.setdefault("data_cache_dir", str(home / "cache"))
+    config.setdefault("memory_log_path", str(home / "memory" / "trading_memory.md"))
+    config.setdefault("max_recur_limit", 100)
+    config.setdefault("checkpoint_enabled", False)
+
+    config["llm_provider"] = env_values.get("TRADINGAGENTS_LLM_PROVIDER", "openai_compatible")
+    config["backend_url"] = env_values.get("TRADINGAGENTS_LLM_BACKEND_URL")
+    config["deep_think_llm"] = env_values.get("TRADINGAGENTS_DEEP_THINK_LLM")
+    config["quick_think_llm"] = env_values.get("TRADINGAGENTS_QUICK_THINK_LLM")
+    config["output_language"] = env_values.get("TRADINGAGENTS_OUTPUT_LANGUAGE", "Chinese")
+    config["max_debate_rounds"] = request.max_debate_rounds
+    config["max_risk_discuss_rounds"] = request.max_risk_rounds
+
+    if env_values.get("TRADINGAGENTS_CHECKPOINT_ENABLED"):
+        config["checkpoint_enabled"] = _bool_env(env_values["TRADINGAGENTS_CHECKPOINT_ENABLED"])
+    if env_values.get("TRADINGAGENTS_TEMPERATURE"):
+        config["temperature"] = float(env_values["TRADINGAGENTS_TEMPERATURE"])
+    if env_values.get("TRADINGAGENTS_OPENAI_REASONING_EFFORT"):
+        config["openai_reasoning_effort"] = env_values["TRADINGAGENTS_OPENAI_REASONING_EFFORT"]
+    return config
+
+
+def run_tradingagents_analysis(
+    request: TradingAgentsAnalysisRequest,
+    env_path: Path = TRADINGAGENTS_ENV_PATH,
+    repo_path: Path = TRADINGAGENTS_REPO_PATH,
+    graph_class=None,
+) -> TradingAgentsAnalysisResponse:
+    env_values = load_tradingagents_env(env_path)
+    selected_analysts = validate_analysts(request.analysts)
+    normalized_symbol = normalize_a_share_symbol(request.symbol)
+    ticker = to_tradingagents_ticker(normalized_symbol)
+    started_at = monotonic()
+
+    try:
+        with temporary_sys_path(repo_path), temporary_environ(env_values):
+            base_config = None if graph_class is not None else _load_default_config()
+            graph_cls = graph_class or _load_tradingagents_graph_class()
+            config = build_run_config(request, env_values, repo_path=repo_path, base_config=base_config)
+            graph = graph_cls(selected_analysts, config=config, debug=True)
+            final_state = graph.propagate(ticker, request.analysis_date, asset_type="stock")
+    except Exception as exc:  # noqa: BLE001 - surface sanitized adapter errors to API layer
+        raise TradingAgentsAdapterError(sanitize_error_message(str(exc), env_values)) from exc
+
+    return TradingAgentsAnalysisResponse(
+        status="succeeded",
+        symbol=normalized_symbol,
+        tradingagents_ticker=ticker,
+        analysis_date=request.analysis_date,
+        elapsed_seconds=round(monotonic() - started_at, 3),
+        reports=extract_reports(final_state or {}),
+        warnings=[],
+    )
+
+
 def extract_reports(final_state: dict) -> TradingAgentsReports:
     risk_state = final_state.get("risk_debate_state") or {}
     debate_state = final_state.get("investment_debate_state") or {}
@@ -95,3 +211,19 @@ def _join_sections(sections: list[tuple[str, object]]) -> str | None:
     if not parts:
         return None
     return "\n\n".join(parts)
+
+
+def _bool_env(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _load_default_config() -> dict:
+    from tradingagents.default_config import DEFAULT_CONFIG
+
+    return dict(DEFAULT_CONFIG)
+
+
+def _load_tradingagents_graph_class():
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
+    return TradingAgentsGraph
