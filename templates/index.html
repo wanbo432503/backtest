@@ -1057,6 +1057,13 @@
             return data?.detail || data?.message || fallbackMessage;
         }
 
+        function formatTradingAgentsRequestError(error, actionLabel) {
+            if (error.status === 404 && String(error.url || '').startsWith('/tradingagents/')) {
+                return `${actionLabel}失败: 当前后端服务未加载 TradingAgents API，请重启 backtest 服务后刷新页面`;
+            }
+            return `${actionLabel}失败: ${error.message}`;
+        }
+
         async function fetchJson(url, options = {}) {
             const requestOptions = { ...options };
             const headers = { ...(requestOptions.headers || {}) };
@@ -1069,7 +1076,10 @@
             const contentType = response.headers.get('content-type') || '';
             const data = contentType.includes('application/json') ? await response.json() : null;
             if (!response.ok) {
-                throw new Error(formatApiError(data, '请求失败'));
+                const error = new Error(formatApiError(data, '请求失败'));
+                error.status = response.status;
+                error.url = url;
+                throw error;
             }
             return data;
         }
@@ -1217,7 +1227,7 @@
                 populateTradingAgentsConfig(data.config);
                 setTradingAgentsConfigStatus('succeeded', '配置已加载');
             } catch (error) {
-                setTradingAgentsConfigStatus('failed', `配置加载失败: ${error.message}`);
+                setTradingAgentsConfigStatus('failed', formatTradingAgentsRequestError(error, '配置加载'));
             }
         }
 
@@ -1233,7 +1243,7 @@
                 populateTradingAgentsConfig(data.config);
                 setTradingAgentsConfigStatus('succeeded', '配置已保存');
             } catch (error) {
-                setTradingAgentsConfigStatus('failed', `配置保存失败: ${error.message}`);
+                setTradingAgentsConfigStatus('failed', formatTradingAgentsRequestError(error, '配置保存'));
             } finally {
                 button.disabled = false;
             }
@@ -1253,7 +1263,7 @@
                 const warningText = warnings.length ? `；提示: ${warnings.join('；')}` : '';
                 setTradingAgentsConfigStatus(data.ok ? 'succeeded' : 'failed', `${summary}${warningText}`);
             } catch (error) {
-                setTradingAgentsConfigStatus('failed', `配置测试失败: ${error.message}`);
+                setTradingAgentsConfigStatus('failed', formatTradingAgentsRequestError(error, '配置测试'));
             } finally {
                 button.disabled = false;
             }
@@ -1297,7 +1307,7 @@
                     `分析完成: ${data.symbol || symbol} -> ${data.tradingagents_ticker || ''}${elapsed}${warnings}`
                 );
             } catch (error) {
-                setTradingAgentsStatus('failed', `分析失败: ${error.message}`);
+                setTradingAgentsStatus('failed', formatTradingAgentsRequestError(error, '分析'));
             } finally {
                 button.disabled = false;
             }

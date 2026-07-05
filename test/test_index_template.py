@@ -228,3 +228,4 @@ def test_index_template_connects_tradingagents_panel_to_api():
     assert "addEventListener('click', testTradingAgentsConfig)" in template
     assert "addEventListener('click', runTradingAgentsAnalysis)" in template
     assert "addEventListener('input', event => syncTradingAgentsSymbol(event.target.value))" in template
+    assert "当前后端服务未加载 TradingAgents API，请重启 backtest 服务后刷新页面" in template
