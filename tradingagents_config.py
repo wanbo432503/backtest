@@ -99,6 +99,12 @@ def get_config_view(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsCon
     )
 
 
+def get_config_api_key(env_path: Path = TRADINGAGENTS_ENV_PATH) -> dict[str, str | bool]:
+    _, values = parse_env_file(env_path)
+    api_key = _value_or_none(values.get("OPENAI_COMPATIBLE_API_KEY")) or ""
+    return {"api_key": api_key, "api_key_set": bool(api_key)}
+
+
 def update_config(
     update: TradingAgentsConfigUpdate,
     env_path: Path = TRADINGAGENTS_ENV_PATH,

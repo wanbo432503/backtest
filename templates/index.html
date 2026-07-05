@@ -960,7 +960,12 @@
                                     </div>
                                     <div>
                                         <label for="taApiKey" class="form-label">API Key</label>
-                                        <input type="password" class="form-control form-control-sm" id="taApiKey" autocomplete="off">
+                                        <div class="input-group input-group-sm">
+                                            <input type="password" class="form-control" id="taApiKey" autocomplete="off">
+                                            <button type="button" class="btn btn-outline-secondary" id="taToggleApiKeyButton" aria-label="显示 API Key" title="显示 API Key">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="taClearApiKey">
@@ -1032,6 +1037,9 @@
         window.lastOptimizationResults = [];
         window.optimizationResultStore = { currentBatchId: null, items: [] };
         const OPTIMIZATION_STORAGE_KEY = 'backtest.optimizationResults.v1';
+        const TRADINGAGENTS_API_KEY_MASK = '********';
+        let tradingAgentsApiKeyMasked = false;
+        let tradingAgentsApiKeyVisible = false;
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1182,14 +1190,80 @@
             status.textContent = message || '等待配置';
         }
 
+        function setTradingAgentsApiKeyVisibility(visible) {
+            const input = document.getElementById('taApiKey');
+            const button = document.getElementById('taToggleApiKeyButton');
+            const icon = button ? button.querySelector('i') : null;
+            tradingAgentsApiKeyVisible = Boolean(visible);
+            input.type = tradingAgentsApiKeyVisible ? 'text' : 'password';
+            if (button) {
+                const label = tradingAgentsApiKeyVisible ? '隐藏 API Key' : '显示 API Key';
+                button.setAttribute('aria-label', label);
+                button.setAttribute('title', label);
+            }
+            if (icon) {
+                icon.className = tradingAgentsApiKeyVisible ? 'fas fa-eye-slash' : 'fas fa-eye';
+            }
+        }
+
+        function resetTradingAgentsApiKeyField(apiKeySet) {
+            const input = document.getElementById('taApiKey');
+            input.value = apiKeySet ? TRADINGAGENTS_API_KEY_MASK : '';
+            input.placeholder = apiKeySet ? '已保存，点眼睛查看或直接输入新值' : '未设置';
+            tradingAgentsApiKeyMasked = Boolean(apiKeySet);
+            setTradingAgentsApiKeyVisibility(false);
+        }
+
+        async function toggleTradingAgentsApiKeyVisibility() {
+            const input = document.getElementById('taApiKey');
+            const button = document.getElementById('taToggleApiKeyButton');
+            if (tradingAgentsApiKeyVisible) {
+                setTradingAgentsApiKeyVisibility(false);
+                return;
+            }
+            if (!tradingAgentsApiKeyMasked && input.value.trim()) {
+                setTradingAgentsApiKeyVisibility(true);
+                return;
+            }
+
+            button.disabled = true;
+            setTradingAgentsConfigStatus('running', '正在读取 API Key...');
+            try {
+                const data = await fetchJson('/tradingagents/config/api-key');
+                if (!data.api_key) {
+                    resetTradingAgentsApiKeyField(false);
+                    setTradingAgentsConfigStatus('', 'API Key 未设置');
+                    return;
+                }
+                input.value = data.api_key;
+                tradingAgentsApiKeyMasked = false;
+                document.getElementById('taClearApiKey').checked = false;
+                setTradingAgentsApiKeyVisibility(true);
+                setTradingAgentsConfigStatus('succeeded', 'API Key 已显示');
+            } catch (error) {
+                setTradingAgentsConfigStatus('failed', formatTradingAgentsRequestError(error, 'API Key 读取'));
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function clearMaskedTradingAgentsApiKeyForEdit() {
+            if (!tradingAgentsApiKeyMasked) {
+                return;
+            }
+            const input = document.getElementById('taApiKey');
+            input.value = '';
+            input.placeholder = '输入新的 API Key';
+            tradingAgentsApiKeyMasked = false;
+        }
+
         function populateTradingAgentsConfig(config) {
             if (!config) {
                 return;
             }
             document.getElementById('taProvider').value = config.provider || 'openai_compatible';
             document.getElementById('taBackendUrl').value = config.backend_url || '';
-            document.getElementById('taApiKey').value = '';
-            document.getElementById('taApiKey').placeholder = config.api_key_set ? '已设置，留空则不修改' : '未设置';
+            resetTradingAgentsApiKeyField(config.api_key_set);
             document.getElementById('taClearApiKey').checked = false;
             document.getElementById('taDeepModel').value = config.deep_model || '';
             document.getElementById('taQuickModel').value = config.quick_model || '';
@@ -1202,7 +1276,8 @@
         }
 
         function collectTradingAgentsConfigPayload() {
-            const apiKey = document.getElementById('taApiKey').value.trim();
+            const apiKeyInput = document.getElementById('taApiKey');
+            const apiKey = tradingAgentsApiKeyMasked ? '' : apiKeyInput.value.trim();
             const temperatureValue = document.getElementById('taTemperature').value;
             return {
                 provider: document.getElementById('taProvider').value,
@@ -2040,6 +2115,8 @@
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
             document.getElementById('symbol').addEventListener('input', event => syncTradingAgentsSymbol(event.target.value));
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
+            document.getElementById('taApiKey').addEventListener('focus', clearMaskedTradingAgentsApiKeyForEdit);
+            document.getElementById('taToggleApiKeyButton').addEventListener('click', toggleTradingAgentsApiKeyVisibility);
             document.getElementById('taSaveConfigButton').addEventListener('click', saveTradingAgentsConfig);
             document.getElementById('taReloadConfigButton').addEventListener('click', loadTradingAgentsConfig);
             document.getElementById('taTestConfigButton').addEventListener('click', testTradingAgentsConfig);

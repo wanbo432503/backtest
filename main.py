@@ -23,6 +23,7 @@ from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
 from tradingagents_adapter import TradingAgentsAdapterError, run_tradingagents_analysis
 from tradingagents_config import (
+    get_config_api_key as get_tradingagents_config_api_key,
     get_config_view as get_tradingagents_config_view,
     test_config as test_tradingagents_config,
     update_config as update_tradingagents_config,
@@ -522,6 +523,14 @@ async def get_tradingagents_config_endpoint():
         return get_tradingagents_config_view()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取 TradingAgents 配置失败: {str(e)}")
+
+
+@app.get("/tradingagents/config/api-key")
+async def get_tradingagents_config_api_key_endpoint():
+    try:
+        return get_tradingagents_config_api_key()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取 TradingAgents API Key 失败: {str(e)}")
 
 
 @app.put("/tradingagents/config")

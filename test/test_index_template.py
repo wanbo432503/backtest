@@ -192,6 +192,7 @@ def test_index_template_contains_tradingagents_settings_tab_shell():
     assert 'id="taProvider"' in template
     assert 'id="taBackendUrl"' in template
     assert 'id="taApiKey"' in template
+    assert 'id="taToggleApiKeyButton"' in template
     assert 'id="taClearApiKey"' in template
     assert 'id="taDeepModel"' in template
     assert 'id="taQuickModel"' in template
@@ -206,6 +207,8 @@ def test_index_template_contains_tradingagents_settings_tab_shell():
     assert 'id="taTestConfigButton"' in template
     assert 'id="taConfigStatus"' in template
     assert "function populateTradingAgentsConfig(config)" in template
+    assert "function setTradingAgentsApiKeyVisibility(visible)" in template
+    assert "async function toggleTradingAgentsApiKeyVisibility()" in template
     assert "function collectTradingAgentsConfigPayload()" in template
     assert "function setTradingAgentsConfigStatus" in template
 
@@ -219,10 +222,12 @@ def test_index_template_connects_tradingagents_panel_to_api():
     assert "async function testTradingAgentsConfig()" in template
     assert "async function runTradingAgentsAnalysis()" in template
     assert "fetchJson('/tradingagents/config')" in template
+    assert "fetchJson('/tradingagents/config/api-key')" in template
     assert "fetchJson('/tradingagents/config'," in template
     assert "fetchJson('/tradingagents/config/test'" in template
     assert "fetchJson('/tradingagents/analysis'" in template
     assert "loadTradingAgentsConfig();" in template
+    assert "addEventListener('click', toggleTradingAgentsApiKeyVisibility)" in template
     assert "addEventListener('click', saveTradingAgentsConfig)" in template
     assert "addEventListener('click', loadTradingAgentsConfig)" in template
     assert "addEventListener('click', testTradingAgentsConfig)" in template

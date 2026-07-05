@@ -2,7 +2,13 @@ from pathlib import Path
 import importlib.util
 
 import tradingagents_config
-from tradingagents_config import get_config_view, parse_env_file, test_config as run_config_check, update_config
+from tradingagents_config import (
+    get_config_api_key,
+    get_config_view,
+    parse_env_file,
+    test_config as run_config_check,
+    update_config,
+)
 from tradingagents_models import TradingAgentsConfigUpdate
 
 
@@ -48,6 +54,20 @@ def test_get_config_view_masks_api_key(tmp_path):
     assert response.config.backend_url == "http://localhost:1234/v1"
     assert response.config.deep_model == "deep-model"
     assert "secret-value" not in dumped
+
+
+def test_get_config_api_key_reads_persisted_secret(tmp_path):
+    env_path = write_env(
+        tmp_path / ".env",
+        """
+        TRADINGAGENTS_LLM_PROVIDER=openai_compatible
+        OPENAI_COMPATIBLE_API_KEY=secret-value
+        """,
+    )
+
+    response = get_config_api_key(env_path=env_path)
+
+    assert response == {"api_key": "secret-value", "api_key_set": True}
 
 
 def test_update_config_preserves_comments_unknown_keys_and_order(tmp_path):

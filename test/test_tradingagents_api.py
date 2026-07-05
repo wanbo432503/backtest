@@ -36,6 +36,21 @@ def test_get_tradingagents_config_masks_api_key(monkeypatch):
     assert "api_key" not in body["config"]
 
 
+def test_get_tradingagents_config_api_key_returns_secret(monkeypatch):
+    monkeypatch.setattr(
+        main,
+        "get_tradingagents_config_api_key",
+        lambda: {"api_key": "secret-value", "api_key_set": True},
+        raising=False,
+    )
+    client = TestClient(main.app)
+
+    response = client.get("/tradingagents/config/api-key")
+
+    assert response.status_code == 200
+    assert response.json() == {"api_key": "secret-value", "api_key_set": True}
+
+
 def test_put_tradingagents_config_saves_payload(monkeypatch):
     captured = {}
 
