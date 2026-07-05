@@ -1,8 +1,6 @@
 from pathlib import Path
 import importlib.util
-import json
 import os
-import subprocess
 import tempfile
 from typing import Any
 
@@ -17,16 +15,12 @@ from tradingagents_models import (
 
 TRADINGAGENTS_REPO_PATH = Path("/Users/wanbo/knowledge/knowledge/repo/TradingAgents")
 TRADINGAGENTS_ENV_PATH = TRADINGAGENTS_REPO_PATH / ".env"
-TRADINGAGENTS_INSTALL_COMMAND = (
-    f"TRADINGAGENTS_REPO={TRADINGAGENTS_REPO_PATH} ./scripts/setup_tradingagents_env.sh"
-)
+TRADINGAGENTS_INSTALL_COMMAND = "./scripts/install_dependencies.sh"
 TRADINGAGENTS_REQUIRED_IMPORTS = [
     "backtrader",
     "dotenv",
-    "langchain_anthropic",
     "langchain_core",
     "langchain_experimental",
-    "langchain_google_genai",
     "langchain_openai",
     "langgraph",
     "langgraph.checkpoint.sqlite",
@@ -132,8 +126,7 @@ def update_config(
 
 def test_config(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigTestResponse:
     _, values = parse_env_file(env_path)
-    python_path = _find_tradingagents_python(env_path.parent)
-    missing_dependencies = _missing_tradingagents_dependencies(python_path)
+    missing_dependencies = _missing_tradingagents_dependencies()
     checks: list[dict[str, Any]] = [
         {"name": "repo_path", "ok": env_path.parent.exists(), "path": str(env_path.parent)},
         {"name": "env_file", "ok": env_path.exists(), "path": str(env_path)},
@@ -154,7 +147,7 @@ def test_config(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigT
             "name": "python_dependencies",
             "ok": not missing_dependencies,
             "missing": missing_dependencies,
-            "python": str(python_path) if python_path else "current",
+            "python": "current",
             "install_command": TRADINGAGENTS_INSTALL_COMMAND,
         },
     ]
@@ -217,51 +210,12 @@ def _atomic_write(path: Path, content: str) -> None:
     Path(tmp_name).replace(path)
 
 
-def _find_tradingagents_python(repo_path: Path = TRADINGAGENTS_REPO_PATH) -> Path | None:
-    configured = os.environ.get("TRADINGAGENTS_PYTHON")
-    candidates = [Path(configured)] if configured else []
-    candidates.append(repo_path / ".venv" / "bin" / "python")
-    for candidate in candidates:
-        if candidate.exists() and os.access(candidate, os.X_OK):
-            return candidate
-    return None
-
-
-def _missing_tradingagents_dependencies(python_path: Path | None = None) -> list[str]:
-    if python_path is not None:
-        return _missing_tradingagents_dependencies_in_python(python_path)
+def _missing_tradingagents_dependencies() -> list[str]:
     return [
         module_name
         for module_name in TRADINGAGENTS_REQUIRED_IMPORTS
         if _is_missing_module(module_name)
     ]
-
-
-def _missing_tradingagents_dependencies_in_python(python_path: Path) -> list[str]:
-    code = """
-import importlib.util
-import json
-modules = %r
-missing = []
-for module_name in modules:
-    try:
-        if importlib.util.find_spec(module_name) is None:
-            missing.append(module_name)
-    except ModuleNotFoundError:
-        missing.append(module_name)
-print(json.dumps(missing))
-""" % TRADINGAGENTS_REQUIRED_IMPORTS
-    try:
-        completed = subprocess.run(
-            [str(python_path), "-c", code],
-            text=True,
-            capture_output=True,
-            check=True,
-            timeout=30,
-        )
-    except Exception:
-        return list(TRADINGAGENTS_REQUIRED_IMPORTS)
-    return json.loads(completed.stdout or "[]")
 
 
 def _is_missing_module(module_name: str) -> bool:

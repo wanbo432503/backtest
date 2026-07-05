@@ -143,20 +143,35 @@ def test_test_config_reports_missing_tradingagents_runtime_dependencies(tmp_path
     assert response.ok is False
     assert dependency_check["ok"] is False
     assert dependency_check["missing"] == ["langchain_core"]
-    assert str(tradingagents_config.TRADINGAGENTS_REPO_PATH) in dependency_check["install_command"]
+    assert dependency_check["python"] == "current"
+    assert dependency_check["install_command"] == "./scripts/install_dependencies.sh"
 
 
-def test_backtest_requirements_do_not_install_tradingagents_into_main_environment():
-    content = Path("requirements.txt").read_text(encoding="utf-8")
+def test_tradingagents_runtime_requirements_cover_openai_compatible_path():
+    content = Path("requirements-tradingagents-openai-compatible.txt").read_text(encoding="utf-8")
 
-    assert "-e /Users/wanbo/knowledge/knowledge/repo/TradingAgents" not in content
+    assert "langchain-core" in content
+    assert "langchain-openai" in content
+    assert "langgraph" in content
+    assert "langchain-google-genai" not in content
+    assert "langchain-anthropic" not in content
 
 
-def test_setup_script_installs_tradingagents_into_dedicated_venv():
-    script = Path("scripts/setup_tradingagents_env.sh")
+def test_install_script_installs_all_dependencies_into_current_environment():
+    script = Path("scripts/install_dependencies.sh")
 
     assert script.exists()
     content = script.read_text(encoding="utf-8")
-    assert "python -m venv" in content
-    assert "pip install -e" in content
+    assert "python -m venv" not in content
+    assert ".venv" not in content
+    assert '"${PYTHON_BIN}" -m pip install -r requirements.txt' in content
+    assert (
+        '"${PYTHON_BIN}" -m pip install -r requirements-tradingagents-openai-compatible.txt'
+        in content
+    )
+    assert '"${PYTHON_BIN}" -m pip install --no-deps -e "${TRADINGAGENTS_REPO}"' in content
     assert str(tradingagents_config.TRADINGAGENTS_REPO_PATH) in content
+
+
+def test_dedicated_tradingagents_env_script_is_removed():
+    assert not Path("scripts/setup_tradingagents_env.sh").exists()
