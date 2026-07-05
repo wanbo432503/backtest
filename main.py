@@ -304,7 +304,7 @@ async def run_backtest(request: BacktestRequest):
 
 @app.post("/optimize")
 async def optimize_endpoint(payload: dict):
-    """运行固定 A 股股票池的参数优化。"""
+    """运行单只 A 股标的的参数优化。"""
     try:
         request = OptimizationRequest.model_validate(payload)
     except ValidationError as e:

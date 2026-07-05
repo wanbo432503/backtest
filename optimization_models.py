@@ -55,7 +55,7 @@ class StrategyParamConfig(BaseModel):
 
 class OptimizationConfig(BaseModel):
     enabled: bool = False
-    symbols: list[str] = Field(default_factory=lambda: ["SH603019", "SZ002241"])
+    symbols: list[str] = Field(default_factory=lambda: ["SH603019"])
     strategies: list[StrategyParamConfig] = Field(default_factory=list)
     objective: Literal["score"] = "score"
     top_n: int = 10
@@ -75,6 +75,13 @@ class OptimizationConfig(BaseModel):
             raise ValueError("max_combinations must not exceed 1000")
         if value <= 0:
             raise ValueError("max_combinations must be greater than 0")
+        return value
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_single_symbol(cls, value: list[str]) -> list[str]:
+        if len(value) != 1:
+            raise ValueError("symbols must contain exactly one A-share symbol")
         return value
 
 

@@ -27,14 +27,17 @@ def test_index_template_reads_strategy_parameter_metadata():
 def test_index_template_contains_optimization_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
-    assert "股票池" in template
-    assert 'id="poolSH603019"' in template
-    assert 'id="poolSZ002241"' in template
-    assert "中科曙光" in template
-    assert "歌尔股份" in template
+    assert "优化标的" in template
+    assert "使用上方当前 A 股代码" in template
+    assert "股票池" not in template
+    assert 'id="poolSH603019"' not in template
+    assert 'id="poolSZ002241"' not in template
+    assert 'id="thirdPoolSymbol"' not in template
+    assert "optimization-symbol" not in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template
+    assert "collectOptimizationSymbol" in template
     assert "开始优化" in template
 
 

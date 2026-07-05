@@ -66,6 +66,25 @@ def test_optimize_api_rejects_non_a_share_symbol():
     assert "仅支持 A 股代码" in response.json()["detail"]
 
 
+def test_optimize_api_rejects_multiple_symbols():
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/optimize",
+        json={
+            "start_date": "2025-07-03",
+            "end_date": "2026-07-04",
+            "optimization_config": {
+                "symbols": ["SH603019", "SZ002241"],
+                "strategies": [{"strategy_name": "rsi_risk_control"}],
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert "symbols" in response.json()["detail"]
+
+
 def test_optimize_api_rejects_too_many_combinations_with_400():
     client = TestClient(main.app)
 

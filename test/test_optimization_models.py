@@ -31,15 +31,20 @@ def test_a_share_trading_config_defaults_match_phase_2_rules():
     assert config.min_commission == 5
 
 
-def test_optimization_config_defaults_focus_on_two_a_share_targets():
+def test_optimization_config_defaults_focus_on_one_a_share_target():
     config = OptimizationConfig()
 
     assert config.enabled is False
-    assert config.symbols == ["SH603019", "SZ002241"]
+    assert config.symbols == ["SH603019"]
     assert config.objective == "score"
     assert config.top_n == 10
     assert config.max_combinations == 300
     assert config.min_trades == 5
+
+
+def test_optimization_config_rejects_multiple_symbols():
+    with pytest.raises(ValidationError):
+        OptimizationConfig(symbols=["SH603019", "SZ002241"])
 
 
 def test_strategy_param_config_keeps_fixed_params_and_search_space():
