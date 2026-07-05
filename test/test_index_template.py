@@ -227,3 +227,4 @@ def test_index_template_connects_tradingagents_panel_to_api():
     assert "addEventListener('click', loadTradingAgentsConfig)" in template
     assert "addEventListener('click', testTradingAgentsConfig)" in template
     assert "addEventListener('click', runTradingAgentsAnalysis)" in template
+    assert "addEventListener('input', event => syncTradingAgentsSymbol(event.target.value))" in template

@@ -2028,6 +2028,7 @@
             document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
             document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
+            document.getElementById('symbol').addEventListener('input', event => syncTradingAgentsSymbol(event.target.value));
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
             document.getElementById('taSaveConfigButton').addEventListener('click', saveTradingAgentsConfig);
             document.getElementById('taReloadConfigButton').addEventListener('click', loadTradingAgentsConfig);

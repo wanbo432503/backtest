@@ -400,7 +400,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
 - [x] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
 - [x] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
-- [ ] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
+- [x] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
 
 ### T0: 基线检查和保护栏
 
@@ -891,51 +891,51 @@ git commit -m "feat: connect tradingagents panel to api"
 
 **Todo:**
 
-- [ ] 运行 TradingAgents focused tests：
+- [x] 运行 TradingAgents focused tests：
 
 ```bash
 pytest test/test_tradingagents_models.py test/test_tradingagents_config.py test/test_tradingagents_adapter.py test/test_tradingagents_api.py -v
 ```
 
-- [ ] 运行删除旧面板测试：
+- [x] 运行删除旧面板测试：
 
 ```bash
 pytest test/test_removed_market_insights_api.py -v
 ```
 
-- [ ] 运行核心回归：
+- [x] 运行核心回归：
 
 ```bash
 pytest test/test_market_data_sources.py test/test_optimization_runner.py test/test_analytics.py -v
 ```
 
-- [ ] 搜索旧路径，结果只能出现在历史 docs/plans 中：
+- [x] 搜索旧路径，结果只能出现在历史 docs/plans 和删除验证测试中：
 
 ```bash
 rg -n "market-insights|标的信息|龙虎榜|dragonTiger|fundFlow|quotePanel|loadMarketInsights|renderInsightList|renderQuote" .
 ```
 
-- [ ] 搜索 secret 泄露风险：
+- [x] 搜索 secret 泄露风险：
 
 ```bash
 rg -n "OPENAI_COMPATIBLE_API_KEY|api_key|Authorization" main.py tradingagents_*.py templates/index.html test
 ```
 
-- [ ] 启动服务：
+- [x] 启动服务：
 
 ```bash
 uvicorn main:app --reload
 ```
 
-- [ ] 手动验证：
-  - 首页加载无 console error。
-  - 输入 `SZ002241` 后分析 tab 同步。
-  - 设置 tab 能显示 API key 已设置/未设置但无明文。
-  - 保存设置后 `.env` 保留未知键。
-  - 无 backend URL 时测试配置给出可行动 warning。
-  - invalid symbol `AAPL` 分析返回错误。
-  - mock 或真实分析成功后报告分区展示。
-- [ ] 最终提交：
+- [x] 手动验证：
+  - [x] 首页加载无 console/page error。
+  - [x] 输入 `SH600519` 后分析 tab 同步。
+  - [x] 设置 tab 能显示 API key 已设置/未设置但无明文。
+  - [x] 保存设置后 `.env` 保留未知键（覆盖于 config focused test）。
+  - [x] 无 backend URL 时测试配置给出可行动 warning（覆盖于 config focused test）。
+  - [x] invalid symbol `AAPL` 分析返回错误。
+  - [x] mock 报告分区展示。
+- [x] 最终提交：
 
 ```bash
 git add .
