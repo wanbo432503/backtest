@@ -450,7 +450,7 @@
         .optimization-results-collapsed .optimization-results-header {
             border-bottom: none;
         }
-        .optimization-results-collapsed #optimizationResultsBody {
+        .optimization-results-collapsed .optimization-results-body {
             display: none;
         }
         .optimization-results-table th,
@@ -1368,8 +1368,10 @@
 
         function renderOptimizationLibrary() {
             const store = loadOptimizationResultsFromStorage();
-            const currentRows = store.items.filter(item => item.batchId === store.currentBatchId);
+            const visibleItems = store.items.filter(isOptimizationResultForSelectedStrategy);
+            const currentRows = visibleItems.filter(item => item.batchId === store.currentBatchId);
             const historyRows = store.items
+                .filter(isOptimizationResultForSelectedStrategy)
                 .filter(item => item.batchId !== store.currentBatchId)
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
             window.lastOptimizationResults = currentRows;
@@ -1406,12 +1408,15 @@
             if (!rows.length) {
                 return `<div class="optimization-empty">${escapeHtml(options.emptyText)}</div>`;
             }
-            const panelIdArg = JSON.stringify(String(options.panelId || ''));
-            const bodyIdArg = JSON.stringify(String(options.bodyId || ''));
-            const iconIdArg = JSON.stringify(String(options.iconId || ''));
             const header = options.collapsible
                 ? `
-                    <button type="button" class="btn btn-sm btn-link text-decoration-none text-dark" onclick="toggleOptimizationResultsPanel(${panelIdArg}, ${bodyIdArg}, ${iconIdArg})" aria-expanded="true" aria-controls="${escapeHtml(options.bodyId)}">
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none text-dark"
+                        data-optimization-action="toggle"
+                        data-panel-id="${escapeHtml(options.panelId)}"
+                        data-body-id="${escapeHtml(options.bodyId)}"
+                        data-icon-id="${escapeHtml(options.iconId)}"
+                        aria-expanded="true"
+                        aria-controls="${escapeHtml(options.bodyId)}">
                         <i class="fas fa-chevron-up" id="${escapeHtml(options.iconId)}"></i>
                         ${escapeHtml(options.title)}
                     </button>
@@ -1459,7 +1464,7 @@
                 ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
                 : '<span class="badge bg-success">无</span>';
             const isBest = index === 0 ? 'table-primary' : '';
-            const recordIdArg = JSON.stringify(String(row.id || ''));
+            const recordId = escapeHtml(String(row.id || ''));
             return `
                 <tr class="${isBest}">
                     <td>${escapeHtml(row.rank || '-')}</td>
@@ -1475,13 +1480,13 @@
                     <td>${riskBadges}</td>
                     <td class="action-cell">
                         <div class="btn-group btn-group-sm" role="group" aria-label="优化结果操作">
-                            <button type="button" class="btn btn-outline-secondary" onclick="applyOptimizationResultById(${recordIdArg})">
+                            <button type="button" class="btn btn-outline-secondary" data-optimization-action="apply" data-result-id="${recordId}">
                                 应用参数
                             </button>
-                            <button type="button" class="btn btn-outline-primary" onclick="backtestOptimizationResultById(${recordIdArg})">
+                            <button type="button" class="btn btn-outline-primary" data-optimization-action="backtest" data-result-id="${recordId}">
                                 回测该参数
                             </button>
-                            <button type="button" class="btn btn-outline-danger" onclick="deleteOptimizationResult(${recordIdArg})">
+                            <button type="button" class="btn btn-outline-danger" data-optimization-action="delete" data-result-id="${recordId}">
                                 删除
                             </button>
                         </div>
@@ -1514,6 +1519,38 @@
                 high_drawdown: '高回撤'
             };
             return labels[flag] || flag;
+        }
+
+        function isOptimizationResultForSelectedStrategy(item) {
+            const selectedStrategy = document.getElementById('strategy')?.value || '';
+            return !selectedStrategy || item.strategy_name === selectedStrategy;
+        }
+
+        function handleOptimizationLibraryClick(event) {
+            const button = event.target.closest('[data-optimization-action]');
+            if (!button) {
+                return;
+            }
+            const action = button.dataset.optimizationAction;
+            if (action === 'toggle') {
+                toggleOptimizationResultsPanel(
+                    button.dataset.panelId,
+                    button.dataset.bodyId,
+                    button.dataset.iconId
+                );
+                return;
+            }
+            const resultId = button.dataset.resultId;
+            if (!resultId) {
+                return;
+            }
+            if (action === 'apply') {
+                applyOptimizationResultById(resultId);
+            } else if (action === 'backtest') {
+                backtestOptimizationResultById(resultId);
+            } else if (action === 'delete') {
+                deleteOptimizationResult(resultId);
+            }
         }
 
         function applyOptimizationResult(index) {
@@ -1570,6 +1607,7 @@
                     input.value = value;
                 }
             });
+            renderOptimizationLibrary();
             return true;
         }
 
@@ -1681,10 +1719,12 @@
             loadStrategies();
             loadOptimizationResultsFromStorage();
             renderOptimizationLibrary();
+            document.getElementById('optimizationLibraryContainer').addEventListener('click', handleOptimizationLibraryClick);
             
             // 监听策略选择变化
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
             document.getElementById('strategy').addEventListener('change', renderStrategyParamControls);
+            document.getElementById('strategy').addEventListener('change', renderOptimizationLibrary);
             document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
             document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);

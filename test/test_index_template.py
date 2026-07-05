@@ -105,6 +105,8 @@ def test_index_template_keeps_optimization_results_collapsible_after_backtest():
     assert "optimizationResultsBody" in template
     assert "optimizationResultToggleIcon" in template
     assert "optimization-results-collapsed" in template
+    assert ".optimization-results-collapsed .optimization-results-body" in template
+    assert ".optimization-results-collapsed #optimizationResultsBody" not in template
     assert "function setOptimizationResultsCollapsed" in template
     assert "setOptimizationResultsCollapsed(true)" in template
     assert "renderBacktestStats(result)" in template
@@ -123,7 +125,23 @@ def test_index_template_persists_current_and_historical_optimization_results():
     assert "function deleteOptimizationResult" in template
     assert "function applyOptimizationResultById" in template
     assert "function backtestOptimizationResultById" in template
+    assert "function isOptimizationResultForSelectedStrategy" in template
+    assert "renderOptimizationLibrary();" in template
     assert "删除" in template
+
+
+def test_index_template_delegates_optimization_result_actions_without_broken_inline_js():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'data-optimization-action="apply"' in template
+    assert 'data-optimization-action="backtest"' in template
+    assert 'data-optimization-action="delete"' in template
+    assert 'data-optimization-action="toggle"' in template
+    assert "function handleOptimizationLibraryClick" in template
+    assert "addEventListener('click', handleOptimizationLibraryClick)" in template
+    assert 'onclick="deleteOptimizationResult(' not in template
+    assert 'onclick="backtestOptimizationResultById(' not in template
+    assert 'onclick="applyOptimizationResultById(' not in template
 
 
 def test_index_template_renames_validation_start_label():
