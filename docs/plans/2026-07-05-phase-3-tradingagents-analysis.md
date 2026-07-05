@@ -394,7 +394,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
 - [x] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
 - [x] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
-- [ ] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
+- [x] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
 - [ ] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
 - [ ] T7: 新增 FastAPI `/tradingagents/*` endpoints。
 - [ ] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
@@ -639,16 +639,16 @@ git commit -m "feat: manage tradingagents env config"
 
 **Todo:**
 
-- [ ] 实现 `normalize_a_share_symbol(symbol: str) -> str`，输出 backtest 标准 `SH603019` / `SZ002241` / `BJxxxxxx`。
-- [ ] 实现 `to_tradingagents_ticker(symbol: str) -> str`：
+- [x] 实现 `normalize_a_share_symbol(symbol: str) -> str`，输出 backtest 标准 `SH603019` / `SZ002241` / `BJxxxxxx`。
+- [x] 实现 `to_tradingagents_ticker(symbol: str) -> str`：
   - `SH603019 -> 603019.SS`
   - `603019.SH -> 603019.SS`
   - `SZ002241 -> 002241.SZ`
   - `002241.SZ -> 002241.SZ`
   - `BJxxxxxx -> xxxxxx.BJ`，如后续验证 TradingAgents 不支持北交所，则改为明确 400。
-- [ ] 实现 `validate_analysts(analysts: list[str]) -> list[str]`，只允许 `market`、`social`、`news`、`fundamentals`。
-- [ ] 实现 `extract_reports(final_state: dict) -> TradingAgentsReports`。
-- [ ] 报告提取规则：
+- [x] 实现 `validate_analysts(analysts: list[str]) -> list[str]`，只允许 `market`、`social`、`news`、`fundamentals`。
+- [x] 实现 `extract_reports(final_state: dict) -> TradingAgentsReports`。
+- [x] 报告提取规则：
   - `market_report` 从 `final_state["market_report"]`。
   - `sentiment_report` 从 `final_state["sentiment_report"]`。
   - `news_report` 从 `final_state["news_report"]`。
@@ -657,20 +657,20 @@ git commit -m "feat: manage tradingagents env config"
   - `trader_plan` 从 `trader_investment_plan`。
   - `risk_discussion` 合并 `risk_debate_state.aggressive_history`、`conservative_history`、`neutral_history`。
   - `portfolio_decision` 优先 `risk_debate_state.judge_decision`，否则 `final_trade_decision`。
-- [ ] 写测试覆盖 symbol 转换。
-- [ ] 写测试覆盖 invalid symbols：
+- [x] 写测试覆盖 symbol 转换。
+- [x] 写测试覆盖 invalid symbols：
   - `AAPL`
   - `0700.HK`
   - `BTC-USD`
   - 空字符串。
-- [ ] 写测试覆盖 final_state 缺字段时返回 `None`，不抛异常。
-- [ ] 运行：
+- [x] 写测试覆盖 final_state 缺字段时返回 `None`，不抛异常。
+- [x] 运行：
 
 ```bash
 pytest test/test_tradingagents_adapter.py -v
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add tradingagents_adapter.py test/test_tradingagents_adapter.py
