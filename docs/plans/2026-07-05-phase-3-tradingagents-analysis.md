@@ -393,7 +393,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
 - [x] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
 - [x] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
-- [ ] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
+- [x] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
 - [ ] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
 - [ ] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
 - [ ] T7: 新增 FastAPI `/tradingagents/*` endpoints。
@@ -597,28 +597,28 @@ git commit -m "feat: add tradingagents api models"
 
 **Todo:**
 
-- [ ] 定义常量：
+- [x] 定义常量：
   - `TRADINGAGENTS_REPO_PATH`
   - `TRADINGAGENTS_ENV_PATH`
   - `ALLOWED_ENV_KEYS`
   - `SECRET_ENV_KEYS = {"OPENAI_COMPATIBLE_API_KEY"}`
-- [ ] 实现 `parse_env_file(path: Path) -> tuple[list[str], dict[str, str]]`，保留原始行。
-- [ ] 实现 `get_config_view(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigResponse`。
-- [ ] 实现 `update_config(update: TradingAgentsConfigUpdate, env_path: Path = ...) -> TradingAgentsConfigResponse`。
-- [ ] 实现 `test_config(env_path: Path = ...) -> TradingAgentsConfigTestResponse`。
-- [ ] 写测试：读取时 `api_key_set=True` 但 response 不含 key 明文。
-- [ ] 写测试：保存 `backend_url` 后保留未知键和注释。
-- [ ] 写测试：`api_key=None` 不覆盖已有 key。
-- [ ] 写测试：`api_key=""` 不覆盖已有 key。
-- [ ] 写测试：`clear_api_key=True` 清空 key。
-- [ ] 写测试：写入使用临时文件和 replace，可通过 monkeypatch `Path.replace` 或检查结果文件完整性。
-- [ ] 运行：
+- [x] 实现 `parse_env_file(path: Path) -> tuple[list[str], dict[str, str]]`，保留原始行。
+- [x] 实现 `get_config_view(env_path: Path = TRADINGAGENTS_ENV_PATH) -> TradingAgentsConfigResponse`。
+- [x] 实现 `update_config(update: TradingAgentsConfigUpdate, env_path: Path = ...) -> TradingAgentsConfigResponse`。
+- [x] 实现 `test_config(env_path: Path = ...) -> TradingAgentsConfigTestResponse`。
+- [x] 写测试：读取时 `api_key_set=True` 但 response 不含 key 明文。
+- [x] 写测试：保存 `backend_url` 后保留未知键和注释。
+- [x] 写测试：`api_key=None` 不覆盖已有 key。
+- [x] 写测试：`api_key=""` 不覆盖已有 key。
+- [x] 写测试：`clear_api_key=True` 清空 key。
+- [x] 写测试：写入使用临时文件和 replace，可通过 monkeypatch `Path.replace` 或检查结果文件完整性。
+- [x] 运行：
 
 ```bash
 pytest test/test_tradingagents_config.py -v
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add tradingagents_config.py test/test_tradingagents_config.py
