@@ -208,3 +208,22 @@ def test_index_template_contains_tradingagents_settings_tab_shell():
     assert "function populateTradingAgentsConfig(config)" in template
     assert "function collectTradingAgentsConfigPayload()" in template
     assert "function setTradingAgentsConfigStatus" in template
+
+
+def test_index_template_connects_tradingagents_panel_to_api():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "async function fetchJson(url, options = {})" in template
+    assert "async function loadTradingAgentsConfig()" in template
+    assert "async function saveTradingAgentsConfig()" in template
+    assert "async function testTradingAgentsConfig()" in template
+    assert "async function runTradingAgentsAnalysis()" in template
+    assert "fetchJson('/tradingagents/config')" in template
+    assert "fetchJson('/tradingagents/config'," in template
+    assert "fetchJson('/tradingagents/config/test'" in template
+    assert "fetchJson('/tradingagents/analysis'" in template
+    assert "loadTradingAgentsConfig();" in template
+    assert "addEventListener('click', saveTradingAgentsConfig)" in template
+    assert "addEventListener('click', loadTradingAgentsConfig)" in template
+    assert "addEventListener('click', testTradingAgentsConfig)" in template
+    assert "addEventListener('click', runTradingAgentsAnalysis)" in template

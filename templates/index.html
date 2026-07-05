@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>股票回测系统</title>
+    <link rel="icon" href="data:,">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -1047,6 +1048,32 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function formatApiError(data, fallbackMessage) {
+            if (Array.isArray(data?.detail)) {
+                return data.detail
+                    .map(item => item?.msg || item?.message || JSON.stringify(item))
+                    .join('；');
+            }
+            return data?.detail || data?.message || fallbackMessage;
+        }
+
+        async function fetchJson(url, options = {}) {
+            const requestOptions = { ...options };
+            const headers = { ...(requestOptions.headers || {}) };
+            if (requestOptions.body && !headers['Content-Type']) {
+                headers['Content-Type'] = 'application/json';
+            }
+            requestOptions.headers = headers;
+
+            const response = await fetch(url, requestOptions);
+            const contentType = response.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await response.json() : null;
+            if (!response.ok) {
+                throw new Error(formatApiError(data, '请求失败'));
+            }
+            return data;
+        }
+
         function getSearchResultBadge(type) {
             if (type === 'direct_match') return '精确';
             if (type === 'common_match') return '常见';
@@ -1181,6 +1208,99 @@
                 temperature: temperatureValue === '' ? null : Number(temperatureValue),
                 openai_reasoning_effort: document.getElementById('taReasoningEffort').value || null,
             };
+        }
+
+        async function loadTradingAgentsConfig() {
+            setTradingAgentsConfigStatus('running', '正在加载配置...');
+            try {
+                const data = await fetchJson('/tradingagents/config');
+                populateTradingAgentsConfig(data.config);
+                setTradingAgentsConfigStatus('succeeded', '配置已加载');
+            } catch (error) {
+                setTradingAgentsConfigStatus('failed', `配置加载失败: ${error.message}`);
+            }
+        }
+
+        async function saveTradingAgentsConfig() {
+            const button = document.getElementById('taSaveConfigButton');
+            button.disabled = true;
+            setTradingAgentsConfigStatus('running', '正在保存配置...');
+            try {
+                const data = await fetchJson('/tradingagents/config', {
+                    method: 'PUT',
+                    body: JSON.stringify(collectTradingAgentsConfigPayload())
+                });
+                populateTradingAgentsConfig(data.config);
+                setTradingAgentsConfigStatus('succeeded', '配置已保存');
+            } catch (error) {
+                setTradingAgentsConfigStatus('failed', `配置保存失败: ${error.message}`);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function testTradingAgentsConfig() {
+            const button = document.getElementById('taTestConfigButton');
+            button.disabled = true;
+            setTradingAgentsConfigStatus('running', '正在测试配置...');
+            try {
+                const data = await fetchJson('/tradingagents/config/test', { method: 'POST' });
+                const failedChecks = (data.checks || []).filter(check => !check.ok).map(check => check.name);
+                const warnings = data.warnings || [];
+                const summary = data.ok
+                    ? '配置测试通过'
+                    : `配置测试未通过: ${failedChecks.join('、') || '未知检查'}`;
+                const warningText = warnings.length ? `；提示: ${warnings.join('；')}` : '';
+                setTradingAgentsConfigStatus(data.ok ? 'succeeded' : 'failed', `${summary}${warningText}`);
+            } catch (error) {
+                setTradingAgentsConfigStatus('failed', `配置测试失败: ${error.message}`);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function runTradingAgentsAnalysis() {
+            const button = document.getElementById('taRunButton');
+            const analysts = getSelectedTradingAgentsAnalysts();
+            const symbol = document.getElementById('taSymbol').value.trim().toUpperCase();
+            const analysisDate = document.getElementById('taAnalysisDate').value;
+            if (!analysts.length) {
+                setTradingAgentsStatus('failed', '请至少选择一个 analyst');
+                return;
+            }
+            if (!symbol || !analysisDate) {
+                setTradingAgentsStatus('failed', '请填写标的和日期');
+                return;
+            }
+
+            const payload = {
+                symbol,
+                analysis_date: analysisDate,
+                analysts,
+                max_debate_rounds: Number(document.getElementById('taDebateRounds').value || 1),
+                max_risk_rounds: Number(document.getElementById('taRiskRounds').value || 1)
+            };
+
+            button.disabled = true;
+            clearTradingAgentsReports();
+            setTradingAgentsStatus('running', 'TradingAgents 正在分析...');
+            try {
+                const data = await fetchJson('/tradingagents/analysis', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                renderTradingAgentsReports(data.reports || {});
+                const elapsed = data.elapsed_seconds !== undefined ? `，耗时 ${data.elapsed_seconds}s` : '';
+                const warnings = data.warnings && data.warnings.length ? `；提示: ${data.warnings.join('；')}` : '';
+                setTradingAgentsStatus(
+                    'succeeded',
+                    `分析完成: ${data.symbol || symbol} -> ${data.tradingagents_ticker || ''}${elapsed}${warnings}`
+                );
+            } catch (error) {
+                setTradingAgentsStatus('failed', `分析失败: ${error.message}`);
+            } finally {
+                button.disabled = false;
+            }
         }
 
         // 切换搜索界面的显示/隐藏
@@ -1909,6 +2029,11 @@
             document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
+            document.getElementById('taSaveConfigButton').addEventListener('click', saveTradingAgentsConfig);
+            document.getElementById('taReloadConfigButton').addEventListener('click', loadTradingAgentsConfig);
+            document.getElementById('taTestConfigButton').addEventListener('click', testTradingAgentsConfig);
+            document.getElementById('taRunButton').addEventListener('click', runTradingAgentsAnalysis);
+            loadTradingAgentsConfig();
             
             // 加载策略列表
             loadStrategies();

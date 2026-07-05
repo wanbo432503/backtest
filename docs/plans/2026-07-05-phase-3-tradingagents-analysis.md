@@ -399,7 +399,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T7: 新增 FastAPI `/tradingagents/*` endpoints。
 - [x] T8: 新增右侧 `智能分析` 面板的 `分析` subtab。
 - [x] T9: 新增右侧 `智能分析` 面板的 `设置` subtab。
-- [ ] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
+- [x] T10: 接通前端和后端 API，完成状态、错误和报告渲染。
 - [ ] T11: 做旧字符串清理、focused tests、核心回归和手动验收。
 
 ### T0: 基线检查和保护栏
@@ -851,28 +851,28 @@ git commit -m "feat: add tradingagents settings tab"
 
 **Todo:**
 
-- [ ] 实现 `loadTradingAgentsConfig()`：
+- [x] 实现 `loadTradingAgentsConfig()`：
   - GET `/tradingagents/config`
   - 成功后填充设置表单。
   - 失败后显示 config warning。
-- [ ] 实现 `saveTradingAgentsConfig()`：
+- [x] 实现 `saveTradingAgentsConfig()`：
   - PUT `/tradingagents/config`
   - 保存时禁用按钮。
   - 成功后清空 API key input，并刷新配置。
-- [ ] 实现 `testTradingAgentsConfig()`：
+- [x] 实现 `testTradingAgentsConfig()`：
   - POST `/tradingagents/config/test`
   - 渲染 checks/warnings。
-- [ ] 实现 `runTradingAgentsAnalysis()`：
+- [x] 实现 `runTradingAgentsAnalysis()`：
   - POST `/tradingagents/analysis`
   - 请求体包含 symbol、analysis_date、analysts、rounds。
   - running 时禁用 run button。
   - 成功后渲染 reports。
   - 失败时显示 response detail。
-- [ ] 统一 `fetchJson(url, options)` helper，处理非 2xx。
-- [ ] 所有用户可见错误都走 `escapeHtml(...)`。
-- [ ] `setSymbol(symbol)`、搜索结果点击、快速选择按钮都同步 `#taSymbol`。
-- [ ] 运行服务手动打开页面，检查 console 无 JS error。
-- [ ] Commit:
+- [x] 统一 `fetchJson(url, options)` helper，处理非 2xx。
+- [x] 所有用户可见 HTML 注入点使用 `escapeHtml(...)` 或 `textContent`。
+- [x] `setSymbol(symbol)`、搜索结果点击、快速选择按钮都同步 `#taSymbol`。
+- [x] 运行服务手动打开页面，检查 console 无 JS error。
+- [x] Commit:
 
 ```bash
 git add templates/index.html
