@@ -156,7 +156,9 @@ def run_tradingagents_analysis(
             graph_cls = graph_class or _load_tradingagents_graph_class()
             config = build_run_config(request, env_values, repo_path=repo_path, base_config=base_config)
             graph = graph_cls(selected_analysts, config=config, debug=True)
-            final_state = graph.propagate(ticker, request.analysis_date, asset_type="stock")
+            final_state = _coerce_final_state(
+                graph.propagate(ticker, request.analysis_date, asset_type="stock")
+            )
     except Exception as exc:  # noqa: BLE001 - surface sanitized adapter errors to API layer
         raise TradingAgentsAdapterError(sanitize_error_message(str(exc), env_values)) from exc
 
@@ -168,6 +170,18 @@ def run_tradingagents_analysis(
         elapsed_seconds=round(monotonic() - started_at, 3),
         reports=extract_reports(final_state or {}),
         warnings=[],
+    )
+
+
+def _coerce_final_state(result) -> dict:
+    if result is None:
+        return {}
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, tuple) and result and isinstance(result[0], dict):
+        return result[0]
+    raise TypeError(
+        f"TradingAgents returned unsupported final state type: {type(result).__name__}"
     )
 
 

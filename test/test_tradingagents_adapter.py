@@ -262,6 +262,48 @@ def test_run_tradingagents_analysis_uses_fake_graph(tmp_path):
     assert response.elapsed_seconds >= 0
 
 
+def test_run_tradingagents_analysis_accepts_tradingagents_tuple_result(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "TRADINGAGENTS_LLM_PROVIDER=openai_compatible",
+                "TRADINGAGENTS_LLM_BACKEND_URL=http://localhost:1234/v1",
+                "TRADINGAGENTS_DEEP_THINK_LLM=deep",
+                "TRADINGAGENTS_QUICK_THINK_LLM=quick",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class FakeGraph:
+        def __init__(self, selected_analysts, config, debug=False):
+            pass
+
+        def propagate(self, company_name, trade_date, asset_type="stock"):
+            return (
+                {
+                    "market_report": "market",
+                    "news_report": "news",
+                    "final_trade_decision": "buy",
+                    "risk_debate_state": {"judge_decision": "portfolio"},
+                },
+                "processed signal",
+            )
+
+    response = run_tradingagents_analysis(
+        TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
+        env_path=env_path,
+        repo_path=tmp_path,
+        graph_class=FakeGraph,
+    )
+
+    assert response.reports.market_report == "market"
+    assert response.reports.news_report == "news"
+    assert response.reports.portfolio_decision == "portfolio"
+
+
 def test_run_tradingagents_analysis_sanitizes_graph_errors(tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text(
