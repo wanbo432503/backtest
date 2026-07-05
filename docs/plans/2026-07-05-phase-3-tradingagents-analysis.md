@@ -391,7 +391,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 
 - [x] T0: 建立 Phase 3.0 基线检查，确认旧面板入口、测试入口和 TradingAgents repo 可用。
 - [x] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
-- [ ] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
+- [x] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
 - [ ] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
 - [ ] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
 - [ ] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
@@ -492,28 +492,28 @@ git commit -m "refactor: remove obsolete market insights backend"
 
 **Todo:**
 
-- [ ] 删除 `.insight-restore-tab` 旧样式，或改名为 `.analysis-restore-tab`。
-- [ ] 删除旧 `.insight-section`、`.insight-item`、`.insight-empty`、`.quote-strip`、`.insight-header` 中只服务旧面板的样式。
-- [ ] 删除旧 restore button：
+- [x] 删除 `.insight-restore-tab` 旧样式，或改名为 `.analysis-restore-tab`。
+- [x] 删除旧 `.insight-section`、`.insight-item`、`.insight-empty`、`.quote-strip`、`.insight-header` 中只服务旧面板的样式。
+- [x] 删除旧 restore button：
 
 ```html
 <button id="restoreInsightPanelButton" ...>
 ```
 
-- [ ] 用空的 `智能分析` card 替换 `#rightInsightColumn` 旧内容，先只保留 header 和占位 body。
-- [ ] 从 `setSymbol(symbol)` 删除 `loadMarketInsights(symbol)`，改为调用后续会实现的 `syncTradingAgentsSymbol(symbol)`；此时可先放 no-op 函数。
-- [ ] 删除 `renderInsightList(...)`。
-- [ ] 删除 `renderQuote(...)`。
-- [ ] 删除 `loadMarketInsights(...)`。
-- [ ] 将 `toggleInsightPanel(...)` 改名为 `toggleAnalysisPanel(...)`，并同步按钮 id、class、aria-label 文案。
-- [ ] 删除 `/backtest` 成功后的 `loadMarketInsights(formData.symbol)` 调用。
-- [ ] 搜索确认旧 UI 字符串无残留，计划文档除外：
+- [x] 用空的 `智能分析` card 替换 `#rightInsightColumn` 旧内容，先只保留 header 和占位 body。
+- [x] 从 `setSymbol(symbol)` 删除 `loadMarketInsights(symbol)`，改为调用后续会实现的 `syncTradingAgentsSymbol(symbol)`；此时可先放 no-op 函数。
+- [x] 删除 `renderInsightList(...)`。
+- [x] 删除 `renderQuote(...)`。
+- [x] 删除 `loadMarketInsights(...)`。
+- [x] 将 `toggleInsightPanel(...)` 改名为 `toggleAnalysisPanel(...)`，并同步按钮 id、class、aria-label 文案。
+- [x] 删除 `/backtest` 成功后的 `loadMarketInsights(formData.symbol)` 调用。
+- [x] 搜索确认旧 UI 字符串无残留，计划文档除外：
 
 ```bash
 rg -n "标的信息|研报|资金|龙虎榜|公告|loadMarketInsights|renderInsightList|renderQuote|quotePanel|fundFlow|dragonTiger" templates static main.py
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add templates/index.html

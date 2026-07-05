@@ -29,10 +29,10 @@
             flex: 1;
             min-height: 0;
         }
-        .main-container.right-insights-collapsed #rightInsightColumn {
+        .main-container.right-analysis-collapsed #rightAnalysisColumn {
             display: none;
         }
-        .insight-restore-tab {
+        .analysis-restore-tab {
             position: fixed;
             top: 84px;
             right: 0;
@@ -42,13 +42,13 @@
             padding: 8px 10px;
             box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.18);
         }
-        .main-container.right-insights-collapsed .insight-restore-tab {
+        .main-container.right-analysis-collapsed .analysis-restore-tab {
             display: inline-flex;
             align-items: center;
             gap: 6px;
         }
         @media (min-width: 1200px) {
-            .main-container.right-insights-collapsed #centerPaneColumn {
+            .main-container.right-analysis-collapsed #centerPaneColumn {
                 flex: 0 0 75%;
                 max-width: 75%;
             }
@@ -353,47 +353,25 @@
             text-align: center;
             vertical-align: middle;
         }
-        .insight-section {
-            border-top: 1px solid #e9ecef;
-            padding-top: 10px;
-            margin-top: 10px;
-        }
-        .insight-section h6 {
-            font-size: 0.85rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-        .insight-item {
-            padding: 6px 0;
-            border-bottom: 1px solid #f1f3f5;
-        }
-        .insight-item:last-child {
-            border-bottom: none;
-        }
-        .insight-empty {
-            color: #6c757d;
-        }
-        .quote-strip {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 6px;
-            font-size: 0.78rem;
-        }
-        .quote-strip div {
-            background: #f8f9fa;
-            border-radius: 4px;
-            padding: 6px;
-        }
-        .insight-header {
+        .analysis-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 10px;
         }
-        .insight-header .btn {
+        .analysis-header .btn {
             color: #fff;
             border-color: rgba(255, 255, 255, 0.75);
             padding: 0.15rem 0.45rem;
+        }
+        .analysis-placeholder {
+            min-height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 0.88rem;
+            text-align: center;
         }
         .optimization-results-table {
             min-width: 1120px;
@@ -486,9 +464,9 @@
 </head>
 <body>
     <div class="main-container" id="mainContainer">
-        <button type="button" class="btn btn-primary btn-sm insight-restore-tab" id="restoreInsightPanelButton" onclick="toggleInsightPanel()" aria-label="展开标的信息">
-            <i class="fas fa-newspaper"></i>
-            <span>标的信息</span>
+        <button type="button" class="btn btn-primary btn-sm analysis-restore-tab" id="restoreAnalysisPanelButton" onclick="toggleAnalysisPanel()" aria-label="展开智能分析">
+            <i class="fas fa-brain"></i>
+            <span>智能分析</span>
         </button>
         <div class="row g-3 app-layout">
             <div class="col-xl-3 col-lg-4 pane-column">
@@ -839,43 +817,16 @@
                 </div>
             </div>
 
-            <div class="col-xl-3 col-lg-12 pane-column" id="rightInsightColumn">
+            <div class="col-xl-3 col-lg-12 pane-column" id="rightAnalysisColumn">
                 <div class="card">
-                    <div class="card-header insight-header">
-                        <span><i class="fas fa-newspaper"></i> 标的信息</span>
-                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleInsightPanelButton" onclick="toggleInsightPanel()" aria-expanded="true" aria-controls="rightInsightColumn" title="收起标的信息">
+                    <div class="card-header analysis-header">
+                        <span><i class="fas fa-brain"></i> 智能分析</span>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleAnalysisPanelButton" onclick="toggleAnalysisPanel()" aria-expanded="true" aria-controls="rightAnalysisColumn" title="收起智能分析">
                             <i class="fas fa-chevron-right"></i>
                         </button>
                     </div>
-                    <div class="card-body">
-                        <div id="insightStatus" class="small text-muted">选择标的后加载</div>
-                        <div id="insightWarnings" class="alert alert-warning small mt-2" style="display:none;"></div>
-                        <div id="quotePanel" class="quote-strip mt-2"></div>
-
-                        <div class="insight-section">
-                            <h6>研报</h6>
-                            <div id="reportsList" class="small">
-                                <div class="insight-empty">暂无数据</div>
-                            </div>
-                        </div>
-                        <div class="insight-section">
-                            <h6>资金</h6>
-                            <div id="fundFlowList" class="small">
-                                <div class="insight-empty">暂无数据</div>
-                            </div>
-                        </div>
-                        <div class="insight-section">
-                            <h6>龙虎榜</h6>
-                            <div id="dragonTigerList" class="small">
-                                <div class="insight-empty">暂无数据</div>
-                            </div>
-                        </div>
-                        <div class="insight-section">
-                            <h6>公告</h6>
-                            <div id="announcementsList" class="small">
-                                <div class="insight-empty">暂无数据</div>
-                            </div>
-                        </div>
+                    <div class="card-body" id="tradingAgentsPanelShell">
+                        <div class="analysis-placeholder" id="taPanelPlaceholder">等待分析</div>
                     </div>
                 </div>
             </div>
@@ -892,7 +843,7 @@
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
             closeStockSearch();
-            loadMarketInsights(symbol);
+            syncTradingAgentsSymbol(symbol);
         }
 
         function escapeHtml(value) {
@@ -918,76 +869,10 @@
                 || /^\d{6}\.(SH|SZ|BJ)$/.test(value);
         }
 
-        function renderInsightList(containerId, items, formatter) {
-            const container = document.getElementById(containerId);
-            if (!items || items.length === 0) {
-                container.innerHTML = '<div class="insight-empty">暂无数据</div>';
-                return;
-            }
-            container.innerHTML = items.map(formatter).join('');
-        }
-
-        function renderQuote(quote) {
-            const container = document.getElementById('quotePanel');
-            if (!quote || Object.keys(quote).length === 0) {
-                container.innerHTML = '';
-                return;
-            }
-            container.innerHTML = `
-                <div><strong>${escapeHtml(quote.name || '-')}</strong><br>${escapeHtml(quote.price || '-')}</div>
-                <div>涨跌幅<br>${escapeHtml(quote.change_pct || 0)}%</div>
-                <div>PE(TTM)<br>${escapeHtml(quote.pe_ttm || '-')}</div>
-                <div>PB<br>${escapeHtml(quote.pb || '-')}</div>
-            `;
-        }
-
-        async function loadMarketInsights(symbol) {
-            const status = document.getElementById('insightStatus');
-            const warnings = document.getElementById('insightWarnings');
-            status.textContent = '正在加载...';
-            warnings.style.display = 'none';
-
-            try {
-                const response = await fetch(`/market-insights/${encodeURIComponent(symbol)}`);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || '加载失败');
-                }
-                const data = await response.json();
-                status.textContent = `标的: ${escapeHtml(data.symbol)}`;
-                renderQuote(data.quote);
-
-                if (data.warnings && data.warnings.length) {
-                    warnings.style.display = 'block';
-                    warnings.textContent = data.warnings.join('；');
-                }
-
-                renderInsightList('reportsList', data.reports, item => `
-                    <div class="insight-item">
-                        <strong>${escapeHtml(item.title || '-')}</strong><br>
-                        <span class="text-muted">${escapeHtml(item.org || '')} ${escapeHtml(item.date || '')}</span>
-                    </div>
-                `);
-                renderInsightList('fundFlowList', data.fund_flow, item => `
-                    <div class="insight-item">
-                        ${escapeHtml(item.date || '-')} 主力净流入: ${escapeHtml(item.main_net_inflow || 0)}
-                    </div>
-                `);
-                renderInsightList('dragonTigerList', data.dragon_tiger, item => `
-                    <div class="insight-item">
-                        ${escapeHtml(item.date || '-')} ${escapeHtml(item.reason || '')}<br>
-                        <span class="text-muted">净买入: ${escapeHtml(item.net_buy || '-')}</span>
-                    </div>
-                `);
-                renderInsightList('announcementsList', data.announcements, item => `
-                    <div class="insight-item">
-                        <a href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || '-')}</a><br>
-                        <span class="text-muted">${escapeHtml(item.date || '')}</span>
-                    </div>
-                `);
-            } catch (error) {
-                status.textContent = `加载失败: ${error.message}`;
-                renderQuote({});
+        function syncTradingAgentsSymbol(symbol) {
+            const symbolInput = document.getElementById('taSymbol');
+            if (symbolInput) {
+                symbolInput.value = symbol;
             }
         }
 
@@ -1695,10 +1580,10 @@
             document.getElementById('statsContainer').style.display = 'block';
         }
 
-        function toggleInsightPanel() {
+        function toggleAnalysisPanel() {
             const mainContainer = document.getElementById('mainContainer');
-            const toggleButton = document.getElementById('toggleInsightPanelButton');
-            const collapsed = mainContainer.classList.toggle('right-insights-collapsed');
+            const toggleButton = document.getElementById('toggleAnalysisPanelButton');
+            const collapsed = mainContainer.classList.toggle('right-analysis-collapsed');
             if (toggleButton) {
                 toggleButton.setAttribute('aria-expanded', String(!collapsed));
             }
@@ -1814,7 +1699,6 @@
                 
                 document.getElementById('plotContainer').innerHTML = '';
                 document.getElementById('plotContainer').appendChild(iframe);
-                loadMarketInsights(formData.symbol);
                 
             } catch (error) {
                 document.getElementById('plotContainer').innerHTML = `
