@@ -392,7 +392,7 @@ MVP 推荐直接 import TradingAgents，但用 adapter 隔离：
 - [x] T0: 建立 Phase 3.0 基线检查，确认旧面板入口、测试入口和 TradingAgents repo 可用。
 - [x] T1: 删除旧市场信息后端 `/market-insights` 与旧股票详情 endpoint。
 - [x] T2: 删除旧右侧信息面板 UI 和所有旧 JS/CSS 调用点。
-- [ ] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
+- [x] T3: 新增 TradingAgents 请求/响应 Pydantic 模型。
 - [ ] T4: 新增 TradingAgents `.env` 配置读取、遮罩、保存和校验。
 - [ ] T5: 新增 A 股 symbol 转换和 TradingAgents report extraction adapter。
 - [ ] T6: 新增 TradingAgents 分析执行 adapter，先 mock 可测，再接真实 import。
@@ -533,7 +533,7 @@ git commit -m "refactor: remove obsolete right info panel ui"
 
 **Todo:**
 
-- [ ] 新增 `TradingAgentsConfigView`：
+- [x] 新增 `TradingAgentsConfigView`：
   - `provider: str = "openai_compatible"`
   - `backend_url: str | None`
   - `deep_model: str | None`
@@ -545,16 +545,16 @@ git commit -m "refactor: remove obsolete right info panel ui"
   - `temperature: float | None = None`
   - `openai_reasoning_effort: str | None = None`
   - `api_key_set: bool = False`
-- [ ] 新增 `TradingAgentsConfigUpdate`，包含 `api_key: str | None = None` 和 `clear_api_key: bool = False`。
-- [ ] 新增 `TradingAgentsConfigResponse`，包含 `repo_path`、`env_path`、`config`。
-- [ ] 新增 `TradingAgentsConfigTestResponse`，包含 `ok: bool`、`checks: list[dict]`、`warnings: list[str]`。
-- [ ] 新增 `TradingAgentsAnalysisRequest`：
+- [x] 新增 `TradingAgentsConfigUpdate`，包含 `api_key: str | None = None` 和 `clear_api_key: bool = False`。
+- [x] 新增 `TradingAgentsConfigResponse`，包含 `repo_path`、`env_path`、`config`。
+- [x] 新增 `TradingAgentsConfigTestResponse`，包含 `ok: bool`、`checks: list[dict]`、`warnings: list[str]`。
+- [x] 新增 `TradingAgentsAnalysisRequest`：
   - `symbol`
   - `analysis_date`
   - `analysts`
   - `max_debate_rounds`
   - `max_risk_rounds`
-- [ ] 新增 `TradingAgentsReports`：
+- [x] 新增 `TradingAgentsReports`：
   - `market_report`
   - `sentiment_report`
   - `news_report`
@@ -563,20 +563,20 @@ git commit -m "refactor: remove obsolete right info panel ui"
   - `trader_plan`
   - `risk_discussion`
   - `portfolio_decision`
-- [ ] 新增 `TradingAgentsAnalysisResponse`。
-- [ ] 写模型测试：
+- [x] 新增 `TradingAgentsAnalysisResponse`。
+- [x] 写模型测试：
   - invalid provider 被拒绝。
   - invalid backend URL 被拒绝。
   - rounds 超出范围被拒绝。
   - `analysts=[]` 被拒绝。
   - 非白名单 analyst 被拒绝。
-- [ ] 运行：
+- [x] 运行：
 
 ```bash
 pytest test/test_tradingagents_models.py -v
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```bash
 git add tradingagents_models.py test/test_tradingagents_models.py
