@@ -399,6 +399,32 @@
             min-width: 1120px;
             table-layout: auto;
         }
+        .optimization-library-card .card-body {
+            padding: 8px 10px 10px;
+        }
+        .optimization-library-card .card-header {
+            padding: 0.45rem 1rem;
+        }
+        .optimization-list-block + .optimization-list-block {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #e9ecef;
+        }
+        .optimization-list-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #495057;
+        }
+        .optimization-empty {
+            color: #6c757d;
+            font-size: 0.78rem;
+            padding: 6px 0;
+        }
         .optimization-results-panel {
             border: 1px solid #dee2e6;
             border-radius: 6px;
@@ -751,6 +777,28 @@
             </div>
             
             <div class="col-xl-6 col-lg-8 pane-column center-pane" id="centerPaneColumn">
+                <div id="optimizationLibraryContainer" class="card stats-panel optimization-library-card" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-list-check"></i> 参数优化结果
+                    </div>
+                    <div class="card-body">
+                        <div class="optimization-list-block">
+                            <div class="optimization-list-title">
+                                <span>当前优化列表</span>
+                                <span id="optimizationCurrentCount" class="badge bg-light text-dark">0</span>
+                            </div>
+                            <div id="optimizationCurrentHost"></div>
+                        </div>
+                        <div class="optimization-list-block">
+                            <div class="optimization-list-title">
+                                <span>历史优化列表</span>
+                                <span id="optimizationHistoryCount" class="badge bg-light text-dark">0</span>
+                            </div>
+                            <div id="optimizationHistoryHost"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 回测统计卡片 -->
                 <div id="statsContainer" style="display: none;">
                     <div class="card stats-panel">
@@ -838,6 +886,8 @@
     <script>
         window.strategyMetadata = {};
         window.lastOptimizationResults = [];
+        window.optimizationResultStore = { currentBatchId: null, items: [] };
+        const OPTIMIZATION_STORAGE_KEY = 'backtest.optimizationResults.v1';
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1256,89 +1306,187 @@
             };
         }
 
+        function loadOptimizationResultsFromStorage() {
+            try {
+                const rawValue = localStorage.getItem(OPTIMIZATION_STORAGE_KEY);
+                const parsed = rawValue ? JSON.parse(rawValue) : null;
+                window.optimizationResultStore = {
+                    currentBatchId: parsed?.currentBatchId || null,
+                    items: Array.isArray(parsed?.items) ? parsed.items : []
+                };
+            } catch (error) {
+                window.optimizationResultStore = { currentBatchId: null, items: [] };
+            }
+            return window.optimizationResultStore;
+        }
+
+        function saveOptimizationResultsToStorage() {
+            try {
+                localStorage.setItem(
+                    OPTIMIZATION_STORAGE_KEY,
+                    JSON.stringify(window.optimizationResultStore)
+                );
+            } catch (error) {
+                console.warn('保存参数优化结果失败', error);
+            }
+        }
+
+        function createOptimizationRecord(row, index, batchId) {
+            return {
+                ...row,
+                id: `${batchId}-${index + 1}-${Math.random().toString(36).slice(2, 8)}`,
+                batchId,
+                createdAt: new Date().toISOString()
+            };
+        }
+
+        function persistCurrentOptimizationResults(rows) {
+            const store = loadOptimizationResultsFromStorage();
+            const batchId = `batch-${Date.now()}`;
+            const records = rows.map((row, index) => createOptimizationRecord(row, index, batchId));
+            store.currentBatchId = batchId;
+            store.items = [...store.items, ...records];
+            window.optimizationResultStore = store;
+            window.lastOptimizationResults = records;
+            saveOptimizationResultsToStorage();
+            return records;
+        }
+
         function renderOptimizationSummary(result) {
             document.getElementById('statsContent').innerHTML = '';
-            const optimizationResultsHost = document.getElementById('optimizationResultsHost');
-            const rows = result.top_results || [];
-            window.lastOptimizationResults = rows;
-            const tableWrap = document.createElement('div');
-            tableWrap.className = 'optimization-results-panel';
-            tableWrap.id = 'optimizationResultsPanel';
-            tableWrap.innerHTML = `
-                <div class="optimization-results-header">
-                    <button type="button" class="btn btn-sm btn-link text-decoration-none text-dark" onclick="toggleOptimizationResults()" aria-expanded="true" aria-controls="optimizationResultsBody">
-                        <i class="fas fa-chevron-up" id="optimizationResultToggleIcon"></i>
-                        优化结果
-                    </button>
-                    <span class="small text-muted">共 ${rows.length} 组候选，可展开后切换回测</span>
-                </div>
-                <div id="optimizationResultsBody" class="optimization-results-body">
-                    <div class="stats-table-wrap">
-                        <table class="table table-sm table-bordered stats-table optimization-results-table mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>股票</th>
-                                    <th>策略</th>
-                                    <th>验证 score</th>
-                                    <th>训练 score</th>
-                                    <th>年化收益</th>
-                                    <th>最大回撤</th>
-                                    <th>夏普</th>
-                                    <th>交易次数</th>
-                                    <th>参数摘要</th>
-                                    <th>风险</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows.map((row, index) => {
-                                    const metrics = row.validate_metrics || {};
-                                    const riskFlags = row.risk_flags || [];
-                                    const riskBadges = riskFlags.length
-                                        ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
-                                        : '<span class="badge bg-success">无</span>';
-                                    const isBest = index === 0 ? 'table-primary' : '';
-                                    return `
-                                    <tr class="${isBest}">
-                                        <td>${escapeHtml(row.rank || '-')}</td>
-                                        <td>${escapeHtml(row.symbol || '-')}</td>
-                                        <td>${escapeHtml(row.strategy_name || '-')}</td>
-                                        <td>${escapeHtml(formatMetric(row.validate_score))}</td>
-                                        <td>${escapeHtml(formatMetric(row.train_score))}</td>
-                                        <td>${escapeHtml(formatMetric(metrics.annual_return_pct))}</td>
-                                        <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
-                                        <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
-                                        <td>${escapeHtml(metrics.trades ?? '-')}</td>
-                                        <td class="params-cell">${escapeHtml(formatParams(row.params || {}))}</td>
-                                        <td>${riskBadges}</td>
-                                        <td class="action-cell">
-                                            <div class="btn-group btn-group-sm" role="group" aria-label="优化结果操作">
-                                                <button type="button" class="btn btn-outline-secondary" onclick="applyOptimizationResult(${index})">
-                                                    应用参数
-                                                </button>
-                                                <button type="button" class="btn btn-outline-primary" onclick="backtestOptimizationResult(${index})">
-                                                    回测该参数
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-            optimizationResultsHost.innerHTML = '';
-            optimizationResultsHost.appendChild(tableWrap);
+            document.getElementById('statsContainer').style.display = 'none';
+            persistCurrentOptimizationResults(result.top_results || []);
+            renderOptimizationLibrary();
             setOptimizationResultsCollapsed(false);
-            document.getElementById('statsContainer').style.display = 'block';
             document.getElementById('plotContainer').innerHTML = `
                 <div class="text-center text-muted py-5">
                     <i class="fas fa-ranking-star fa-2x mb-3"></i>
-                    <div>参数优化完成，请查看上方 Top 结果。</div>
+                    <div>参数优化完成，请查看上方当前优化列表。</div>
                 </div>
+            `;
+        }
+
+        function renderOptimizationLibrary() {
+            const store = loadOptimizationResultsFromStorage();
+            const currentRows = store.items.filter(item => item.batchId === store.currentBatchId);
+            const historyRows = store.items
+                .filter(item => item.batchId !== store.currentBatchId)
+                .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+            window.lastOptimizationResults = currentRows;
+
+            document.getElementById('optimizationCurrentCount').textContent = currentRows.length;
+            document.getElementById('optimizationHistoryCount').textContent = historyRows.length;
+            document.getElementById('optimizationCurrentHost').innerHTML = renderOptimizationTable(
+                currentRows,
+                {
+                    emptyText: '暂无当前优化结果，请先点击开始优化。',
+                    panelId: 'optimizationResultsPanel',
+                    bodyId: 'optimizationResultsBody',
+                    iconId: 'optimizationResultToggleIcon',
+                    collapsible: true,
+                    title: '当前结果'
+                }
+            );
+            document.getElementById('optimizationHistoryHost').innerHTML = renderOptimizationTable(
+                historyRows,
+                {
+                    emptyText: '暂无历史优化结果。',
+                    panelId: 'optimizationHistoryResultsPanel',
+                    bodyId: 'optimizationHistoryResultsBody',
+                    iconId: 'optimizationHistoryResultToggleIcon',
+                    collapsible: true,
+                    title: '历史结果'
+                }
+            );
+            document.getElementById('optimizationLibraryContainer').style.display =
+                currentRows.length || historyRows.length ? 'block' : 'none';
+        }
+
+        function renderOptimizationTable(rows, options) {
+            if (!rows.length) {
+                return `<div class="optimization-empty">${escapeHtml(options.emptyText)}</div>`;
+            }
+            const panelIdArg = JSON.stringify(String(options.panelId || ''));
+            const bodyIdArg = JSON.stringify(String(options.bodyId || ''));
+            const iconIdArg = JSON.stringify(String(options.iconId || ''));
+            const header = options.collapsible
+                ? `
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none text-dark" onclick="toggleOptimizationResultsPanel(${panelIdArg}, ${bodyIdArg}, ${iconIdArg})" aria-expanded="true" aria-controls="${escapeHtml(options.bodyId)}">
+                        <i class="fas fa-chevron-up" id="${escapeHtml(options.iconId)}"></i>
+                        ${escapeHtml(options.title)}
+                    </button>
+                `
+                : `<span class="small fw-bold">${escapeHtml(options.title)}</span>`;
+            return `
+                <div class="optimization-results-panel" id="${escapeHtml(options.panelId)}">
+                    <div class="optimization-results-header">
+                        ${header}
+                        <span class="small text-muted">共 ${rows.length} 组候选</span>
+                    </div>
+                    <div id="${escapeHtml(options.bodyId)}" class="optimization-results-body">
+                        <div class="stats-table-wrap">
+                            <table class="table table-sm table-bordered stats-table optimization-results-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>股票</th>
+                                        <th>策略</th>
+                                        <th>验证 score</th>
+                                        <th>训练 score</th>
+                                        <th>年化收益</th>
+                                        <th>最大回撤</th>
+                                        <th>夏普</th>
+                                        <th>交易次数</th>
+                                        <th>参数摘要</th>
+                                        <th>风险</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map((row, index) => renderOptimizationRow(row, index)).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOptimizationRow(row, index) {
+            const metrics = row.validate_metrics || {};
+            const riskFlags = row.risk_flags || [];
+            const riskBadges = riskFlags.length
+                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
+                : '<span class="badge bg-success">无</span>';
+            const isBest = index === 0 ? 'table-primary' : '';
+            const recordIdArg = JSON.stringify(String(row.id || ''));
+            return `
+                <tr class="${isBest}">
+                    <td>${escapeHtml(row.rank || '-')}</td>
+                    <td>${escapeHtml(row.symbol || '-')}</td>
+                    <td>${escapeHtml(row.strategy_name || '-')}</td>
+                    <td>${escapeHtml(formatMetric(row.validate_score))}</td>
+                    <td>${escapeHtml(formatMetric(row.train_score))}</td>
+                    <td>${escapeHtml(formatMetric(metrics.annual_return_pct))}</td>
+                    <td>${escapeHtml(formatMetric(metrics.max_drawdown_pct))}</td>
+                    <td>${escapeHtml(formatMetric(metrics.sharpe))}</td>
+                    <td>${escapeHtml(metrics.trades ?? '-')}</td>
+                    <td class="params-cell">${escapeHtml(formatParams(row.params || {}))}</td>
+                    <td>${riskBadges}</td>
+                    <td class="action-cell">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="优化结果操作">
+                            <button type="button" class="btn btn-outline-secondary" onclick="applyOptimizationResultById(${recordIdArg})">
+                                应用参数
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="backtestOptimizationResultById(${recordIdArg})">
+                                回测该参数
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" onclick="deleteOptimizationResult(${recordIdArg})">
+                                删除
+                            </button>
+                        </div>
+                    </td>
+                </tr>
             `;
         }
 
@@ -1369,22 +1517,49 @@
         }
 
         function applyOptimizationResult(index) {
-            return applyOptimizationParams(index);
+            const row = window.lastOptimizationResults[index];
+            return row ? applyOptimizationResultById(row.id) : false;
         }
 
         function backtestOptimizationResult(index) {
-            if (!applyOptimizationParams(index)) {
+            const row = window.lastOptimizationResults[index];
+            if (!row) {
                 return;
             }
-            setOptimizationResultsCollapsed(true);
-            triggerBacktestWithAppliedParams();
+            backtestOptimizationResultById(row.id);
         }
 
-        function applyOptimizationParams(index) {
-            const row = window.lastOptimizationResults[index];
+        function findOptimizationResultById(id) {
+            const store = loadOptimizationResultsFromStorage();
+            return store.items.find(item => item.id === id) || null;
+        }
+
+        function applyOptimizationResultById(id) {
+            const row = findOptimizationResultById(id);
             if (!row) {
                 return false;
             }
+            return applyOptimizationParams(row);
+        }
+
+        function backtestOptimizationResultById(id) {
+            if (!applyOptimizationResultById(id)) {
+                return false;
+            }
+            setOptimizationResultsCollapsed(true);
+            triggerBacktestWithAppliedParams();
+            return true;
+        }
+
+        function deleteOptimizationResult(id) {
+            const store = loadOptimizationResultsFromStorage();
+            store.items = store.items.filter(item => item.id !== id);
+            window.optimizationResultStore = store;
+            saveOptimizationResultsToStorage();
+            renderOptimizationLibrary();
+        }
+
+        function applyOptimizationParams(row) {
             document.getElementById('symbol').value = row.symbol;
             document.getElementById('strategy').value = row.strategy_name;
             updateStrategyDescription();
@@ -1406,19 +1581,42 @@
         }
 
         function toggleOptimizationResults() {
-            const panel = document.getElementById('optimizationResultsPanel');
+            toggleOptimizationResultsPanel(
+                'optimizationResultsPanel',
+                'optimizationResultsBody',
+                'optimizationResultToggleIcon'
+            );
+        }
+
+        function toggleOptimizationResultsPanel(panelId, bodyId, iconId) {
+            const panel = document.getElementById(panelId);
             const collapsed = panel ? !panel.classList.contains('optimization-results-collapsed') : false;
-            setOptimizationResultsCollapsed(collapsed);
+            setOptimizationResultsPanelCollapsed(panelId, bodyId, iconId, collapsed);
         }
 
         function setOptimizationResultsCollapsed(collapsed) {
-            const panel = document.getElementById('optimizationResultsPanel');
-            const toggleIcon = document.getElementById('optimizationResultToggleIcon');
-            const toggleButton = panel ? panel.querySelector('[aria-controls="optimizationResultsBody"]') : null;
-            if (!panel) {
+            setOptimizationResultsPanelCollapsed(
+                'optimizationResultsPanel',
+                'optimizationResultsBody',
+                'optimizationResultToggleIcon',
+                collapsed
+            );
+            setOptimizationResultsPanelCollapsed(
+                'optimizationHistoryResultsPanel',
+                'optimizationHistoryResultsBody',
+                'optimizationHistoryResultToggleIcon',
+                collapsed
+            );
+        }
+
+        function setOptimizationResultsPanelCollapsed(panelId, bodyId, iconId, collapsed) {
+            const targetPanel = document.getElementById(panelId);
+            const toggleIcon = document.getElementById(iconId);
+            const toggleButton = targetPanel ? targetPanel.querySelector(`[aria-controls="${bodyId}"]`) : null;
+            if (!targetPanel) {
                 return;
             }
-            panel.classList.toggle('optimization-results-collapsed', collapsed);
+            targetPanel.classList.toggle('optimization-results-collapsed', collapsed);
             if (toggleIcon) {
                 toggleIcon.className = collapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
             }
@@ -1481,6 +1679,8 @@
             
             // 加载策略列表
             loadStrategies();
+            loadOptimizationResultsFromStorage();
+            renderOptimizationLibrary();
             
             // 监听策略选择变化
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);

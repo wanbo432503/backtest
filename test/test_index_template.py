@@ -110,6 +110,22 @@ def test_index_template_keeps_optimization_results_collapsible_after_backtest():
     assert "renderBacktestStats(result)" in template
 
 
+def test_index_template_persists_current_and_historical_optimization_results():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="optimizationLibraryContainer"' in template
+    assert 'id="optimizationCurrentHost"' in template
+    assert 'id="optimizationHistoryHost"' in template
+    assert "当前优化列表" in template
+    assert "历史优化列表" in template
+    assert "backtest.optimizationResults.v1" in template
+    assert "function saveOptimizationResultsToStorage" in template
+    assert "function deleteOptimizationResult" in template
+    assert "function applyOptimizationResultById" in template
+    assert "function backtestOptimizationResultById" in template
+    assert "删除" in template
+
+
 def test_index_template_renames_validation_start_label():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
