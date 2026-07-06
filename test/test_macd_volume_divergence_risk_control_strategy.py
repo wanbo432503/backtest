@@ -99,6 +99,94 @@ def test_macd_volume_exit_detects_dead_cross_before_large_loss():
     )
 
 
+def test_macd_volume_exit_holds_when_histogram_fades_but_trend_is_intact():
+    reason = get_macd_volume_exit_reason(
+        previous_dif=1.4,
+        previous_dea=1.0,
+        current_dif=1.2,
+        current_dea=1.1,
+        recent_histogram=[0.6, 0.4, 0.2],
+        current_price=118,
+        entry_price=100,
+        highest_price=122,
+        trend_ma_value=105,
+        holding_bars=20,
+        histogram_fade_bars=3,
+        stop_loss_pct=5,
+        take_profit_pct=12,
+        trailing_stop_pct=8,
+        max_holding_bars=80,
+    )
+
+    assert reason is None
+
+
+def test_macd_volume_exit_holds_fixed_profit_while_trend_is_intact():
+    reason = get_macd_volume_exit_reason(
+        previous_dif=1.4,
+        previous_dea=1.0,
+        current_dif=1.5,
+        current_dea=1.1,
+        recent_histogram=[0.3, 0.4, 0.5],
+        current_price=125,
+        entry_price=100,
+        highest_price=126,
+        trend_ma_value=110,
+        holding_bars=35,
+        histogram_fade_bars=3,
+        stop_loss_pct=5,
+        take_profit_pct=12,
+        trailing_stop_pct=8,
+        max_holding_bars=80,
+    )
+
+    assert reason is None
+
+
+def test_macd_volume_exit_holds_past_max_bars_while_trend_is_intact():
+    reason = get_macd_volume_exit_reason(
+        previous_dif=1.4,
+        previous_dea=1.0,
+        current_dif=1.5,
+        current_dea=1.1,
+        recent_histogram=[0.3, 0.4, 0.5],
+        current_price=125,
+        entry_price=100,
+        highest_price=126,
+        trend_ma_value=110,
+        holding_bars=120,
+        histogram_fade_bars=3,
+        stop_loss_pct=5,
+        take_profit_pct=12,
+        trailing_stop_pct=8,
+        max_holding_bars=80,
+    )
+
+    assert reason is None
+
+
+def test_macd_volume_exit_sells_when_histogram_fades_and_trend_breaks():
+    reason = get_macd_volume_exit_reason(
+        previous_dif=1.4,
+        previous_dea=1.0,
+        current_dif=1.2,
+        current_dea=1.1,
+        recent_histogram=[0.6, 0.4, 0.2],
+        current_price=98,
+        entry_price=100,
+        highest_price=103,
+        trend_ma_value=105,
+        holding_bars=20,
+        histogram_fade_bars=3,
+        stop_loss_pct=5,
+        take_profit_pct=12,
+        trailing_stop_pct=8,
+        max_holding_bars=80,
+    )
+
+    assert reason == "histogram_fade"
+
+
 def test_macd_volume_strategy_appears_in_strategy_list():
     main.load_strategy_modules()
     client = TestClient(main.app)

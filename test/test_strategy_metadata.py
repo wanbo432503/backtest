@@ -57,6 +57,9 @@ def test_macd_volume_divergence_metadata_exposes_optimizable_parameters():
     for param in params.values():
         assert param.search_values
         assert param.default in param.search_values
+    assert params["trend_ma"].search_values == [30, 60, 90]
+    assert params["histogram_fade_bars"].search_values == [3, 4, 5]
+    assert params["trailing_stop_pct"].search_values == [8, 10, 12]
 
 
 def test_strategies_endpoint_includes_parameter_metadata():

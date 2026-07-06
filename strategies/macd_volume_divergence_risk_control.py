@@ -124,6 +124,16 @@ def is_histogram_fading(recent_histogram, fade_bars) -> bool:
     return bool(np.all(np.diff(values) < 0))
 
 
+def is_trend_intact(current_dif, current_dea, current_price, trend_ma_value) -> bool:
+    if any(np.isnan(float(value)) for value in [current_dif, current_dea, current_price]):
+        return False
+    if current_dif <= 0 or current_dea <= 0:
+        return False
+    if np.isnan(float(trend_ma_value)):
+        return True
+    return current_price >= trend_ma_value
+
+
 def get_macd_volume_exit_reason(
     previous_dif,
     previous_dea,
@@ -143,10 +153,6 @@ def get_macd_volume_exit_reason(
 ):
     if is_dead_cross(previous_dif, previous_dea, current_dif, current_dea):
         return "dead_cross"
-    if is_histogram_fading(recent_histogram, histogram_fade_bars):
-        return "histogram_fade"
-    if not np.isnan(float(trend_ma_value)) and current_price < trend_ma_value:
-        return "trend_ma_lost"
     if entry_price is None:
         return None
     if stop_loss_pct and current_price <= entry_price * (1 - stop_loss_pct / 100):
@@ -157,9 +163,15 @@ def get_macd_volume_exit_reason(
         and current_price <= highest_price * (1 - trailing_stop_pct / 100)
     ):
         return "trailing_stop"
-    if take_profit_pct and current_price >= entry_price * (1 + take_profit_pct / 100):
+
+    trend_intact = is_trend_intact(current_dif, current_dea, current_price, trend_ma_value)
+    if is_histogram_fading(recent_histogram, histogram_fade_bars) and not trend_intact:
+        return "histogram_fade"
+    if not np.isnan(float(trend_ma_value)) and current_price < trend_ma_value:
+        return "trend_ma_lost"
+    if not trend_intact and take_profit_pct and current_price >= entry_price * (1 + take_profit_pct / 100):
         return "take_profit"
-    if max_holding_bars and holding_bars >= max_holding_bars:
+    if not trend_intact and max_holding_bars and holding_bars >= max_holding_bars:
         return "max_holding_bars"
     return None
 
@@ -178,11 +190,11 @@ class MACDVolumeDivergenceRiskControlStrategy(Strategy):
     volume_multiplier = 2.0
     divergence_lookback = 60
     zero_axis_threshold = 0.03
-    trend_ma = 30
+    trend_ma = 60
     histogram_fade_bars = 3
     stop_loss_pct = 5
     take_profit_pct = 12
-    trailing_stop_pct = 6
+    trailing_stop_pct = 10
     max_holding_bars = 80
     position_pct = 0.95
 
