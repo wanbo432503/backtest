@@ -33,6 +33,32 @@ def test_reserved_rsi_risk_control_metadata_exists_before_strategy_file():
     assert "cooldown_bars" in params
 
 
+def test_macd_volume_divergence_metadata_exposes_optimizable_parameters():
+    metadata = get_strategy_metadata("macd_volume_divergence_risk_control")
+    params = {param.name: param for param in metadata.parameters}
+
+    assert metadata.label == "MACD放量背离风控策略"
+    assert set(params) == {
+        "fast_period",
+        "slow_period",
+        "signal_period",
+        "volume_lookback",
+        "volume_multiplier",
+        "divergence_lookback",
+        "zero_axis_threshold",
+        "trend_ma",
+        "histogram_fade_bars",
+        "stop_loss_pct",
+        "take_profit_pct",
+        "trailing_stop_pct",
+        "max_holding_bars",
+        "position_pct",
+    }
+    for param in params.values():
+        assert param.search_values
+        assert param.default in param.search_values
+
+
 def test_strategies_endpoint_includes_parameter_metadata():
     client = TestClient(main.app)
 
