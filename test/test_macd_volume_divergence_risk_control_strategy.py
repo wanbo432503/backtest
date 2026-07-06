@@ -6,6 +6,7 @@ from strategies.macd_volume_divergence_risk_control import (
     has_bullish_macd_divergence,
     has_volume_confirmation,
     is_golden_cross,
+    should_enter_continuation,
     should_enter_macd_volume,
 )
 
@@ -73,6 +74,32 @@ def test_macd_volume_entry_blocks_underwater_cross_without_divergence():
         volume_multiplier=2.0,
         divergence_detected=False,
         zero_axis_threshold=0.01,
+    )
+
+
+def test_macd_volume_continuation_entry_accepts_intact_water_trend_near_trend_ma():
+    assert should_enter_continuation(
+        current_dif=1.2,
+        current_dea=0.9,
+        current_close=21,
+        trend_ma_value=20,
+        volume=1300000,
+        average_volume=1000000,
+        continuation_volume_multiplier=1.2,
+        continuation_pullback_pct=8,
+    )
+
+
+def test_macd_volume_continuation_entry_blocks_overextended_price():
+    assert not should_enter_continuation(
+        current_dif=1.2,
+        current_dea=0.9,
+        current_close=25,
+        trend_ma_value=20,
+        volume=1300000,
+        average_volume=1000000,
+        continuation_volume_multiplier=1.2,
+        continuation_pullback_pct=8,
     )
 
 

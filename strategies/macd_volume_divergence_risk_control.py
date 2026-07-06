@@ -115,6 +115,25 @@ def should_enter_macd_volume(
     return current_dif > 0 and current_dea > 0
 
 
+def should_enter_continuation(
+    current_dif,
+    current_dea,
+    current_close,
+    trend_ma_value,
+    volume,
+    average_volume,
+    continuation_volume_multiplier,
+    continuation_pullback_pct,
+) -> bool:
+    if not is_trend_intact(current_dif, current_dea, current_close, trend_ma_value):
+        return False
+    if not has_volume_confirmation(volume, average_volume, continuation_volume_multiplier):
+        return False
+    if np.isnan(float(trend_ma_value)) or trend_ma_value <= 0:
+        return False
+    return current_close <= trend_ma_value * (1 + continuation_pullback_pct / 100)
+
+
 def is_histogram_fading(recent_histogram, fade_bars) -> bool:
     if fade_bars <= 1 or len(recent_histogram) < fade_bars:
         return False
@@ -188,6 +207,8 @@ class MACDVolumeDivergenceRiskControlStrategy(Strategy):
     signal_period = 9
     volume_lookback = 20
     volume_multiplier = 2.0
+    continuation_volume_multiplier = 1.2
+    continuation_pullback_pct = 8
     divergence_lookback = 60
     zero_axis_threshold = 0.03
     trend_ma = 60
@@ -261,7 +282,7 @@ class MACDVolumeDivergenceRiskControlStrategy(Strategy):
             dif_values=self.dif[-self.divergence_lookback :],
             histogram_values=self.histogram[-self.divergence_lookback :],
         )
-        if should_enter_macd_volume(
+        golden_entry = should_enter_macd_volume(
             previous_dif=previous_dif,
             previous_dea=previous_dea,
             current_dif=current_dif,
@@ -272,7 +293,18 @@ class MACDVolumeDivergenceRiskControlStrategy(Strategy):
             volume_multiplier=self.volume_multiplier,
             divergence_detected=divergence_detected,
             zero_axis_threshold=self.zero_axis_threshold,
-        ):
+        )
+        continuation_entry = should_enter_continuation(
+            current_dif=current_dif,
+            current_dea=current_dea,
+            current_close=current_price,
+            trend_ma_value=trend_value,
+            volume=current_volume,
+            average_volume=average_volume,
+            continuation_volume_multiplier=self.continuation_volume_multiplier,
+            continuation_pullback_pct=self.continuation_pullback_pct,
+        )
+        if golden_entry or continuation_entry:
             self.buy(size=self.position_pct)
             self.entry_price = current_price
             self.entry_bar = len(self.data.Close)

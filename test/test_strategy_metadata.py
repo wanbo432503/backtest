@@ -48,6 +48,8 @@ def test_macd_volume_divergence_metadata_exposes_optimizable_parameters():
         "zero_axis_threshold",
         "trend_ma",
         "histogram_fade_bars",
+        "continuation_volume_multiplier",
+        "continuation_pullback_pct",
         "stop_loss_pct",
         "take_profit_pct",
         "trailing_stop_pct",
@@ -60,6 +62,8 @@ def test_macd_volume_divergence_metadata_exposes_optimizable_parameters():
     assert params["trend_ma"].search_values == [30, 60, 90]
     assert params["histogram_fade_bars"].search_values == [3, 4, 5]
     assert params["trailing_stop_pct"].search_values == [8, 10, 12]
+    assert params["continuation_volume_multiplier"].search_values == [1.0, 1.2, 1.5]
+    assert params["continuation_pullback_pct"].search_values == [6, 8, 12]
 
 
 def test_strategies_endpoint_includes_parameter_metadata():
