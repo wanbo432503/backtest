@@ -4,10 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field, ValidationError
-import pandas as pd
 from backtesting import Strategy
-from backtesting.lib import crossover
-from backtesting.test import SMA
 import io
 import base64
 import json
@@ -46,7 +43,7 @@ class BacktestRequest(BaseModel):
     start_date: str
     end_date: str
     interval: str = "1d"
-    strategy_name: str = "sma_cross"
+    strategy_name: str = "macd_volume_divergence_risk_control"
     strategy_params: dict = Field(default_factory=dict)
     initial_cash: float = 10000
     commission: float = 0.002
@@ -103,181 +100,8 @@ def load_strategy_modules():
                 except Exception as e:
                     print(f"加载策略模块 {module_name} 失败: {e}")
 
-# 定义简单的均线交叉策略
-@register_strategy("sma_cross", "双均线交叉策略", "短期均线上穿长期均线时买入，下穿时卖出")
-class SMACrossStrategy(Strategy):
-    n1 = 10  # 短期均线周期
-    n2 = 30  # 长期均线周期
-    
-    def init(self):
-        close = self.data.Close
-        self.sma1 = self.I(SMA, close, self.n1)
-        self.sma2 = self.I(SMA, close, self.n2)
-    
-    def next(self):
-        if crossover(self.sma1, self.sma2):
-            self.buy()
-        elif crossover(self.sma2, self.sma1):
-            self.position.close()
+load_strategy_modules()
 
-def RSI(array, n):
-    """Relative strength index"""
-    # Approximate; good enough
-    gain = pd.Series(array).diff()
-    loss = gain.copy()
-    gain[gain < 0] = 0
-    loss[loss > 0] = 0
-    rs = gain.ewm(n).mean() / loss.abs().ewm(n).mean()
-    return 100 - 100 / (1 + rs)
-
-# RSI策略
-@register_strategy("rsi", "RSI策略", "RSI低于30时买入（超卖），RSI高于70时卖出（超买）")
-class RSIStrategy(Strategy):
-    # 定义策略参数
-    rsi_period = 14
-    rsi_upper = 70
-    rsi_lower = 30
-
-    def init(self):
-        """初始化策略，计算指标"""
-        print(f"初始化RSI策略，周期: {self.rsi_period}, 上阈值: {self.rsi_upper}, 下阈值: {self.rsi_lower}")
-        
-        # 使用 self.I() 调用独立的RSI计算函数
-        # 第一个参数是函数名，后续参数是传递给该函数的数据
-        self.rsi = self.I(RSI, self.data.Close, self.rsi_period)
-        
-        print("RSI指标初始化完成")
-
-    def next(self):
-        """定义交易逻辑"""
-        # 在 backtesting.py 中，通常使用 crossover 函数来判断穿越条件，这样更精确
-        # 也可以直接比较当前RSI值
-        current_rsi = self.rsi[-1]
-        
-        # 如果当前没有持仓，并且RSI从下方上穿了下阈值
-        if crossover(self.rsi, self.rsi_lower):
-            if not self.position:
-                print(f"🚀 买入信号: RSI({current_rsi:.2f}) 穿越 {self.rsi_lower}")
-                self.buy()
-        # 如果当前有持仓，并且RSI从下方上穿了上阈值
-        elif crossover(self.rsi, self.rsi_upper):
-            if self.position:
-                print(f"💰 卖出信号: RSI({current_rsi:.2f}) 穿越 {self.rsi_upper}")
-                self.position.close()
-
-
-# 计算布林带的函数
-def bollinger_bands(price_series, n, k):
-    """
-    计算布林带指标。
-    这个函数现在返回一个包含上、中、下轨三个Series的元组，
-    以兼容 backtesting.py 的 self.I() 方法。
-    """
-    price_series = pd.Series(price_series)
-    sma = price_series.rolling(n).mean()
-    std = price_series.rolling(n).std()
-    upper_band = sma + (std * k)
-    lower_band = sma - (std * k)
-    # 返回一个元组，而不是DataFrame
-    return upper_band, sma, lower_band
-
-# 布林带策略
-@register_strategy("bollinger", "布林带策略", "价格跌破布林带下轨时买入，突破布林带上轨时卖出")
-class BollingerBandsStrategy(Strategy):
-    # 策略参数
-    bb_period = 20  # 布林带周期
-    bb_std = 2      # 布林带标准差倍数
-
-    def init(self):
-        # 初始化指标
-        # self.I 会将 bollinger_bands 返回的元组解包并赋给 self.bb_bands
-        # self.bb_bands[0] -> upper_band
-        # self.bb_bands[1] -> sma
-        # self.bb_bands[2] -> lower_band
-        self.bb_bands = self.I(bollinger_bands, self.data.Close, self.bb_period, self.bb_std)
-
-    def next(self):
-        # 获取上轨和下轨的当前值
-        upper_band = self.bb_bands[0]
-        lower_band = self.bb_bands[2]
-
-        # 买入逻辑：当价格从上方向下穿过（跌破）下轨时
-        if crossover(self.data.Close, lower_band):
-            # 如果当前没有持仓，则买入
-            if not self.position:
-                print(f"🚀 买入信号: 价格跌破布林下轨 {lower_band}")
-                self.buy()
-        # 卖出逻辑：当价格从下方向上穿过（突破）上轨时
-        elif crossover(self.data.Close, upper_band):
-            # 如果当前有持仓，则平仓卖出
-            if self.position:
-                print(f"💰 卖出信号: 价格上穿布林上轨 {upper_band}")
-                self.position.close()
-
-    
-def momentum_indicator(array, n):
-    """
-    计算动量指标
-    :param array: 价格序列 (例如收盘价)
-    :param n: 计算动量的时间窗口
-    :return: 动量值的序列
-    """
-    # 动量 = 当前价格 - n周期前的价格
-    return pd.Series(array).diff(n)
-
-# 动量策略
-@register_strategy("momentum", "动量策略", "动量指标为正时买入，为负时卖出")
-class MomentumStrategy(Strategy):
-    """
-    动量策略：
-    - 当动量指标为正时买入
-    - 当动量指标为负时卖出
-    """
-    # 定义一个参数，用于优化动量的时间窗口
-    momentum_window = 20
-
-    def init(self):
-        # 在策略初始化时，计算动量指标
-        # self.I() 函数用于将一个函数或指标应用于策略的数据
-        self.momentum = self.I(momentum_indicator, self.data.Close, self.momentum_window)
-
-    def next(self):
-        # next() 方法会在每个数据点（例如每天）被调用，用于执行交易逻辑
-
-        # 如果动量为正，并且我们当前没有持仓，则买入
-        if self.momentum > 0 and not self.position.is_long:
-            self.buy()
-        # 如果动量变为负，并且我们当前持有多头头寸，则平仓
-        elif self.momentum < 0 and self.position.is_long:
-            self.position.close()
-
-def prepare_data_for_backtesting(data):
-    """准备数据以符合backtesting.py的格式要求"""
-    # 确保列名首字母大写
-    data.columns = [col.title() for col in data.columns]
-    
-    # 确保包含必要的列
-    required_columns = ['Open', 'High', 'Low', 'Close']
-    missing_columns = [col for col in required_columns if col not in data.columns]
-    
-    if missing_columns:
-        raise ValueError(f"数据缺少必要的列: {missing_columns}")
-    
-    # 确保数据是数值类型
-    for col in required_columns:
-        data[col] = pd.to_numeric(data[col], errors='coerce')
-    
-    # 删除包含NaN值的行
-    data = data.dropna()
-    
-    # 确保索引是日期时间格式
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    # 按日期排序
-    data = data.sort_index()
-    
-    return data
 
 @app.on_event("startup")
 def startup_event():

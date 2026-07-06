@@ -197,13 +197,14 @@ def test_strategy_backtest(results: TestResults, verbose: bool = False):
     """测试策略回测功能"""
     print_header("📈 测试 2: 策略回测功能")
     
-    # 导入所有策略
-    from strategies.high_win_rate_sma import HighWinRateSMAStrategy
-    from strategies.stable_profit_strategy import StableProfitStrategy
+    from strategies.ma_trend_risk_control import MATrendRiskControlStrategy
+    from strategies.rsi_risk_control import RSIRiskControlStrategy
+    from strategies.volume_breakout_risk_control import VolumeBreakoutRiskControlStrategy
     
     test_strategies = [
-        ("高胜率均线策略", HighWinRateSMAStrategy),
-        ("稳定盈利策略", StableProfitStrategy),
+        ("均线趋势风控策略", MATrendRiskControlStrategy),
+        ("RSI风控策略", RSIRiskControlStrategy),
+        ("放量突破风控策略", VolumeBreakoutRiskControlStrategy),
     ]
     
     # 获取测试数据
@@ -375,9 +376,10 @@ def test_data_integrity(results: TestResults, verbose: bool = False):
     print_section("验证策略文件")
     
     strategy_files = [
-        "strategies/high_win_rate_sma.py",
-        "strategies/stable_profit_strategy.py",
-        "strategies/smart_hedge.py",
+        "strategies/macd_volume_divergence_risk_control.py",
+        "strategies/rsi_risk_control.py",
+        "strategies/ma_trend_risk_control.py",
+        "strategies/volume_breakout_risk_control.py",
     ]
     
     for strategy_file in strategy_files:

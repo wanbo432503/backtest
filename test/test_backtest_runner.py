@@ -39,7 +39,7 @@ def test_run_single_backtest_returns_score(monkeypatch):
         start_date="2025-07-03",
         end_date="2025-10-01",
         interval="1d",
-        strategy_name="sma_cross",
+        strategy_name="ma_trend_risk_control",
         strategy_registry=main.STRATEGY_REGISTRY,
         initial_cash=10000,
         commission=0.002,
@@ -68,7 +68,7 @@ def test_run_single_backtest_raises_readable_error_for_bad_data(monkeypatch):
             start_date="2025-07-03",
             end_date="2025-10-01",
             interval="1d",
-            strategy_name="sma_cross",
+            strategy_name="ma_trend_risk_control",
             strategy_registry=main.STRATEGY_REGISTRY,
         )
 
@@ -93,7 +93,7 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
             "symbol": "SH603019",
             "start_date": "2025-07-03",
             "end_date": "2025-10-01",
-            "strategy_name": "sma_cross",
+            "strategy_name": "ma_trend_risk_control",
         },
     )
 

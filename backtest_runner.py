@@ -37,7 +37,7 @@ def run_single_backtest(
     start_date: str,
     end_date: str,
     interval: str = "1d",
-    strategy_name: str = "sma_cross",
+    strategy_name: str = "macd_volume_divergence_risk_control",
     strategy_registry: dict[str, type[Strategy]] | None = None,
     initial_cash: float = 10000,
     commission: float = 0.002,

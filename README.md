@@ -74,7 +74,7 @@ curl -X POST "http://localhost:8005/backtest" \
     "start_date": "2025-07-03",
     "end_date": "2026-07-04",
     "interval": "1h",
-    "strategy_name": "rsi",
+    "strategy_name": "macd_volume_divergence_risk_control",
     "initial_cash": 10000,
     "commission": 0.002,
     "data_provider": "auto"
