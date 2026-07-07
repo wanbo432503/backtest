@@ -95,6 +95,9 @@ def test_index_template_renders_phase3_portfolio_results():
     assert 'id="portfolioRebalanceTable"' in template
     assert 'id="portfolioCandidateTable"' in template
     assert "function renderPortfolioResult(result)" in template
+    assert "function scrollPortfolioPanelIntoView" in template
+    assert "scrollPortfolioPanelIntoView('portfolioProgressPanel')" in template
+    assert "scrollPortfolioPanelIntoView('portfolioResultPanel')" in template
     assert "function renderPortfolioSummary" in template
     assert "function renderPortfolioEquityCurve" in template
     assert "function renderPortfolioTable" in template

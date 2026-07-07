@@ -2727,6 +2727,16 @@ SZ002241</textarea>
             bar.textContent = `${percent}%`;
         }
 
+        function scrollPortfolioPanelIntoView(panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel) {
+                return;
+            }
+            window.requestAnimationFrame(() => {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+
         async function createPortfolioBacktestJob(requestBody) {
             const response = await fetch('/portfolio-backtest/jobs', {
                 method: 'POST',
@@ -2959,6 +2969,7 @@ SZ002241</textarea>
             document.getElementById('portfolioResultPanel').style.display = 'block';
             document.getElementById('portfolioSummaryButton').disabled = false;
             document.getElementById('portfolioSummaryPanel').style.display = 'none';
+            scrollPortfolioPanelIntoView('portfolioResultPanel');
             renderPortfolioSummary(result);
             renderPortfolioScanDiagnostics(result);
             renderPortfolioEquityCurve(result.equity_curve || []);
@@ -3136,6 +3147,7 @@ SZ002241</textarea>
             document.getElementById('statsContainer').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
             document.getElementById('portfolioProgressPanel').style.display = 'block';
+            scrollPortfolioPanelIntoView('portfolioProgressPanel');
             latestPortfolioResult = null;
             document.getElementById('portfolioSummaryButton').disabled = true;
             document.getElementById('portfolioSummaryPanel').style.display = 'none';
