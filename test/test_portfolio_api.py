@@ -4,6 +4,7 @@ import main
 from portfolio_data import PortfolioDataBundle
 from portfolio_models import PortfolioBacktestResult
 from test.fixtures.portfolio_ohlcv import build_demo_portfolio_request, build_portfolio_ohlcv_fixture
+from universe_scan_runner import UniverseScanResult
 
 
 EXPECTED_PORTFOLIO_RESPONSE_KEYS = {
@@ -15,6 +16,7 @@ EXPECTED_PORTFOLIO_RESPONSE_KEYS = {
     "candidate_rankings",
     "data_warnings",
     "risk_flags",
+    "scan_diagnostics",
     "config",
 }
 
@@ -70,6 +72,7 @@ def test_portfolio_backtest_api_returns_runner_response(monkeypatch):
             candidate_rankings=[],
             data_warnings=[],
             risk_flags=[],
+            scan_diagnostics={"mode": request.universe.mode},
             config={"symbols": request.universe.symbols},
         ),
         raising=False,
@@ -111,6 +114,82 @@ def test_portfolio_backtest_api_runs_engine_with_fixture_data(monkeypatch):
     assert payload["candidate_rankings"]
     assert "fixture data" in payload["data_warnings"]
     assert payload["config"]["universe"]["symbols"] == ["SH603019", "SZ002241"]
+    assert payload["scan_diagnostics"]["mode"] == "manual"
+
+
+def test_portfolio_backtest_api_accepts_auto_universe_without_manual_symbols(monkeypatch):
+    client = TestClient(main.app)
+    captured = {}
+
+    def fake_runner(request):
+        captured["mode"] = request.universe.mode
+        captured["symbols"] = request.universe.symbols
+        return PortfolioBacktestResult(
+            summary={"final_equity": 100000.0},
+            equity_curve=[],
+            positions=[],
+            trades=[],
+            rebalance_events=[],
+            candidate_rankings=[],
+            data_warnings=[],
+            risk_flags=[],
+            scan_diagnostics={"mode": request.universe.mode, "selected_count": 0},
+            config=request.model_dump(mode="json"),
+        )
+
+    monkeypatch.setattr(main, "run_portfolio_backtest", fake_runner, raising=False)
+
+    response = client.post(
+        "/portfolio-backtest",
+        json={
+            "start_date": "2025-01-01",
+            "end_date": "2025-12-31",
+            "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+            "selection": {"top_n": 2, "min_history_bars": 60},
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured == {"mode": "auto", "symbols": []}
+    assert response.json()["scan_diagnostics"]["mode"] == "auto"
+
+
+def test_portfolio_universe_scan_api_returns_scan_diagnostics(monkeypatch):
+    client = TestClient(main.app)
+
+    monkeypatch.setattr(
+        main,
+        "run_universe_scan",
+        lambda request: UniverseScanResult(
+            selected_symbols=["SH603019", "SZ002241"],
+            ranking=[{"symbol": "SH603019", "score": 1.0, "skip_reason": None}],
+            diagnostics={
+                "mode": request.universe.mode,
+                "total_universe_size": 1200,
+                "loaded_count": 980,
+                "selected_count": 2,
+            },
+            warnings=["fixture warning"],
+        ),
+        raising=False,
+    )
+
+    response = client.post(
+        "/portfolio/universe-scan",
+        json={
+            "start_date": "2025-01-01",
+            "end_date": "2025-12-31",
+            "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+            "selection": {"top_n": 2, "min_history_bars": 60},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["selected_symbols"] == ["SH603019", "SZ002241"]
+    assert payload["scan_diagnostics"]["mode"] == "auto"
+    assert payload["scan_diagnostics"]["total_universe_size"] == 1200
+    assert payload["warnings"] == ["fixture warning"]
 
 
 def test_portfolio_backtest_api_maps_value_error_to_400(monkeypatch):

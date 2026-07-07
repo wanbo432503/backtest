@@ -42,6 +42,9 @@ def test_validate_tradable_symbol_rejects_unsupported_boards_and_funds():
         "SH512000": "fund_or_etf",
         "SZ159915": "fund_or_etf",
         "SZ160119": "fund_or_etf",
+        "SH000001": "unsupported_board",
+        "SH000002": "unsupported_board",
+        "SZ600000": "unsupported_board",
         "AAPL": "not_a_share",
     }
 

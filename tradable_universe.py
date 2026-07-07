@@ -137,6 +137,12 @@ def _blocked_reason(exchange: str, code: str, policy: TradableUniversePolicy) ->
     if exchange == "BJ" or code.startswith(("4", "8", "9")):
         return "unsupported_board"
 
+    if code.startswith("60") and exchange != "SH":
+        return "unsupported_board"
+
+    if code.startswith("00") and exchange != "SZ":
+        return "unsupported_board"
+
     if exchange == "SH" and code.startswith(("688", "689")):
         return "unsupported_board"
 

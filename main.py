@@ -20,6 +20,7 @@ from portfolio_models import PortfolioBacktestRequest
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
+from universe_scan_runner import run_universe_scan
 from tradingagents_adapter import TradingAgentsAdapterError, run_tradingagents_analysis
 from tradingagents_config import (
     get_config_api_key as get_tradingagents_config_api_key,
@@ -196,6 +197,23 @@ async def portfolio_backtest_endpoint(payload: dict):
     except Exception as e:
         print(f"组合回测详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"组合回测执行失败: {str(e)}")
+
+
+@app.post("/portfolio/universe-scan")
+async def portfolio_universe_scan_endpoint(payload: dict):
+    try:
+        request = PortfolioBacktestRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        result = await run_in_threadpool(run_universe_scan, request)
+        return result.to_api_response()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"股票池扫描详细错误信息: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"股票池扫描失败: {str(e)}")
 
 @app.get("/strategies")
 async def get_available_strategies():

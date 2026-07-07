@@ -656,7 +656,7 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Purpose:** Correct Phase 3.0 from “user-maintained tiny candidate pool” to “system-maintained full tradable 60/00 universe, then select a small final portfolio”.
 
-**Status:** Not complete. This is the missing stock-selection function required by the corrected Phase 3.0 goal.
+**Status:** Prototype implemented, with remaining hardening work. The default system path no longer requires a user-maintained candidate pool: it can discover the `60` / `00` universe, scan it, rank candidates, and pass the screened universe into the periodic portfolio backtest. Browser smoke verification passed; live progress streaming and explicit batch concurrency/rate-limit controls are still incomplete.
 
 **Files:**
 
@@ -674,44 +674,45 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Add a provider that builds the default tradable universe from all ordinary `60` / `00` A-share symbols available from free sources or local cache.
-- [ ] Persist/cache the discovered universe with symbol, name, exchange, code prefix, status, source, and refresh timestamp.
-- [ ] Exclude 科创板, 创业板, 北交所, funds, ETF/LOF and unsupported prefixes before any scan.
-- [ ] Add configurable prefilters: minimum history bars, minimum average turnover, minimum average volume, optional price range, optional recent suspension/data-gap filter.
-- [ ] Add batch OHLCV loading with concurrency/rate limits suitable for free data sources.
-- [ ] Add scan progress and partial failure accounting so one bad symbol does not abort the whole universe scan.
-- [ ] Compute factor scores across the screened universe on each rebalance date.
-- [ ] Select final Top N holdings where Top N remains limited to fewer than 5 stocks.
-- [ ] Return scan diagnostics: total universe size, screened count, scored count, skipped count by reason, data source failures.
-- [ ] Keep the small manual candidate pool as a diagnostic override, not the default Phase 3.0 path.
+- [x] Add a provider that builds the default tradable universe from all ordinary `60` / `00` A-share symbols available from free sources or local cache.
+- [x] Persist/cache the discovered universe with symbol, name, exchange, code prefix, status, source, and refresh timestamp.
+- [x] Exclude 科创板, 创业板, 北交所, funds, ETF/LOF and unsupported prefixes before any scan.
+- [x] Add configurable prefilters: minimum history bars, minimum average turnover, minimum average volume, optional price range, optional recent suspension/data-gap filter.
+- [ ] Add explicit batch OHLCV concurrency/rate-limit controls suitable for fragile free data sources. Current prototype uses the existing sequential loader and partial-failure handling.
+- [ ] Add live scan progress states while the request is running. Current prototype returns completed scan diagnostics after the request finishes.
+- [x] Add partial failure accounting so one bad symbol does not abort the whole universe scan.
+- [x] Compute factor scores across the screened universe on each rebalance date.
+- [x] Select final Top N holdings where Top N remains limited to fewer than 5 stocks.
+- [x] Return scan diagnostics: total universe size, screened count, scored count, skipped count by reason, data source failures.
+- [x] Keep the small manual candidate pool as a diagnostic override, not the default Phase 3.0 path.
 
 **Frontend todo:**
 
-- [ ] Replace the default stock-pool textarea mode with “自动扫描 60/00 股票池”.
-- [ ] Keep manual symbol input only as an advanced diagnostic override.
-- [ ] Add scan filters: min turnover, min history bars, max symbols to scan/debug limit, final holding count.
-- [ ] Add progress/status UI for universe size, loaded symbols, scored symbols, skipped symbols and current phase.
-- [ ] Show prefilter and skip-reason breakdown before final candidate ranking.
-- [ ] Label final holdings separately from the broader scanned candidate universe.
+- [x] Replace the default stock-pool textarea mode with “自动扫描 60/00 股票池”.
+- [x] Keep manual symbol input only as an advanced diagnostic override.
+- [x] Add scan filters: min turnover, min history bars, max symbols to scan/debug limit, final holding count.
+- [ ] Add live progress/status UI for current scan phase while the request is running. Current prototype shows completed universe size, loaded count, screened count, scored count, selected count, source and skipped breakdown after completion.
+- [x] Show prefilter and skip-reason breakdown in completed scan diagnostics.
+- [x] Label final holdings separately from the broader scanned candidate universe.
 
 **Test todo:**
 
-- [ ] Test universe provider returns only normalized `SH60xxxx` and `SZ00xxxx` symbols.
-- [ ] Test blocked boards and fund/ETF prefixes are excluded from the default universe.
-- [ ] Test scan runner handles partial data failures and still returns ranked candidates.
-- [ ] Test final holdings stay below 5 symbols even when universe contains many symbols.
-- [ ] Test API response includes scan diagnostics.
-- [ ] Test frontend defaults to automatic universe scan rather than requiring user-entered candidate symbols.
+- [x] Test universe provider returns only normalized `SH60xxxx` and `SZ00xxxx` symbols.
+- [x] Test blocked boards and fund/ETF prefixes are excluded from the default universe.
+- [x] Test scan runner handles partial data failures and still returns ranked candidates.
+- [x] Test final holdings stay below 5 symbols even when universe contains many symbols.
+- [x] Test API response includes scan diagnostics.
+- [x] Test frontend defaults to automatic universe scan rather than requiring user-entered candidate symbols.
 
 **Verification:**
 
-- [ ] `python -m pytest test/test_stock_universe_provider.py test/test_universe_scan_runner.py -q`
-- [ ] `python -m pytest test/test_portfolio_api.py test/test_index_template.py -q`
-- [ ] Run a browser smoke test where the user does not type any candidate symbols and still gets a selected portfolio.
+- [x] `python -m pytest test/test_stock_universe_provider.py test/test_universe_scan_runner.py -q`
+- [x] `python -m pytest test/test_portfolio_api.py test/test_index_template.py -q`
+- [x] Run a browser smoke test where the user does not type any candidate symbols and still gets a selected portfolio.
 
 **Done when:**
 
-- [ ] A user can run Phase 3.0 without hand-entering candidate stocks, and the system scans the default `60` / `00` universe to produce a final portfolio of fewer than 5 stocks.
+- [x] A user can run Phase 3.0 without hand-entering candidate stocks, and the system scans the default `60` / `00` universe to produce a final portfolio of fewer than 5 stocks. Browser smoke passed with auto mode and no manually entered candidate symbols; live progress streaming and explicit rate-limit controls remain hardening work above.
 
 ### Task 11: AI-assisted portfolio summary hook
 

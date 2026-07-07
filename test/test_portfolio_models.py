@@ -12,7 +12,8 @@ from portfolio_models import (
 def test_portfolio_backtest_request_defaults_are_prototype_ready():
     request = PortfolioBacktestRequest(start_date="2025-01-01", end_date="2025-12-31")
 
-    assert request.universe.symbols == ["SH603019", "SZ002241"]
+    assert request.universe.mode == "auto"
+    assert request.universe.symbols == []
     assert request.universe.max_symbols == 4
     assert request.universe.allowed_code_prefixes == ("60", "00")
     assert request.selection.top_n == 2
@@ -42,7 +43,7 @@ def test_portfolio_backtest_request_rejects_top_n_larger_than_symbol_count():
         PortfolioBacktestRequest(
             start_date="2025-01-01",
             end_date="2025-12-31",
-            universe={"symbols": ["SH603019", "SZ002241"]},
+            universe={"mode": "manual", "symbols": ["SH603019", "SZ002241"]},
             selection={"top_n": 3},
         )
 
@@ -52,7 +53,7 @@ def test_portfolio_backtest_request_rejects_non_60_00_symbols_before_data_loadin
         PortfolioBacktestRequest(
             start_date="2025-01-01",
             end_date="2025-12-31",
-            universe={"symbols": ["SH603019", "SZ300750"]},
+            universe={"mode": "manual", "symbols": ["SH603019", "SZ300750"]},
         )
 
 
@@ -86,6 +87,7 @@ def test_portfolio_backtest_result_to_api_response_contains_required_keys():
         "candidate_rankings",
         "data_warnings",
         "risk_flags",
+        "scan_diagnostics",
         "config",
     }
     assert response["trades"] == []

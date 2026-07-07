@@ -12,8 +12,13 @@ from tradable_universe import TradableUniversePolicy, validate_universe
 
 
 class UniverseConfig(BaseModel):
-    symbols: list[str] = Field(default_factory=lambda: ["SH603019", "SZ002241"])
+    mode: Literal["auto", "manual"] | None = None
+    symbols: list[str] = Field(default_factory=list)
     max_symbols: int = 4
+    max_scan_symbols: int | None = None
+    refresh_universe: bool = False
+    blacklist_symbols: list[str] = Field(default_factory=list)
+    whitelist_symbols: list[str] = Field(default_factory=list)
     allowed_code_prefixes: tuple[str, ...] = ("60", "00")
     exclude_star: bool = True
     exclude_bj: bool = True
@@ -28,8 +33,25 @@ class UniverseConfig(BaseModel):
             raise ValueError("max_symbols must not exceed 4")
         return value
 
+    @field_validator("max_scan_symbols")
+    @classmethod
+    def validate_max_scan_symbols(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("max_scan_symbols must be greater than 0")
+        return value
+
     @model_validator(mode="after")
     def validate_symbols(self) -> "UniverseConfig":
+        if self.mode is None:
+            self.mode = "manual" if self.symbols else "auto"
+
+        self.blacklist_symbols = _normalize_symbol_list(self.blacklist_symbols, self.exclude_funds)
+        self.whitelist_symbols = _normalize_symbol_list(self.whitelist_symbols, self.exclude_funds)
+
+        if self.mode == "auto":
+            self.symbols = _normalize_symbol_list(self.symbols, self.exclude_funds)
+            return self
+
         if not self.symbols:
             raise ValueError("universe must include at least one symbol")
 
@@ -79,6 +101,10 @@ class SelectionConfig(BaseModel):
     top_n: int = 2
     min_history_bars: int = 120
     min_avg_turnover_value: float | None = None
+    min_avg_volume: float | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    max_data_gap_days: int | None = None
     score_threshold: float | None = None
 
     @field_validator("top_n", "min_history_bars")
@@ -87,6 +113,33 @@ class SelectionConfig(BaseModel):
         if value <= 0:
             raise ValueError("selection integer values must be positive")
         return value
+
+    @field_validator("top_n")
+    @classmethod
+    def validate_top_n_cap(cls, value: int) -> int:
+        if value > 4:
+            raise ValueError("top_n must be fewer than 5")
+        return value
+
+    @field_validator("min_avg_turnover_value", "min_avg_volume", "min_price", "max_price")
+    @classmethod
+    def validate_optional_non_negative_float(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("selection filter values must be non-negative")
+        return value
+
+    @field_validator("max_data_gap_days")
+    @classmethod
+    def validate_optional_non_negative_int(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("max_data_gap_days must be non-negative")
+        return value
+
+    @model_validator(mode="after")
+    def validate_price_range(self) -> "SelectionConfig":
+        if self.min_price is not None and self.max_price is not None and self.min_price > self.max_price:
+            raise ValueError("min_price must not exceed max_price")
+        return self
 
 
 class RebalanceConfig(BaseModel):
@@ -158,7 +211,7 @@ class PortfolioBacktestRequest(BaseModel):
         end = _parse_date(self.end_date, "end_date")
         if start >= end:
             raise ValueError("start_date must be earlier than end_date")
-        if self.selection.top_n > len(self.universe.symbols):
+        if self.universe.mode == "manual" and self.selection.top_n > len(self.universe.symbols):
             raise ValueError("top_n must not exceed symbol count")
         return self
 
@@ -173,6 +226,7 @@ class PortfolioBacktestResult:
     candidate_rankings: list[dict[str, Any]] = field(default_factory=list)
     data_warnings: list[str] = field(default_factory=list)
     risk_flags: list[str] = field(default_factory=list)
+    scan_diagnostics: dict[str, Any] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
 
     def to_api_response(self) -> dict[str, Any]:
@@ -185,6 +239,7 @@ class PortfolioBacktestResult:
             "candidate_rankings": self.candidate_rankings,
             "data_warnings": self.data_warnings,
             "risk_flags": self.risk_flags,
+            "scan_diagnostics": self.scan_diagnostics,
             "config": self.config,
         }
 
@@ -194,3 +249,18 @@ def _parse_date(value: str, field_name: str) -> datetime:
         return datetime.strptime(value, "%Y-%m-%d")
     except ValueError as exc:
         raise ValueError(f"{field_name} must use YYYY-MM-DD format") from exc
+
+
+def _normalize_symbol_list(symbols: list[str], exclude_funds: bool) -> list[str]:
+    if not symbols:
+        return []
+    policy = TradableUniversePolicy(max_symbols=max(len(symbols), 1), exclude_funds=exclude_funds)
+    result = validate_universe(symbols, policy=policy)
+    blocking_reasons = [
+        row.reason or "invalid_symbol"
+        for row in result.rejected
+        if row.reason != "duplicate_symbol"
+    ]
+    if blocking_reasons:
+        raise ValueError("; ".join(blocking_reasons))
+    return result.accepted_symbols

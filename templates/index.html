@@ -663,16 +663,35 @@
                                 <strong><i class="fas fa-filter"></i> 股票池与调仓</strong>
                                 <span class="badge bg-success">Phase 3.0</span>
                             </div>
-                            <div class="mb-2">
-                                <label for="portfolioSymbols" class="form-label">股票池</label>
-                                <textarea class="form-control portfolio-symbol-pool" id="portfolioSymbols" rows="3" required>SH603019
-SZ002241</textarea>
-                                <div class="form-text">
-                                    最多 4 只，仅支持 60/00 开头股票；科创板、创业板、北交所和基金暂不纳入。
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="portfolioUniverseMode" class="form-label">股票池模式</label>
+                                    <select class="form-select" id="portfolioUniverseMode" required>
+                                        <option value="auto" selected>自动扫描 60/00 股票池</option>
+                                        <option value="manual">高级诊断：手动候选池</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="portfolioMaxScanSymbols" class="form-label">扫描上限</label>
+                                    <input type="number" class="form-control" id="portfolioMaxScanSymbols" min="1" step="1" placeholder="留空=全量">
                                 </div>
                             </div>
+                            <div class="form-text mb-2">
+                                默认从全部 60/00 普通 A 股中扫描，最终持仓少于 5 只；科创板、创业板、北交所和基金暂不纳入。
+                            </div>
+                            <details class="config-panel border rounded p-2 mb-2" id="portfolioManualUniversePanel">
+                                <summary><i class="fas fa-vial"></i> 高级诊断：手动候选池</summary>
+                                <div class="mt-2">
+                                    <label for="portfolioSymbols" class="form-label">手动候选池</label>
+                                    <textarea class="form-control portfolio-symbol-pool" id="portfolioSymbols" rows="3">SH603019
+SZ002241</textarea>
+                                    <div class="form-text">
+                                        仅用于小范围调试，最多 4 只，仅支持 60/00 开头股票。
+                                    </div>
+                                </div>
+                            </details>
                             <div class="portfolio-status mb-2" id="portfolioUniverseStatus">
-                                当前股票池: SH603019 / SZ002241
+                                自动扫描 60/00 股票池，最终持仓少于 5 只
                             </div>
                             <div class="compact-row">
                                 <div class="mb-3">
@@ -747,6 +766,22 @@ SZ002241</textarea>
                                     <div>
                                         <label for="portfolioMinHistoryBars" class="form-label">最少历史</label>
                                         <input type="number" class="form-control" id="portfolioMinHistoryBars" min="30" step="10" value="120">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMinAvgVolume" class="form-label">最小均量</label>
+                                        <input type="number" class="form-control" id="portfolioMinAvgVolume" min="0" step="10000" placeholder="可选">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMinAvgTurnover" class="form-label">最小成交额</label>
+                                        <input type="number" class="form-control" id="portfolioMinAvgTurnover" min="0" step="1000000" placeholder="可选">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMinPrice" class="form-label">最低价格</label>
+                                        <input type="number" class="form-control" id="portfolioMinPrice" min="0" step="0.1" placeholder="可选">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMaxPrice" class="form-label">最高价格</label>
+                                        <input type="number" class="form-control" id="portfolioMaxPrice" min="0" step="0.1" placeholder="可选">
                                     </div>
                                     <div>
                                         <label for="portfolioScoreThreshold" class="form-label">最低分</label>
@@ -1094,6 +1129,7 @@ SZ002241</textarea>
                     <div class="card-body">
                         <div id="portfolioSummaryContent" class="portfolio-summary-grid"></div>
                         <div id="portfolioRiskFlags" class="portfolio-badge-row"></div>
+                        <div id="portfolioScanDiagnostics" class="portfolio-status mb-2"></div>
                         <div id="portfolioEquityChart" class="portfolio-chart"></div>
 
                         <ul class="nav nav-tabs nav-fill mb-2" id="portfolioResultTabs" role="tablist">
@@ -1434,6 +1470,14 @@ SZ002241</textarea>
             return /^(SH60\d{4}|SZ00\d{4})$/.test(symbol);
         }
 
+        function getPortfolioUniverseMode() {
+            return document.getElementById('portfolioUniverseMode').value || 'auto';
+        }
+
+        function isPortfolioManualMode() {
+            return getPortfolioUniverseMode() === 'manual';
+        }
+
         function collectPortfolioSymbols() {
             const raw = document.getElementById('portfolioSymbols').value;
             const symbols = raw
@@ -1450,6 +1494,17 @@ SZ002241</textarea>
         }
 
         function validatePortfolioUniverse(symbols = collectPortfolioSymbols()) {
+            const topN = Number(document.getElementById('portfolioTopN').value || 0);
+            if (!Number.isFinite(topN) || topN < 1 || topN > 4) {
+                return { ok: false, symbols, message: 'Top N 必须在 1 到 4 之间' };
+            }
+            if (!isPortfolioManualMode()) {
+                return {
+                    ok: true,
+                    symbols: [],
+                    message: '自动扫描 60/00 股票池，最终持仓少于 5 只'
+                };
+            }
             if (!symbols.length) {
                 return { ok: false, symbols, message: '请至少输入 1 只股票' };
             }
@@ -1464,26 +1519,27 @@ SZ002241</textarea>
                     message: `仅支持 60/00 开头股票: ${invalid.join(', ')}`
                 };
             }
-            const topN = Number(document.getElementById('portfolioTopN').value || 0);
-            if (!Number.isFinite(topN) || topN < 1) {
-                return { ok: false, symbols, message: 'Top N 必须大于 0' };
-            }
             if (topN > symbols.length) {
                 return { ok: false, symbols, message: 'Top N 不能超过股票池数量' };
             }
-            return { ok: true, symbols, message: `当前股票池: ${symbols.join(' / ')}` };
+            return { ok: true, symbols, message: `高级诊断手动候选池: ${symbols.join(' / ')}` };
         }
 
         function syncPortfolioUniverseState() {
             const symbols = collectPortfolioSymbols();
             const topN = document.getElementById('portfolioTopN');
-            topN.max = String(Math.min(4, Math.max(symbols.length, 1)));
+            topN.max = isPortfolioManualMode() ? String(Math.min(4, Math.max(symbols.length, 1))) : '4';
+            const manualPanel = document.getElementById('portfolioManualUniversePanel');
+            if (manualPanel) {
+                manualPanel.open = isPortfolioManualMode();
+            }
             const validation = validatePortfolioUniverse(symbols);
             setPortfolioUniverseStatus(validation.ok ? 'succeeded' : 'failed', validation.message);
             return validation;
         }
 
         function addSymbolToPortfolio(symbol) {
+            document.getElementById('portfolioUniverseMode').value = 'manual';
             const normalized = normalizePortfolioSymbol(symbol);
             const currentSymbols = collectPortfolioSymbols();
             if (normalized && !currentSymbols.includes(normalized)) {
@@ -1519,14 +1575,20 @@ SZ002241</textarea>
             if (!validation.ok) {
                 throw new Error(validation.message);
             }
+            const mode = getPortfolioUniverseMode();
             return {
                 start_date: document.getElementById('portfolioStartDate').value,
                 end_date: document.getElementById('portfolioEndDate').value,
                 initial_cash: readNumber('portfolioInitialCash', 100000),
                 data_provider: document.getElementById('portfolioDataProvider').value,
                 universe: {
-                    symbols: validation.symbols,
+                    mode: getPortfolioUniverseMode(),
+                    symbols: mode === 'manual' ? validation.symbols : [],
                     max_symbols: 4,
+                    max_scan_symbols: readNullableNumber('portfolioMaxScanSymbols'),
+                    refresh_universe: false,
+                    blacklist_symbols: [],
+                    whitelist_symbols: [],
                     allowed_code_prefixes: ['60', '00'],
                     exclude_star: true,
                     exclude_bj: true,
@@ -1544,7 +1606,10 @@ SZ002241</textarea>
                 selection: {
                     top_n: readNumber('portfolioTopN', 2),
                     min_history_bars: readNumber('portfolioMinHistoryBars', 120),
-                    min_avg_turnover_value: null,
+                    min_avg_turnover_value: readNullableNumber('portfolioMinAvgTurnover'),
+                    min_avg_volume: readNullableNumber('portfolioMinAvgVolume'),
+                    min_price: readNullableNumber('portfolioMinPrice'),
+                    max_price: readNullableNumber('portfolioMaxPrice'),
                     score_threshold: readNullableNumber('portfolioScoreThreshold')
                 },
                 rebalance: {
@@ -2578,6 +2643,32 @@ SZ002241</textarea>
                 : '<span class="badge bg-success">风险标记: 无</span>';
         }
 
+        function renderPortfolioScanDiagnostics(result) {
+            const diagnostics = result.scan_diagnostics || {};
+            const skipped = diagnostics.skipped_by_reason || {};
+            const skippedText = Object.entries(skipped)
+                .map(([reason, count]) => `${reason}: ${count}`)
+                .join('；');
+            const parts = [
+                `模式: ${diagnostics.mode || '-'}`,
+                `Universe: ${diagnostics.total_universe_size ?? '-'}`,
+                `扫描: ${diagnostics.scan_symbol_count ?? '-'}`,
+                `加载: ${diagnostics.loaded_count ?? '-'}`,
+                `筛后: ${diagnostics.screened_count ?? '-'}`,
+                `评分: ${diagnostics.scored_count ?? diagnostics.candidate_ranking_rows ?? '-'}`,
+                `入选: ${diagnostics.selected_count ?? (diagnostics.selected_symbols || []).length ?? '-'}`,
+            ];
+            if (diagnostics.universe_source) {
+                parts.push(`来源: ${diagnostics.universe_source}`);
+            }
+            if (skippedText) {
+                parts.push(`跳过: ${skippedText}`);
+            }
+            const host = document.getElementById('portfolioScanDiagnostics');
+            host.className = 'portfolio-status succeeded mb-2';
+            host.textContent = parts.join(' | ');
+        }
+
         function renderPortfolioEquityCurve(points) {
             const host = document.getElementById('portfolioEquityChart');
             if (!points.length) {
@@ -2682,6 +2773,7 @@ SZ002241</textarea>
         function renderPortfolioResult(result) {
             document.getElementById('portfolioResultPanel').style.display = 'block';
             renderPortfolioSummary(result);
+            renderPortfolioScanDiagnostics(result);
             renderPortfolioEquityCurve(result.equity_curve || []);
 
             renderPortfolioTable('portfolioPositionsTable', result.positions || [], [
@@ -2801,6 +2893,7 @@ SZ002241</textarea>
             document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
             document.getElementById('symbol').addEventListener('input', event => syncTradingAgentsSymbol(event.target.value));
+            document.getElementById('portfolioUniverseMode').addEventListener('change', syncPortfolioUniverseState);
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
@@ -2885,7 +2978,8 @@ SZ002241</textarea>
                         <hr>
                         <small class="mb-0">
                             <strong>提示:</strong><br>
-                            • 股票池最多 4 只，且仅支持 60/00 开头股票<br>
+                            • 默认自动扫描 60/00 股票池，最终持仓少于 5 只<br>
+                            • 手动候选池仅用于高级诊断，最多 4 只且仅支持 60/00 开头股票<br>
                             • 日线组合回测需要足够历史数据<br>
                             • 若 mootdx 不可用，可尝试自动或 yfinance 数据源
                         </small>

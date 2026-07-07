@@ -54,8 +54,10 @@ def test_portfolio_backtest_produces_complete_result(monkeypatch):
         "candidate_rankings",
         "data_warnings",
         "risk_flags",
+        "scan_diagnostics",
         "config",
     }
+    assert result["scan_diagnostics"]["mode"] == "manual"
     assert math.isfinite(result["summary"]["final_equity"])
     assert math.isfinite(result["summary"]["sharpe"])
 

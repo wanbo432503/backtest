@@ -43,11 +43,20 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert "组合选股回测" in template
     assert '<i class="fas fa-layer-group"></i> 组合选股回测' in template
     assert 'id="portfolioBacktestForm"' in template
+    assert "自动扫描 60/00 股票池" in template
+    assert 'id="portfolioUniverseMode"' in template
     assert 'id="portfolioSymbols"' in template
     assert "SH603019" in template
     assert "SZ002241" in template
-    assert "最多 4 只" in template
+    assert "高级诊断" in template
+    assert "手动候选池" in template
+    assert "最终持仓少于 5 只" in template
     assert "仅支持 60/00 开头" in template
+    assert 'id="portfolioMaxScanSymbols"' in template
+    assert 'id="portfolioMinAvgTurnover"' in template
+    assert 'id="portfolioMinAvgVolume"' in template
+    assert 'id="portfolioMinPrice"' in template
+    assert 'id="portfolioMaxPrice"' in template
     assert 'id="portfolioTopN"' in template
     assert 'id="portfolioRebalanceFrequency"' in template
     assert 'id="portfolioMomentumWeight"' in template
@@ -61,9 +70,11 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert "单股诊断" in template
     assert "加入股票池" in template
     assert "function addSymbolToPortfolio" in template
+    assert "function isPortfolioManualMode" in template
     assert "function collectPortfolioSymbols()" in template
     assert "function validatePortfolioUniverse" in template
     assert "function collectPortfolioRequest()" in template
+    assert "mode: getPortfolioUniverseMode()" in template
     assert "fetch('/portfolio-backtest'" in template
 
 
@@ -81,6 +92,9 @@ def test_index_template_renders_phase3_portfolio_results():
     assert "function renderPortfolioTable" in template
     assert "candidate_rankings" in template
     assert "rebalance_events" in template
+    assert "scan_diagnostics" in template
+    assert 'id="portfolioScanDiagnostics"' in template
+    assert "function renderPortfolioScanDiagnostics" in template
     assert "risk_flags" in template
     assert "syncTradingAgentsSymbol" in template
 

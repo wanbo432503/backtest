@@ -17,7 +17,7 @@ from factor_engine import score_candidates
 from portfolio_data import load_portfolio_ohlcv
 from portfolio_models import PortfolioBacktestRequest, PortfolioBacktestResult
 from selection_engine import build_rebalance_dates, build_trading_calendar, select_top_candidates
-from tradable_universe import TradableUniversePolicy, validate_universe
+from universe_scan_runner import load_universe_scan_data
 
 
 @dataclass
@@ -29,16 +29,8 @@ class Position:
 
 
 def run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBacktestResult:
-    _validate_request_universe(request)
-    data_bundle = load_portfolio_ohlcv(
-        request.universe.symbols,
-        request.start_date,
-        request.end_date,
-        provider=request.data_provider,
-        interval="1d",
-        min_history_bars=request.selection.min_history_bars,
-    )
-    data_by_symbol = data_bundle.data_by_symbol
+    scan_data = load_universe_scan_data(request, data_loader=load_portfolio_ohlcv)
+    data_by_symbol = scan_data.data_by_symbol
     calendar = build_trading_calendar(data_by_symbol)
     rebalance_dates = set(
         build_rebalance_dates(calendar, request.start_date, request.end_date, request.rebalance)
@@ -50,7 +42,8 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBackte
     trades: list[dict[str, Any]] = []
     rebalance_events: list[dict[str, Any]] = []
     candidate_rankings: list[dict[str, Any]] = []
-    warnings = list(data_bundle.warnings)
+    warnings = list(scan_data.warnings)
+    scan_diagnostics = dict(scan_data.diagnostics)
 
     for date in calendar:
         if pd.Timestamp(date) < pd.Timestamp(request.start_date) or pd.Timestamp(date) > pd.Timestamp(request.end_date):
@@ -116,6 +109,15 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBackte
     positions_payload = _positions_payload(calendar[-1], positions, data_by_symbol)
     summary = _summary(equity_curve, trades, rebalance_events, request.initial_cash)
     risk_flags = _risk_flags(summary, warnings, rebalance_events)
+    scan_diagnostics.update({
+        "candidate_ranking_rows": len(candidate_rankings),
+        "rebalance_count": len(rebalance_events),
+        "selected_symbols": sorted({
+            symbol
+            for event in rebalance_events
+            for symbol in event.get("selected_symbols", [])
+        }),
+    })
 
     return PortfolioBacktestResult(
         summary=summary,
@@ -126,18 +128,9 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBackte
         candidate_rankings=candidate_rankings,
         data_warnings=warnings,
         risk_flags=risk_flags,
+        scan_diagnostics=scan_diagnostics,
         config=request.model_dump(mode="json"),
     )
-
-
-def _validate_request_universe(request: PortfolioBacktestRequest) -> None:
-    result = validate_universe(
-        list(getattr(request.universe, "symbols", [])),
-        policy=TradableUniversePolicy(max_symbols=getattr(request.universe, "max_symbols", 4)),
-    )
-    blocking = [row.reason for row in result.rejected if row.reason != "duplicate_symbol"]
-    if blocking:
-        raise ValueError("; ".join(str(reason) for reason in blocking))
 
 
 def _target_values(
