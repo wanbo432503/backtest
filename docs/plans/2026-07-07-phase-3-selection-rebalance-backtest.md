@@ -368,33 +368,33 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Implement `build_trading_calendar(data_by_symbol)` using sorted union of available dates.
-- [ ] Implement `build_rebalance_dates(calendar, start_date, end_date, config)`.
-- [ ] Weekly: first available trading day on or after configured weekday.
-- [ ] Biweekly: every other weekly rebalance date.
-- [ ] Monthly: first available trading day on or after configured month day.
-- [ ] Implement `select_top_candidates(candidate_rows, selection_config)`.
-- [ ] Filter skipped candidates before selecting.
-- [ ] Apply optional `score_threshold`.
-- [ ] Return both selected rows and full ranking rows.
-- [ ] Include a warning when fewer than `top_n` symbols are selectable.
+- [x] Implement `build_trading_calendar(data_by_symbol)` using sorted union of available dates.
+- [x] Implement `build_rebalance_dates(calendar, start_date, end_date, config)`.
+- [x] Weekly: first available trading day on or after configured weekday.
+- [x] Biweekly: every other weekly rebalance date.
+- [x] Monthly: first available trading day on or after configured month day.
+- [x] Implement `select_top_candidates(candidate_rows, selection_config)`.
+- [x] Filter skipped candidates before selecting.
+- [x] Apply optional `score_threshold`.
+- [x] Return both selected rows and full ranking rows.
+- [x] Include a warning when fewer than `top_n` symbols are selectable.
 
 **Test todo:**
 
-- [ ] Test weekly dates on synthetic calendar.
-- [ ] Test biweekly dates.
-- [ ] Test monthly dates when month day falls on a non-trading day.
-- [ ] Test `top_n=1` selects highest score.
-- [ ] Test skipped symbols remain visible in full ranking.
-- [ ] Test fewer selectable symbols than `top_n` produces warning but does not crash.
+- [x] Test weekly dates on synthetic calendar.
+- [x] Test biweekly dates.
+- [x] Test monthly dates when month day falls on a non-trading day.
+- [x] Test `top_n=1` selects highest score.
+- [x] Test skipped symbols remain visible in full ranking.
+- [x] Test fewer selectable symbols than `top_n` produces warning but does not crash.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_selection_engine.py -q`.
+- [x] Run `python -m pytest test/test_selection_engine.py -q`.
 
 **Done when:**
 
-- [ ] The backtest runner can ask one function for rebalance dates and one function for selected symbols.
+- [x] The backtest runner can ask one function for rebalance dates and one function for selected symbols.
 
 ### Task 6: Portfolio execution simulator
 
