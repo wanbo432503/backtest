@@ -412,48 +412,48 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Implement `run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBacktestResult`.
-- [ ] Validate universe with `validate_universe(...)` before data loading.
-- [ ] Load portfolio OHLCV.
-- [ ] Build trading calendar and rebalance dates.
-- [ ] Initialize cash, empty positions, equity curve, trades, rebalance events, rankings, warnings.
-- [ ] Each trading day, mark current positions to close price.
-- [ ] On rebalance day, compute candidate scores using previous completed bars.
-- [ ] Select Top N.
-- [ ] Build target weights: equal weight capped by `max_position_pct`, total capped by `target_gross_exposure`.
-- [ ] Sell removed or overweight positions before buys.
-- [ ] Buy underweight target positions with available cash.
-- [ ] Round shares to 100-lot using `round_lot_shares(...)`.
-- [ ] Apply slippage using `apply_slippage(...)`.
-- [ ] Apply commission/stamp tax using `calculate_trade_cost(...)`.
-- [ ] Respect `can_buy(...)` and `can_sell(...)` for limit-up/down and T+1 where data allows.
-- [ ] Record skipped trades with reason in rebalance event.
-- [ ] Record final holdings snapshot even if no trade occurs.
-- [ ] Compute summary: total return, annual return/CAGR, max drawdown, sharpe, final equity, turnover, number of rebalances, number of trades.
-- [ ] Add risk flags: `too_few_rebalances`, `high_drawdown`, `high_turnover`, `data_gaps`, `underinvested`, `too_few_selected`.
-- [ ] Return response-ready structures matching `portfolio_models.py`.
+- [x] Implement `run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBacktestResult`.
+- [x] Validate universe with `validate_universe(...)` before data loading.
+- [x] Load portfolio OHLCV.
+- [x] Build trading calendar and rebalance dates.
+- [x] Initialize cash, empty positions, equity curve, trades, rebalance events, rankings, warnings.
+- [x] Each trading day, mark current positions to close price.
+- [x] On rebalance day, compute candidate scores using previous completed bars.
+- [x] Select Top N.
+- [x] Build target weights: equal weight capped by `max_position_pct`, total capped by `target_gross_exposure`.
+- [x] Sell removed or overweight positions before buys.
+- [x] Buy underweight target positions with available cash.
+- [x] Round shares to 100-lot using `round_lot_shares(...)`.
+- [x] Apply slippage using `apply_slippage(...)`.
+- [x] Apply commission/stamp tax using `calculate_trade_cost(...)`.
+- [x] Respect `can_buy(...)` and `can_sell(...)` for limit-up/down and T+1 where data allows.
+- [x] Record skipped trades with reason in rebalance event.
+- [x] Record final holdings snapshot even if no trade occurs.
+- [x] Compute summary: total return, annual return/CAGR, max drawdown, sharpe, final equity, turnover, number of rebalances, number of trades.
+- [x] Add risk flags: `too_few_rebalances`, `high_drawdown`, `high_turnover`, `data_gaps`, `underinvested`, `too_few_selected`.
+- [x] Return response-ready structures matching `portfolio_models.py`.
 
 **Test todo:**
 
-- [ ] Test two-symbol monthly backtest produces non-empty equity curve and at least one rebalance.
-- [ ] Test selected symbol changes after momentum changes.
-- [ ] Test cash decreases after buy including cost.
-- [ ] Test shares are rounded to 100.
-- [ ] Test max single position cap.
-- [ ] Test sells happen before buys.
-- [ ] Test limit-up buy skip.
-- [ ] Test limit-down sell skip.
-- [ ] Test T+1 same-day sell skip.
-- [ ] Test final summary metrics are finite numbers.
-- [ ] Test all response top-level lists exist.
+- [x] Test two-symbol monthly backtest produces non-empty equity curve and at least one rebalance.
+- [x] Test selected symbol changes after momentum changes.
+- [x] Test cash decreases after buy including cost.
+- [x] Test shares are rounded to 100.
+- [x] Test max single position cap.
+- [x] Test sells happen before buys.
+- [x] Test limit-up buy skip.
+- [x] Test limit-down sell skip.
+- [x] Test T+1 same-day sell skip.
+- [x] Test final summary metrics are finite numbers.
+- [x] Test all response top-level lists exist.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_portfolio_backtest_runner.py -q`.
+- [x] Run `python -m pytest test/test_portfolio_backtest_runner.py -q`.
 
 **Done when:**
 
-- [ ] A pure Python call to `run_portfolio_backtest(...)` returns a complete prototype result without FastAPI or browser involvement.
+- [x] A pure Python call to `run_portfolio_backtest(...)` returns a complete prototype result without FastAPI or browser involvement.
 
 ### Task 7: Portfolio API endpoints
 
