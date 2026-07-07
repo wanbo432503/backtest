@@ -289,33 +289,33 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Implement `load_portfolio_ohlcv(symbols, start_date, end_date, provider="auto", interval="1d")`.
-- [ ] Force Phase 3.0 portfolio backtests to `interval="1d"` for MVP.
-- [ ] Call `market_data.fetch_ohlcv(...)` per accepted symbol.
-- [ ] Call `prepare_ohlcv(...)` per symbol.
-- [ ] Return `PortfolioDataBundle(data_by_symbol, warnings)` or equivalent.
-- [ ] Include provider warnings and fallback warnings per symbol.
-- [ ] If one symbol fails, keep running with remaining symbols and record warning.
-- [ ] If all symbols fail, raise `ValueError` with a user-facing message.
-- [ ] Drop symbols with fewer rows than `selection.min_history_bars`, but report `insufficient_history`.
-- [ ] Align available dates by union for mark-to-market, and use previous known close only when explicitly documented.
-- [ ] Do not introduce persistent caching in prototype; use local variables only.
+- [x] Implement `load_portfolio_ohlcv(symbols, start_date, end_date, provider="auto", interval="1d")`.
+- [x] Force Phase 3.0 portfolio backtests to `interval="1d"` for MVP.
+- [x] Call `market_data.fetch_ohlcv(...)` per accepted symbol.
+- [x] Call `prepare_ohlcv(...)` per symbol.
+- [x] Return `PortfolioDataBundle(data_by_symbol, warnings)` or equivalent.
+- [x] Include provider warnings and fallback warnings per symbol.
+- [x] If one symbol fails, keep running with remaining symbols and record warning.
+- [x] If all symbols fail, raise `ValueError` with a user-facing message.
+- [x] Drop symbols with fewer rows than `selection.min_history_bars`, but report `insufficient_history`.
+- [x] Align available dates by union for mark-to-market, and use previous known close only when explicitly documented.
+- [x] Do not introduce persistent caching in prototype; use local variables only.
 
 **Test todo:**
 
-- [ ] Monkeypatch `fetch_ohlcv` to return fixture frames for two symbols.
-- [ ] Test one-symbol fetch failure returns the other symbol plus warning.
-- [ ] Test all-symbol failure raises.
-- [ ] Test insufficient history warning.
-- [ ] Test data columns are prepared as `Open/High/Low/Close/Volume`.
+- [x] Monkeypatch `fetch_ohlcv` to return fixture frames for two symbols.
+- [x] Test one-symbol fetch failure returns the other symbol plus warning.
+- [x] Test all-symbol failure raises.
+- [x] Test insufficient history warning.
+- [x] Test data columns are prepared as `Open/High/Low/Close/Volume`.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_portfolio_data.py -q`.
+- [x] Run `python -m pytest test/test_portfolio_data.py -q`.
 
 **Done when:**
 
-- [ ] The runner can receive clean per-symbol DataFrames and explicit data quality warnings.
+- [x] The runner can receive clean per-symbol DataFrames and explicit data quality warnings.
 
 ### Task 4: Factor scoring engine
 
