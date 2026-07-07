@@ -43,7 +43,9 @@ class UniverseScanResult:
 def load_universe_scan_data(
     request: PortfolioBacktestRequest,
     data_loader: Callable[..., Any] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> UniverseScanData:
+    _emit_progress(progress_callback, {"phase": "discovering_universe"})
     records, diagnostics, warnings = _resolve_universe_records(request)
     symbols = [record.symbol for record in records]
     if not symbols:
@@ -57,6 +59,10 @@ def load_universe_scan_data(
         provider=request.data_provider,
         interval="1d",
         min_history_bars=request.selection.min_history_bars,
+        batch_size=request.universe.ohlcv_batch_size,
+        batch_delay_seconds=request.universe.ohlcv_batch_delay_seconds,
+        request_delay_seconds=request.universe.ohlcv_request_delay_seconds,
+        progress_callback=progress_callback,
     )
     filtered_data, prefilter_counts = _apply_prefilters(bundle.data_by_symbol, request)
     skipped_by_reason = Counter()
@@ -68,6 +74,9 @@ def load_universe_scan_data(
         "prefilter_skipped_count": sum(prefilter_counts.values()),
         "screened_count": len(filtered_data),
         "skipped_by_reason": dict(sorted(skipped_by_reason.items())),
+        "ohlcv_batch_size": request.universe.ohlcv_batch_size,
+        "ohlcv_batch_delay_seconds": request.universe.ohlcv_batch_delay_seconds,
+        "ohlcv_request_delay_seconds": request.universe.ohlcv_request_delay_seconds,
     })
     return UniverseScanData(
         data_by_symbol=filtered_data,
@@ -78,8 +87,11 @@ def load_universe_scan_data(
     )
 
 
-def run_universe_scan(request: PortfolioBacktestRequest) -> UniverseScanResult:
-    scan_data = load_universe_scan_data(request)
+def run_universe_scan(
+    request: PortfolioBacktestRequest,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> UniverseScanResult:
+    scan_data = load_universe_scan_data(request, progress_callback=progress_callback)
     diagnostics = dict(scan_data.diagnostics)
     if not scan_data.data_by_symbol:
         diagnostics.update({"scored_count": 0, "selected_count": 0})
@@ -101,6 +113,11 @@ def run_universe_scan(request: PortfolioBacktestRequest) -> UniverseScanResult:
         )
 
     as_of_date = _scan_as_of_date(calendar, request.end_date)
+    _emit_progress(progress_callback, {
+        "phase": "scoring",
+        "screened_count": len(scan_data.data_by_symbol),
+        "as_of_date": _date_str(as_of_date),
+    })
     ranking = score_candidates(scan_data.data_by_symbol, as_of_date, request.factors, request.selection)
     selection = select_top_candidates(ranking, request.selection)
     diagnostics.update({
@@ -238,3 +255,11 @@ def _scan_as_of_date(calendar: list[pd.Timestamp], end_date: str) -> pd.Timestam
 
 def _date_str(value: pd.Timestamp) -> str:
     return pd.Timestamp(value).strftime("%Y-%m-%d")
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    event: dict[str, Any],
+) -> None:
+    if progress_callback is not None:
+        progress_callback(event)

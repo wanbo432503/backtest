@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 import main
 from portfolio_data import PortfolioDataBundle
 from portfolio_models import PortfolioBacktestResult
+from portfolio_progress import PortfolioJobSnapshot
 from test.fixtures.portfolio_ohlcv import build_demo_portfolio_request, build_portfolio_ohlcv_fixture
 from universe_scan_runner import UniverseScanResult
 
@@ -190,6 +191,54 @@ def test_portfolio_universe_scan_api_returns_scan_diagnostics(monkeypatch):
     assert payload["scan_diagnostics"]["mode"] == "auto"
     assert payload["scan_diagnostics"]["total_universe_size"] == 1200
     assert payload["warnings"] == ["fixture warning"]
+
+
+def test_portfolio_backtest_job_api_exposes_progress_status(monkeypatch):
+    client = TestClient(main.app)
+    snapshot = PortfolioJobSnapshot(
+        job_id="job-1",
+        status="running",
+        phase="loading_ohlcv",
+        message="正在加载行情",
+        progress={
+            "total_symbols": 20,
+            "loaded_count": 5,
+            "failed_count": 1,
+        },
+    )
+
+    monkeypatch.setattr(main.portfolio_job_store, "submit", lambda request: snapshot)
+    monkeypatch.setattr(main.portfolio_job_store, "get", lambda job_id: snapshot)
+
+    create_response = client.post(
+        "/portfolio-backtest/jobs",
+        json={
+            "start_date": "2025-01-01",
+            "end_date": "2025-12-31",
+            "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+            "selection": {"top_n": 2, "min_history_bars": 60},
+        },
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.json()["job_id"] == "job-1"
+
+    status_response = client.get("/portfolio-backtest/jobs/job-1")
+    assert status_response.status_code == 200
+    payload = status_response.json()
+    assert payload["status"] == "running"
+    assert payload["phase"] == "loading_ohlcv"
+    assert payload["progress"]["loaded_count"] == 5
+
+
+def test_portfolio_backtest_job_api_returns_404_for_missing_job(monkeypatch):
+    client = TestClient(main.app)
+
+    monkeypatch.setattr(main.portfolio_job_store, "get", lambda job_id: None)
+
+    response = client.get("/portfolio-backtest/jobs/missing")
+
+    assert response.status_code == 404
 
 
 def test_portfolio_backtest_api_maps_value_error_to_400(monkeypatch):

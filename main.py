@@ -17,6 +17,7 @@ from market_data import normalize_symbol
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
 from portfolio_backtest_runner import run_portfolio_backtest
 from portfolio_models import PortfolioBacktestRequest
+from portfolio_progress import PortfolioBacktestJobStore
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
@@ -40,6 +41,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 设置模板目录
 templates = Jinja2Templates(directory="templates")
+portfolio_job_store = PortfolioBacktestJobStore(run_portfolio_backtest)
 
 # 定义请求模型
 class BacktestRequest(BaseModel):
@@ -197,6 +199,25 @@ async def portfolio_backtest_endpoint(payload: dict):
     except Exception as e:
         print(f"组合回测详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"组合回测执行失败: {str(e)}")
+
+
+@app.post("/portfolio-backtest/jobs")
+async def create_portfolio_backtest_job(payload: dict):
+    try:
+        request = PortfolioBacktestRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    snapshot = portfolio_job_store.submit(request)
+    return snapshot.to_api_response()
+
+
+@app.get("/portfolio-backtest/jobs/{job_id}")
+async def get_portfolio_backtest_job(job_id: str):
+    snapshot = portfolio_job_store.get(job_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="portfolio backtest job not found")
+    return snapshot.to_api_response()
 
 
 @app.post("/portfolio/universe-scan")

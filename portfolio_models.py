@@ -16,6 +16,9 @@ class UniverseConfig(BaseModel):
     symbols: list[str] = Field(default_factory=list)
     max_symbols: int = 4
     max_scan_symbols: int | None = None
+    ohlcv_batch_size: int = 20
+    ohlcv_batch_delay_seconds: float = 0.0
+    ohlcv_request_delay_seconds: float = 0.0
     refresh_universe: bool = False
     blacklist_symbols: list[str] = Field(default_factory=list)
     whitelist_symbols: list[str] = Field(default_factory=list)
@@ -38,6 +41,20 @@ class UniverseConfig(BaseModel):
     def validate_max_scan_symbols(cls, value: int | None) -> int | None:
         if value is not None and value <= 0:
             raise ValueError("max_scan_symbols must be greater than 0")
+        return value
+
+    @field_validator("ohlcv_batch_size")
+    @classmethod
+    def validate_ohlcv_batch_size(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("ohlcv_batch_size must be greater than 0")
+        return value
+
+    @field_validator("ohlcv_batch_delay_seconds", "ohlcv_request_delay_seconds")
+    @classmethod
+    def validate_rate_limit_delay(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("rate limit delays must be non-negative")
         return value
 
     @model_validator(mode="after")

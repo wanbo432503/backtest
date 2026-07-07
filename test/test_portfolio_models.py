@@ -15,6 +15,9 @@ def test_portfolio_backtest_request_defaults_are_prototype_ready():
     assert request.universe.mode == "auto"
     assert request.universe.symbols == []
     assert request.universe.max_symbols == 4
+    assert request.universe.ohlcv_batch_size == 20
+    assert request.universe.ohlcv_batch_delay_seconds == 0.0
+    assert request.universe.ohlcv_request_delay_seconds == 0.0
     assert request.universe.allowed_code_prefixes == ("60", "00")
     assert request.selection.top_n == 2
     assert request.risk.max_position_pct == 0.50
@@ -35,6 +38,22 @@ def test_portfolio_backtest_request_rejects_more_than_four_symbols():
             universe={
                 "symbols": ["SH600000", "SH601318", "SH603019", "SH605001", "SZ000001"],
             },
+        )
+
+
+def test_portfolio_backtest_request_rejects_invalid_rate_limit_values():
+    with pytest.raises(ValidationError, match="ohlcv_batch_size must be greater than 0"):
+        PortfolioBacktestRequest(
+            start_date="2025-01-01",
+            end_date="2025-12-31",
+            universe={"mode": "auto", "ohlcv_batch_size": 0},
+        )
+
+    with pytest.raises(ValidationError, match="rate limit delays must be non-negative"):
+        PortfolioBacktestRequest(
+            start_date="2025-01-01",
+            end_date="2025-12-31",
+            universe={"mode": "auto", "ohlcv_request_delay_seconds": -0.1},
         )
 
 

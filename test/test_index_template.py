@@ -53,6 +53,9 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert "最终持仓少于 5 只" in template
     assert "仅支持 60/00 开头" in template
     assert 'id="portfolioMaxScanSymbols"' in template
+    assert 'id="portfolioOhlcvBatchSize"' in template
+    assert 'id="portfolioOhlcvRequestDelay"' in template
+    assert 'id="portfolioOhlcvBatchDelay"' in template
     assert 'id="portfolioMinAvgTurnover"' in template
     assert 'id="portfolioMinAvgVolume"' in template
     assert 'id="portfolioMinPrice"' in template
@@ -75,13 +78,18 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert "function validatePortfolioUniverse" in template
     assert "function collectPortfolioRequest()" in template
     assert "mode: getPortfolioUniverseMode()" in template
-    assert "fetch('/portfolio-backtest'" in template
+    assert "fetch('/portfolio-backtest/jobs'" in template
+    assert "function pollPortfolioBacktestJob" in template
+    assert "function renderPortfolioProgress" in template
 
 
 def test_index_template_renders_phase3_portfolio_results():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
     assert 'id="portfolioResultPanel"' in template
+    assert 'id="portfolioProgressPanel"' in template
+    assert 'id="portfolioProgressBar"' in template
+    assert 'id="portfolioProgressText"' in template
     assert 'id="portfolioEquityChart"' in template
     assert 'id="portfolioPositionsTable"' in template
     assert 'id="portfolioRebalanceTable"' in template

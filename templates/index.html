@@ -733,6 +733,24 @@ SZ002241</textarea>
                             </div>
 
                             <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-stopwatch"></i> 数据源节流</summary>
+                                <div class="portfolio-factor-grid mt-2">
+                                    <div>
+                                        <label for="portfolioOhlcvBatchSize" class="form-label">批量大小</label>
+                                        <input type="number" class="form-control" id="portfolioOhlcvBatchSize" min="1" step="1" value="20">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOhlcvRequestDelay" class="form-label">请求间隔(秒)</label>
+                                        <input type="number" class="form-control" id="portfolioOhlcvRequestDelay" min="0" step="0.1" value="0">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOhlcvBatchDelay" class="form-label">批次间隔(秒)</label>
+                                        <input type="number" class="form-control" id="portfolioOhlcvBatchDelay" min="0" step="0.1" value="0">
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3">
                                 <summary><i class="fas fa-ranking-star"></i> 选股因子</summary>
                                 <div class="portfolio-factor-grid mt-2">
                                     <div>
@@ -1118,6 +1136,18 @@ SZ002241</textarea>
                                 <span id="optimizationHistoryCount" class="badge bg-light text-dark">0</span>
                             </div>
                             <div id="optimizationHistoryHost"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="portfolioProgressPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-signal"></i> 组合扫描进度
+                    </div>
+                    <div class="card-body">
+                        <div class="portfolio-status mb-2" id="portfolioProgressText">等待开始</div>
+                        <div class="progress" role="progressbar" aria-label="组合扫描进度">
+                            <div class="progress-bar bg-success" id="portfolioProgressBar" style="width: 0%">0%</div>
                         </div>
                     </div>
                 </div>
@@ -1586,6 +1616,9 @@ SZ002241</textarea>
                     symbols: mode === 'manual' ? validation.symbols : [],
                     max_symbols: 4,
                     max_scan_symbols: readNullableNumber('portfolioMaxScanSymbols'),
+                    ohlcv_batch_size: readNumber('portfolioOhlcvBatchSize', 20),
+                    ohlcv_batch_delay_seconds: readNumber('portfolioOhlcvBatchDelay', 0),
+                    ohlcv_request_delay_seconds: readNumber('portfolioOhlcvRequestDelay', 0),
                     refresh_universe: false,
                     blacklist_symbols: [],
                     whitelist_symbols: [],
@@ -2643,6 +2676,70 @@ SZ002241</textarea>
                 : '<span class="badge bg-success">风险标记: 无</span>';
         }
 
+        function portfolioProgressPercent(job) {
+            const progress = job.progress || {};
+            if (job.status === 'succeeded') {
+                return 100;
+            }
+            if (progress.total_symbols && (progress.loaded_count !== undefined || progress.failed_count !== undefined)) {
+                const completed = Number(progress.loaded_count || 0) + Number(progress.failed_count || 0);
+                return Math.max(5, Math.min(95, Math.round(completed / Number(progress.total_symbols) * 100)));
+            }
+            if (job.phase === 'scoring') {
+                return 80;
+            }
+            if (job.phase === 'backtesting') {
+                return 90;
+            }
+            return job.status === 'running' ? 12 : 3;
+        }
+
+        function renderPortfolioProgress(job) {
+            const panel = document.getElementById('portfolioProgressPanel');
+            const text = document.getElementById('portfolioProgressText');
+            const bar = document.getElementById('portfolioProgressBar');
+            const progress = job.progress || {};
+            const percent = portfolioProgressPercent(job);
+            const loadedText = progress.total_symbols
+                ? ` | ${Number(progress.loaded_count || 0) + Number(progress.failed_count || 0)}/${progress.total_symbols}`
+                : '';
+            const currentText = progress.current_symbol ? ` | 当前 ${progress.current_symbol}` : '';
+            panel.style.display = 'block';
+            text.className = `portfolio-status ${job.status === 'failed' ? 'failed' : 'succeeded'} mb-2`;
+            text.textContent = `${job.message || job.phase || '运行中'}${loadedText}${currentText}`;
+            bar.style.width = `${percent}%`;
+            bar.textContent = `${percent}%`;
+        }
+
+        async function createPortfolioBacktestJob(requestBody) {
+            const response = await fetch('/portfolio-backtest/jobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || '组合回测任务创建失败');
+            }
+            return data;
+        }
+
+        async function pollPortfolioBacktestJob(jobId) {
+            while (true) {
+                const job = await fetchJson(`/portfolio-backtest/jobs/${encodeURIComponent(jobId)}`);
+                renderPortfolioProgress(job);
+                if (job.status === 'succeeded') {
+                    return job.result;
+                }
+                if (job.status === 'failed') {
+                    throw new Error(job.error || '组合回测失败');
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
         function renderPortfolioScanDiagnostics(result) {
             const diagnostics = result.scan_diagnostics || {};
             const skipped = diagnostics.skipped_by_reason || {};
@@ -2947,22 +3044,12 @@ SZ002241</textarea>
             document.getElementById('plotContainer').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
+            document.getElementById('portfolioProgressPanel').style.display = 'block';
 
             try {
-                const response = await fetch('/portfolio-backtest', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || '组合回测失败');
-                }
-
-                const result = await response.json();
+                const job = await createPortfolioBacktestJob(requestBody);
+                renderPortfolioProgress(job);
+                const result = await pollPortfolioBacktestJob(job.job_id);
                 renderPortfolioResult(result);
                 document.getElementById('plotContainer').innerHTML = `
                     <div class="text-center text-muted py-5">

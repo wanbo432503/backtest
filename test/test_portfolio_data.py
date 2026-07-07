@@ -127,3 +127,39 @@ def test_load_portfolio_ohlcv_normalizes_timezone_aware_index(monkeypatch):
 def test_load_portfolio_ohlcv_rejects_non_daily_interval():
     with pytest.raises(ValueError, match="组合回测 MVP 仅支持日线"):
         load_portfolio_ohlcv(["SH603019"], "2025-01-01", "2025-12-31", interval="1h")
+
+
+def test_load_portfolio_ohlcv_applies_batch_rate_limits_and_reports_progress(monkeypatch):
+    fixture = build_portfolio_ohlcv_fixture(["SH600000", "SH603019", "SZ000001"])
+    fetch_calls = []
+    sleep_calls = []
+    progress_events = []
+
+    def fake_fetch(symbol, start_date, end_date, interval, provider):
+        fetch_calls.append(symbol)
+        return DataSourceResult(data=fixture[symbol], provider="fixture", warnings=[])
+
+    monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
+
+    bundle = load_portfolio_ohlcv(
+        ["SH600000", "SH603019", "SZ000001"],
+        "2025-01-01",
+        "2025-12-31",
+        batch_size=2,
+        batch_delay_seconds=0.5,
+        request_delay_seconds=0.1,
+        sleeper=sleep_calls.append,
+        progress_callback=progress_events.append,
+    )
+
+    assert fetch_calls == ["SH600000", "SH603019", "SZ000001"]
+    assert sleep_calls == [0.1, 0.5]
+    assert set(bundle.data_by_symbol) == {"SH600000", "SH603019", "SZ000001"}
+    assert progress_events[0]["phase"] == "loading_ohlcv"
+    assert progress_events[-1] == {
+        "phase": "loading_ohlcv",
+        "total_symbols": 3,
+        "loaded_count": 3,
+        "failed_count": 0,
+        "current_symbol": "SZ000001",
+    }

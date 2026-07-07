@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -28,8 +28,20 @@ class Position:
     holding_bars: int = 0
 
 
-def run_portfolio_backtest(request: PortfolioBacktestRequest) -> PortfolioBacktestResult:
-    scan_data = load_universe_scan_data(request, data_loader=load_portfolio_ohlcv)
+def run_portfolio_backtest(
+    request: PortfolioBacktestRequest,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> PortfolioBacktestResult:
+    scan_data = load_universe_scan_data(
+        request,
+        data_loader=load_portfolio_ohlcv,
+        progress_callback=progress_callback,
+    )
+    if progress_callback is not None:
+        progress_callback({
+            "phase": "backtesting",
+            "screened_count": len(scan_data.data_by_symbol),
+        })
     data_by_symbol = scan_data.data_by_symbol
     calendar = build_trading_calendar(data_by_symbol)
     rebalance_dates = set(
