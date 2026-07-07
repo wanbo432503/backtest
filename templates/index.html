@@ -557,6 +557,15 @@
             gap: 8px;
             margin-bottom: 10px;
         }
+        .portfolio-summary-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 8px;
+        }
+        .portfolio-summary-explanation {
+            white-space: pre-wrap;
+            line-height: 1.55;
+        }
         .portfolio-summary-item {
             border: 1px solid #e5e7eb;
             border-radius: 6px;
@@ -1160,6 +1169,12 @@ SZ002241</textarea>
                         <div id="portfolioSummaryContent" class="portfolio-summary-grid"></div>
                         <div id="portfolioRiskFlags" class="portfolio-badge-row"></div>
                         <div id="portfolioScanDiagnostics" class="portfolio-status mb-2"></div>
+                        <div class="portfolio-summary-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="portfolioSummaryButton" disabled>
+                                <i class="fas fa-brain"></i> 组合总结
+                            </button>
+                        </div>
+                        <div id="portfolioSummaryPanel" class="portfolio-status portfolio-summary-explanation mb-2" style="display: none;"></div>
                         <div id="portfolioEquityChart" class="portfolio-chart"></div>
 
                         <ul class="nav nav-tabs nav-fill mb-2" id="portfolioResultTabs" role="tablist">
@@ -1414,6 +1429,7 @@ SZ002241</textarea>
         const TRADINGAGENTS_API_KEY_MASK = '********';
         let tradingAgentsApiKeyMasked = false;
         let tradingAgentsApiKeyVisible = false;
+        let latestPortfolioResult = null;
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -2867,8 +2883,82 @@ SZ002241</textarea>
             `;
         }
 
+        function getLatestSelectedPortfolioSymbols(result) {
+            const diagnostics = result.scan_diagnostics || {};
+            const diagnosticsSymbols = Array.isArray(diagnostics.selected_symbols) ? diagnostics.selected_symbols : [];
+            const rebalanceEvents = Array.isArray(result.rebalance_events) ? result.rebalance_events : [];
+            const latestRebalance = rebalanceEvents.length ? rebalanceEvents[rebalanceEvents.length - 1] : {};
+            const rebalanceSymbols = Array.isArray(latestRebalance.selected_symbols) ? latestRebalance.selected_symbols : [];
+            const positionSymbols = (result.positions || []).map(position => position.symbol);
+            const merged = [...diagnosticsSymbols, ...rebalanceSymbols, ...positionSymbols]
+                .map(normalizePortfolioSymbol)
+                .filter(isPortfolioTradableSymbol);
+            return Array.from(new Set(merged));
+        }
+
+        function collectPortfolioSummaryPayload(result = latestPortfolioResult) {
+            if (!result) {
+                throw new Error('请先完成一次组合回测');
+            }
+            const selectedSymbols = getLatestSelectedPortfolioSymbols(result);
+            if (!selectedSymbols.length) {
+                throw new Error('组合回测结果中没有可总结的 60/00 股票');
+            }
+            return {
+                selected_symbols: selectedSymbols,
+                summary_metrics: result.summary || {},
+                latest_candidate_rankings: (result.candidate_rankings || []).slice(-20),
+                risk_flags: result.risk_flags || [],
+                scan_diagnostics: result.scan_diagnostics || {}
+            };
+        }
+
+        function renderPortfolioSummaryExplanation(data) {
+            const panel = document.getElementById('portfolioSummaryPanel');
+            const warnings = data.warnings || [];
+            const warningHtml = warnings.length
+                ? `<div class="mt-2 text-muted">${warnings.map(escapeHtml).join('；')}</div>`
+                : '';
+            panel.style.display = 'block';
+            panel.className = 'portfolio-status succeeded portfolio-summary-explanation mb-2';
+            panel.innerHTML = `${escapeHtml(data.summary_text || '暂无组合总结')}${warningHtml}`;
+        }
+
+        async function runPortfolioSummary() {
+            const button = document.getElementById('portfolioSummaryButton');
+            const panel = document.getElementById('portfolioSummaryPanel');
+            let payload;
+            try {
+                payload = collectPortfolioSummaryPayload();
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+
+            button.disabled = true;
+            panel.style.display = 'block';
+            panel.className = 'portfolio-status portfolio-summary-explanation mb-2';
+            panel.textContent = '正在生成组合总结...';
+
+            try {
+                const data = await fetchJson('/tradingagents/portfolio-summary', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                renderPortfolioSummaryExplanation(data);
+            } catch (error) {
+                panel.className = 'portfolio-status failed portfolio-summary-explanation mb-2';
+                panel.textContent = formatTradingAgentsRequestError(error, '组合总结');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         function renderPortfolioResult(result) {
+            latestPortfolioResult = result;
             document.getElementById('portfolioResultPanel').style.display = 'block';
+            document.getElementById('portfolioSummaryButton').disabled = false;
+            document.getElementById('portfolioSummaryPanel').style.display = 'none';
             renderPortfolioSummary(result);
             renderPortfolioScanDiagnostics(result);
             renderPortfolioEquityCurve(result.equity_curve || []);
@@ -2994,6 +3084,7 @@ SZ002241</textarea>
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
+            document.getElementById('portfolioSummaryButton').addEventListener('click', runPortfolioSummary);
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
             document.getElementById('taApiKey').addEventListener('focus', clearMaskedTradingAgentsApiKeyForEdit);
             document.getElementById('taToggleApiKeyButton').addEventListener('click', toggleTradingAgentsApiKeyVisibility);
@@ -3045,6 +3136,9 @@ SZ002241</textarea>
             document.getElementById('statsContainer').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
             document.getElementById('portfolioProgressPanel').style.display = 'block';
+            latestPortfolioResult = null;
+            document.getElementById('portfolioSummaryButton').disabled = true;
+            document.getElementById('portfolioSummaryPanel').style.display = 'none';
 
             try {
                 const job = await createPortfolioBacktestJob(requestBody);

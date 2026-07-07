@@ -6,6 +6,7 @@ from tradingagents_models import (
     TradingAgentsConfigResponse,
     TradingAgentsConfigTestResponse,
     TradingAgentsConfigView,
+    TradingAgentsPortfolioSummaryResponse,
     TradingAgentsReports,
 )
 
@@ -135,3 +136,50 @@ def test_post_tradingagents_analysis_returns_reports(monkeypatch):
     body = response.json()
     assert body["tradingagents_ticker"] == "002241.SZ"
     assert body["reports"]["market_report"] == "market"
+
+
+def test_post_tradingagents_portfolio_summary_returns_explanation(monkeypatch):
+    captured = {}
+
+    def fake_summary(payload):
+        captured["payload"] = payload
+        return TradingAgentsPortfolioSummaryResponse(
+            summary_text="组合总结",
+            elapsed_seconds=0.1,
+            warnings=["AI summary is explanatory only and is not used by backtest metrics."],
+        )
+
+    monkeypatch.setattr(main, "run_tradingagents_portfolio_summary", fake_summary, raising=False)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/tradingagents/portfolio-summary",
+        json={
+            "selected_symbols": ["SH603019", "SZ002241"],
+            "summary_metrics": {"final_equity": 101000},
+            "latest_candidate_rankings": [{"symbol": "SH603019", "score": 0.9}],
+            "risk_flags": ["high_drawdown"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary_text"] == "组合总结"
+    assert "api_key" not in body
+    assert captured["payload"].selected_symbols == ["SH603019", "SZ002241"]
+
+
+def test_post_tradingagents_portfolio_summary_rejects_invalid_symbol():
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/tradingagents/portfolio-summary",
+        json={
+            "selected_symbols": ["SZ300750"],
+            "summary_metrics": {},
+            "latest_candidate_rankings": [],
+            "risk_flags": [],
+        },
+    )
+
+    assert response.status_code == 400

@@ -730,24 +730,26 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 - Modify: `main.py`
 - Modify: `templates/index.html`
 - Test: `test/test_tradingagents_api.py`
+- Test: `test/test_tradingagents_adapter.py`
+- Test: `test/test_index_template.py`
 
 **Todo:**
 
-- [ ] Keep existing single-symbol TradingAgents analysis unchanged.
-- [ ] Add portfolio summary request model accepting selected symbols, summary metrics, latest candidate rankings, and top risk flags.
-- [ ] Add `POST /tradingagents/portfolio-summary` with deterministic prompt construction from backtest output.
-- [ ] Never send or return API key values in this response.
-- [ ] Add frontend “组合总结” button after a successful portfolio backtest.
-- [ ] Store AI response as explanation text only; never feed it back into current backtest metrics.
-- [ ] Add tests for request validation and secret masking.
+- [x] Keep existing single-symbol TradingAgents analysis unchanged.
+- [x] Add portfolio summary request model accepting selected symbols, summary metrics, latest candidate rankings, and top risk flags.
+- [x] Add `POST /tradingagents/portfolio-summary` with deterministic prompt construction from backtest output.
+- [x] Never send or return API key values in this response.
+- [x] Add frontend “组合总结” button after a successful portfolio backtest.
+- [x] Store AI response as explanation text only; never feed it back into current backtest metrics.
+- [x] Add tests for request validation and secret masking.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_tradingagents_api.py -q`.
+- [x] Run `python -m pytest test/test_tradingagents_adapter.py test/test_tradingagents_api.py test/test_index_template.py -q`.
 
 **Done when:**
 
-- [ ] AI can explain a completed backtest, but disabling AI leaves the prototype fully functional.
+- [x] AI can explain a completed backtest, but disabling AI leaves the prototype fully functional.
 
 ## 7. Frontend interaction design
 

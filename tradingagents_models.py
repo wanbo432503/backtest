@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from tradable_universe import TradableUniversePolicy, validate_universe
+
 
 ALLOWED_TRADINGAGENTS_PROVIDER = "openai_compatible"
 ALLOWED_ANALYSTS = {"market", "social", "news", "fundamentals"}
@@ -112,6 +114,26 @@ class TradingAgentsAnalysisRequest(BaseModel):
         return value
 
 
+class TradingAgentsPortfolioSummaryRequest(BaseModel):
+    selected_symbols: list[str]
+    summary_metrics: dict[str, Any] = Field(default_factory=dict)
+    latest_candidate_rankings: list[dict[str, Any]] = Field(default_factory=list)
+    risk_flags: list[str] = Field(default_factory=list)
+    scan_diagnostics: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("selected_symbols")
+    @classmethod
+    def validate_selected_symbols(cls, value: list[str]) -> list[str]:
+        result = validate_universe(value, policy=TradableUniversePolicy(max_symbols=4))
+        if not result.accepted_symbols:
+            raise ValueError("selected_symbols must contain at least one 60/00 stock")
+        if not result.ok:
+            reasons = [row.reason for row in result.rejected if row.reason]
+            reason_text = ", ".join(reasons) if reasons else "invalid_selected_symbols"
+            raise ValueError(f"selected_symbols invalid: {reason_text}")
+        return result.accepted_symbols
+
+
 class TradingAgentsReports(BaseModel):
     market_report: str | None = None
     sentiment_report: str | None = None
@@ -130,4 +152,11 @@ class TradingAgentsAnalysisResponse(BaseModel):
     analysis_date: str
     elapsed_seconds: float
     reports: TradingAgentsReports
+    warnings: list[str] = Field(default_factory=list)
+
+
+class TradingAgentsPortfolioSummaryResponse(BaseModel):
+    status: str = "succeeded"
+    summary_text: str
+    elapsed_seconds: float
     warnings: list[str] = Field(default_factory=list)

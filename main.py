@@ -22,14 +22,22 @@ from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
 from universe_scan_runner import run_universe_scan
-from tradingagents_adapter import TradingAgentsAdapterError, run_tradingagents_analysis
+from tradingagents_adapter import (
+    TradingAgentsAdapterError,
+    run_tradingagents_analysis,
+    run_tradingagents_portfolio_summary,
+)
 from tradingagents_config import (
     get_config_api_key as get_tradingagents_config_api_key,
     get_config_view as get_tradingagents_config_view,
     test_config as test_tradingagents_config,
     update_config as update_tradingagents_config,
 )
-from tradingagents_models import TradingAgentsAnalysisRequest, TradingAgentsConfigUpdate
+from tradingagents_models import (
+    TradingAgentsAnalysisRequest,
+    TradingAgentsConfigUpdate,
+    TradingAgentsPortfolioSummaryRequest,
+)
 from tradable_universe import validate_universe
 
 warnings.filterwarnings('ignore')
@@ -466,6 +474,23 @@ async def run_tradingagents_analysis_endpoint(payload: TradingAgentsAnalysisRequ
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TradingAgents 分析失败: {str(e)}")
+
+
+@app.post("/tradingagents/portfolio-summary")
+async def run_tradingagents_portfolio_summary_endpoint(payload: dict):
+    try:
+        request = TradingAgentsPortfolioSummaryRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        return await run_in_threadpool(run_tradingagents_portfolio_summary, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except TradingAgentsAdapterError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TradingAgents 组合总结失败: {str(e)}")
 
 
 if __name__ == "__main__":

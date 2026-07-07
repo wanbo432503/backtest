@@ -4,10 +4,12 @@ from pathlib import Path
 import tradingagents_adapter
 from tradingagents_adapter import (
     TradingAgentsAdapterError,
+    build_portfolio_summary_prompt,
     build_run_config,
     extract_reports,
     load_tradingagents_env,
     normalize_a_share_symbol,
+    run_tradingagents_portfolio_summary,
     run_tradingagents_analysis,
     sanitize_error_message,
     temporary_environ,
@@ -15,7 +17,7 @@ from tradingagents_adapter import (
     to_tradingagents_ticker,
     validate_analysts,
 )
-from tradingagents_models import TradingAgentsAnalysisRequest
+from tradingagents_models import TradingAgentsAnalysisRequest, TradingAgentsPortfolioSummaryRequest
 
 
 @pytest.mark.parametrize(
@@ -260,6 +262,78 @@ def test_run_tradingagents_analysis_uses_fake_graph(tmp_path):
     assert response.reports.trader_plan == "trader"
     assert response.reports.portfolio_decision == "portfolio"
     assert response.elapsed_seconds >= 0
+
+
+def test_build_portfolio_summary_prompt_is_deterministic_and_explanation_only():
+    request = TradingAgentsPortfolioSummaryRequest(
+        selected_symbols=["SH603019", "SZ002241"],
+        summary_metrics={"final_equity": 101000, "max_drawdown_pct": -8.2},
+        latest_candidate_rankings=[
+            {"symbol": "SH603019", "score": 0.91, "momentum": 0.2},
+            {"symbol": "SZ002241", "score": 0.73, "momentum": 0.1},
+        ],
+        risk_flags=["high_drawdown"],
+    )
+
+    prompt = build_portfolio_summary_prompt(request)
+
+    assert "SH603019" in prompt
+    assert "SZ002241" in prompt
+    assert "high_drawdown" in prompt
+    assert "解释" in prompt
+    assert "不要改写" in prompt
+
+
+def test_run_portfolio_summary_uses_completion_client_and_masks_secret(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TRADINGAGENTS_LLM_BACKEND_URL=http://localhost:1234/v1\n"
+        "TRADINGAGENTS_DEEP_THINK_LLM=deep\n"
+        "OPENAI_COMPATIBLE_API_KEY=secret-token\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fake_client(prompt, env_values):
+        captured["prompt"] = prompt
+        captured["api_key"] = env_values.get("OPENAI_COMPATIBLE_API_KEY")
+        return "组合解释文本"
+
+    response = run_tradingagents_portfolio_summary(
+        TradingAgentsPortfolioSummaryRequest(
+            selected_symbols=["SH603019"],
+            summary_metrics={"final_equity": 101000},
+            latest_candidate_rankings=[],
+            risk_flags=[],
+        ),
+        env_path=env_path,
+        completion_client=fake_client,
+    )
+
+    assert captured["api_key"] == "secret-token"
+    assert "secret-token" not in response.model_dump_json()
+    assert response.summary_text == "组合解释文本"
+    assert response.warnings == ["AI summary is explanatory only and is not used by backtest metrics."]
+
+
+def test_run_portfolio_summary_sanitizes_client_errors(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("OPENAI_COMPATIBLE_API_KEY=secret-token\n", encoding="utf-8")
+
+    def broken_client(prompt, env_values):
+        raise RuntimeError("backend leaked secret-token")
+
+    with pytest.raises(TradingAgentsAdapterError, match="<redacted>"):
+        run_tradingagents_portfolio_summary(
+            TradingAgentsPortfolioSummaryRequest(
+                selected_symbols=["SH603019"],
+                summary_metrics={},
+                latest_candidate_rankings=[],
+                risk_flags=[],
+            ),
+            env_path=env_path,
+            completion_client=broken_client,
+        )
 
 
 def test_run_tradingagents_analysis_accepts_tradingagents_tuple_result(tmp_path):

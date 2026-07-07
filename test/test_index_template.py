@@ -103,6 +103,12 @@ def test_index_template_renders_phase3_portfolio_results():
     assert "scan_diagnostics" in template
     assert 'id="portfolioScanDiagnostics"' in template
     assert "function renderPortfolioScanDiagnostics" in template
+    assert 'id="portfolioSummaryButton"' in template
+    assert 'id="portfolioSummaryPanel"' in template
+    assert "function collectPortfolioSummaryPayload" in template
+    assert "function runPortfolioSummary" in template
+    assert "function renderPortfolioSummaryExplanation" in template
+    assert "fetchJson('/tradingagents/portfolio-summary'" in template
     assert "risk_flags" in template
     assert "syncTradingAgentsSymbol" in template
 
@@ -292,6 +298,7 @@ def test_index_template_connects_tradingagents_panel_to_api():
     assert "fetchJson('/tradingagents/config'," in template
     assert "fetchJson('/tradingagents/config/test'" in template
     assert "fetchJson('/tradingagents/analysis'" in template
+    assert "fetchJson('/tradingagents/portfolio-summary'" in template
     assert "loadTradingAgentsConfig();" in template
     assert "addEventListener('click', toggleTradingAgentsApiKeyVisibility)" in template
     assert "addEventListener('click', saveTradingAgentsConfig)" in template
