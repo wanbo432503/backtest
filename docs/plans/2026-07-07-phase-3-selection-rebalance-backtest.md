@@ -6,6 +6,8 @@
 
 **Architecture:** 保留现有 FastAPI + Bootstrap 单页应用、`market_data.fetch_ohlcv(...)` 免费数据源入口、`analytics` 评分口径和 TradingAgents 智能分析面板。新增独立的组合回测薄层：股票池校验、因子计算、选股打分、调仓日历、组合成交模拟、结果汇总。不要把多标的组合逻辑塞进现有 `backtesting.py` 单标的 runner。
 
+**Scope correction, 2026-07-07:** Phase 3.0 的真实选股目标不是让用户手工维护 1-4 只候选股票，而是系统默认维护所有符合账户权限的 `60` / `00` 开头普通股票池，再从大量股票中筛选出小于 5 只的调仓/投资组合。当前已完成的 Tasks 0-10 只是“小候选池组合轮动原型”；它不满足“全量 60/00 股票池自动选股”的目标。该缺口已在 Task 10.5 标注为未完成。
+
 **Tech Stack:** FastAPI, Pydantic, pandas, numpy, mootdx/yfinance, Bootstrap, pytest, optional TradingAgents/LLM analysis snapshots.
 
 ---
@@ -24,7 +26,7 @@
 1. **选股优先，交易规则简单。** 默认流程是“按因子打分选出 Top N，然后等权买入/调仓”，而不是为每只股票单独优化复杂策略。
 2. **中低频、耐心持有。** 默认周期使用日线，调仓频率为每周、每两周或每月；分钟级和高频不进入 Phase 3.0。
 3. **账户权限是硬约束。** 默认只允许代码以 `60` 或 `00` 开头的沪深股票；排除创业板、科创板、北交所、基金/ETF/LOF。
-4. **免费数据源优先可复现。** MVP 支持用户维护的极小股票池，默认上限 4 只；不承诺全 A 5000 只每日稳定扫描。
+4. **免费数据源优先可复现。** Phase 3.0 的目标股票池应默认覆盖全部 `60` / `00` 开头普通股票；当前原型仅支持用户维护的小候选池，这部分是未完成缺口。
 5. **AI 做增强，不做不可复现的黑盒核心。** AI 可解释候选股票、生成研究摘要、离线写入 AI 因子快照；组合回测默认只依赖可复算的价格/成交量因子。
 6. **风险胜过漂亮收益。** 所有结果必须展示验证分、回撤、换手、持仓集中度、交易次数、数据缺口和风险标记。
 
@@ -33,7 +35,9 @@
 ### 3.1 本期目标
 
 - 新增“选股组合回测”主流程：
-  - 输入股票池。
+  - 默认股票池为全部符合账户权限的 `60` / `00` 开头普通股票。
+  - 允许用户追加黑名单、白名单或小范围诊断池，但这不能替代默认全量池。
+  - 从全量池预筛并排序。
   - 过滤不可交易标的。
   - 按技术/流动性/风险因子评分。
   - 每个调仓日选 Top N。
@@ -55,14 +59,34 @@
 - 不做高频、盘口、做市、统计套利。
 - 不做融资融券、做空、T+0、期货、基金、ETF、港股、美股、加密货币。
 - 不做行业中性、指数增强、多因子回归、协方差矩阵优化、Barra 风险模型。
-- 不做全市场 5000 只 A 股稳定扫描，除非后续有可靠证券列表和批量数据源。
+- 不做科创板、创业板、北交所、基金/ETF 等全 A 5000 只无差别扫描；但 `60` / `00` 普通股票全量池扫描是 Phase 3.0 目标，当前未完成。
 - 不让 LLM 每次回测动态决定买卖，否则结果无法稳定复现。
 
 ## 4. 推荐方案
 
-### 4.1 推荐选项: 极小股票池的中低频 Alpha 组合回测
+### 4.1 Corrected target: 全量 60/00 股票池的中低频 Alpha 组合回测
+
+**Approach:** 系统默认维护所有 `60` / `00` 开头普通股票，按数据可得性、流动性、历史长度、趋势/动量/波动等条件预筛，再从大股票池中排序选出小于 5 只的最终组合，并按周、双周或月度调仓。
+
+**Status:** 未完成。当前实现只覆盖小候选池轮动，尚未实现全量股票池发现、批量数据加载、预筛、分批扫描、缓存和进度反馈。
+
+**Pros:**
+
+- 符合“从大量股票中找到适合调仓或投资组合”的真实目标。
+- 最终持仓仍能保持小于 5 只，适合人工跟踪。
+- 后续可以接入 AI 摘要、基本面快照和人工复核，而不破坏可复现回测。
+
+**Risks:**
+
+- 免费数据源的稳定性、速度和数据质量会成为瓶颈。
+- 需要证券列表、缓存、失败重试、数据缺口标记和扫描进度管理。
+- 需要清晰区分“股票池扫描结果”和“最终持仓组合”。
+
+### 4.2 Implemented interim prototype: 极小候选池的中低频 Alpha 组合回测
 
 **Approach:** 用户维护 2 到 4 只候选股票，系统只接受 `60` / `00` 开头股票，用可复算因子打分，每周或每月选 Top N 并等权调仓。
+
+**Status:** 已完成为原型，但不代表 Phase 3.0 全量选股目标完成。
 
 **Pros:**
 
@@ -77,13 +101,13 @@
 - 选股质量受候选股票池质量限制。
 - 免费数据源无法稳定覆盖停牌、复权、ST、指数成分变动等细节。
 
-### 4.2 暂缓选项: 全 A 扫描式量化选股
+### 4.3 暂缓选项: 全 A 5000 只无差别扫描式量化选股
 
 **Approach:** 每天扫描全市场，按多因子排序选 Top N。
 
-**Why not now:** 需要可靠证券列表、复权数据、财务因子、行业分类、停复牌、退市、ST 状态和批量抓取稳定性。以当前 mootdx/yfinance 免费数据源直接做，容易把数据缺口误当 Alpha。
+**Why not now:** Phase 3.0 只要求符合账户权限的 `60` / `00` 普通股票池，不要求覆盖科创板、创业板、北交所、基金/ETF 等全市场对象。完整全 A 5000 只还需要更可靠的证券列表、复权数据、财务因子、行业分类、停复牌、退市、ST 状态和批量抓取稳定性。
 
-### 4.3 暂缓选项: 复杂组合优化
+### 4.4 暂缓选项: 复杂组合优化
 
 **Approach:** 用风险模型、协方差矩阵、行业约束、权重优化决定每只股票仓位。
 
@@ -159,7 +183,7 @@ Response models should include:
 
 ## 6. Prototype implementation tasks
 
-The implementation must produce a usable end-to-end prototype, not only backend modules. Tasks 0-10 are required for the Phase 3.0 prototype. Task 11 is optional AI polish and must not block the deterministic prototype.
+The implementation must produce a usable end-to-end prototype, not only backend modules. Tasks 0-10 delivered the small-candidate-pool prototype only. Task 10.5 is required for the corrected Phase 3.0 full-universe stock-selection goal and is not complete. Task 11 is optional AI polish and must not block the deterministic prototype.
 
 ### Task 0: Prototype contract and fixture data
 
@@ -628,6 +652,67 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 - [x] The Phase 3.0 prototype is usable from the browser, and backend tests prove the deterministic engine works without live data.
 
+### Task 10.5: Full 60/00 universe stock-selection engine
+
+**Purpose:** Correct Phase 3.0 from “user-maintained tiny candidate pool” to “system-maintained full tradable 60/00 universe, then select a small final portfolio”.
+
+**Status:** Not complete. This is the missing stock-selection function required by the corrected Phase 3.0 goal.
+
+**Files:**
+
+- Create: `stock_universe_provider.py`
+- Create: `universe_scan_runner.py`
+- Modify: `portfolio_models.py`
+- Modify: `portfolio_data.py`
+- Modify: `portfolio_backtest_runner.py`
+- Modify: `main.py`
+- Modify: `templates/index.html`
+- Test: `test/test_stock_universe_provider.py`
+- Test: `test/test_universe_scan_runner.py`
+- Test: `test/test_portfolio_api.py`
+- Test: `test/test_index_template.py`
+
+**Backend todo:**
+
+- [ ] Add a provider that builds the default tradable universe from all ordinary `60` / `00` A-share symbols available from free sources or local cache.
+- [ ] Persist/cache the discovered universe with symbol, name, exchange, code prefix, status, source, and refresh timestamp.
+- [ ] Exclude 科创板, 创业板, 北交所, funds, ETF/LOF and unsupported prefixes before any scan.
+- [ ] Add configurable prefilters: minimum history bars, minimum average turnover, minimum average volume, optional price range, optional recent suspension/data-gap filter.
+- [ ] Add batch OHLCV loading with concurrency/rate limits suitable for free data sources.
+- [ ] Add scan progress and partial failure accounting so one bad symbol does not abort the whole universe scan.
+- [ ] Compute factor scores across the screened universe on each rebalance date.
+- [ ] Select final Top N holdings where Top N remains limited to fewer than 5 stocks.
+- [ ] Return scan diagnostics: total universe size, screened count, scored count, skipped count by reason, data source failures.
+- [ ] Keep the small manual candidate pool as a diagnostic override, not the default Phase 3.0 path.
+
+**Frontend todo:**
+
+- [ ] Replace the default stock-pool textarea mode with “自动扫描 60/00 股票池”.
+- [ ] Keep manual symbol input only as an advanced diagnostic override.
+- [ ] Add scan filters: min turnover, min history bars, max symbols to scan/debug limit, final holding count.
+- [ ] Add progress/status UI for universe size, loaded symbols, scored symbols, skipped symbols and current phase.
+- [ ] Show prefilter and skip-reason breakdown before final candidate ranking.
+- [ ] Label final holdings separately from the broader scanned candidate universe.
+
+**Test todo:**
+
+- [ ] Test universe provider returns only normalized `SH60xxxx` and `SZ00xxxx` symbols.
+- [ ] Test blocked boards and fund/ETF prefixes are excluded from the default universe.
+- [ ] Test scan runner handles partial data failures and still returns ranked candidates.
+- [ ] Test final holdings stay below 5 symbols even when universe contains many symbols.
+- [ ] Test API response includes scan diagnostics.
+- [ ] Test frontend defaults to automatic universe scan rather than requiring user-entered candidate symbols.
+
+**Verification:**
+
+- [ ] `python -m pytest test/test_stock_universe_provider.py test/test_universe_scan_runner.py -q`
+- [ ] `python -m pytest test/test_portfolio_api.py test/test_index_template.py -q`
+- [ ] Run a browser smoke test where the user does not type any candidate symbols and still gets a selected portfolio.
+
+**Done when:**
+
+- [ ] A user can run Phase 3.0 without hand-entering candidate stocks, and the system scans the default `60` / `00` universe to produce a final portfolio of fewer than 5 stocks.
+
 ### Task 11: AI-assisted portfolio summary hook
 
 **Purpose:** Add AI explanation only after the deterministic prototype is usable. This task must not block the prototype.
@@ -665,11 +750,13 @@ The first screen should be the portfolio workbench, not a landing page.
 Left panel:
 
 - 股票池:
-  - multiline input and chips.
-  - hard cap at 4 symbols.
+  - default mode: automatic scan of all tradable `60` / `00` ordinary A-share symbols.
+  - advanced diagnostic mode: optional manual multiline input/chips for small candidate-pool experiments.
+  - final holdings remain capped below 5 symbols.
   - only `60` / `00` prefixes accepted.
-  - search by code/name.
-  - validation summary: allowed, blocked, missing data.
+  - search by code/name can add to diagnostic override, not replace the default universe.
+  - validation summary: universe size, allowed, blocked, skipped, missing data.
+  - scan progress: discovered, loaded, screened, scored, selected.
 - 选股 Alpha:
   - momentum, volatility, liquidity, trend weights.
   - lookback periods.
