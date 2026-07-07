@@ -14,6 +14,8 @@ import json
 import requests
 from typing import List, Dict, Tuple, Optional
 
+from tradable_universe import validate_tradable_symbol
+
 # 尝试导入模糊匹配库
 try:
     from fuzzywuzzy import fuzz
@@ -433,7 +435,12 @@ class StockSearcher:
         
         return symbol, market
     
-    def search_by_name(self, query: str, market: Optional[str] = None) -> List[Dict]:
+    def search_by_name(
+        self,
+        query: str,
+        market: Optional[str] = None,
+        portfolio_mode: bool = False,
+    ) -> List[Dict]:
         """
         通过公司名字搜索股票（支持多个市场）
         
@@ -505,7 +512,7 @@ class StockSearcher:
                 if result['symbol'] not in seen_symbols:
                     unique_results.append(result)
                     seen_symbols.add(result['symbol'])
-            return unique_results
+            return _annotate_portfolio_tradability(unique_results) if portfolio_mode else unique_results
         
         # 4. 使用模糊匹配（仅限 A 股本地映射表）
         if not market or market == MARKET_CN:
@@ -555,7 +562,7 @@ class StockSearcher:
                         'confidence': int(score)
                     })
         
-        return results
+        return _annotate_portfolio_tradability(results) if portfolio_mode else results
     
     def _get_country_by_market(self, market: str) -> str:
         """根据市场获取国家代码"""
@@ -566,10 +573,26 @@ class StockSearcher:
         }
         return market_to_country.get(market, "Unknown")
     
-def search_stocks(query: str, market: Optional[str] = None) -> List[Dict]:
+def _annotate_portfolio_tradability(results: List[Dict]) -> List[Dict]:
+    annotated = []
+    for result in results:
+        validation = validate_tradable_symbol(result.get("symbol", ""))
+        annotated.append({
+            **result,
+            "tradable": validation.ok,
+            "tradable_reason": validation.reason,
+        })
+    return annotated
+
+
+def search_stocks(
+    query: str,
+    market: Optional[str] = None,
+    portfolio_mode: bool = False,
+) -> List[Dict]:
     """便利函数 - 搜索 A 股"""
     searcher = StockSearcher()
-    return searcher.search_by_name(query, market)
+    return searcher.search_by_name(query, market, portfolio_mode=portfolio_mode)
 
 def search_us_stocks(query: str) -> List[Dict]:
     """兼容旧接口：当前不再支持美股搜索。"""
