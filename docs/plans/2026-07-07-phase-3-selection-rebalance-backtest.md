@@ -506,40 +506,40 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Frontend todo:**
 
-- [ ] Rename the primary left card header to “组合选股回测”.
-- [ ] Add `<form id="portfolioBacktestForm">` as the primary form.
-- [ ] Add stock-pool textarea or chip editor with default `SH603019`, `SZ002241`.
-- [ ] Add “加入股票池” action from search results.
-- [ ] Add client-side validation for max 4 symbols.
-- [ ] Add client-side validation for `60` / `00` prefix before API call.
-- [ ] Add inline validation summary with accepted/rejected symbols.
-- [ ] Add factor controls: momentum lookback, volatility lookback, liquidity lookback, factor weights.
-- [ ] Add selection controls: Top N, min history bars, score threshold.
-- [ ] Add rebalance controls: weekly, biweekly, monthly.
-- [ ] Add portfolio controls: initial cash, max single position, target exposure, cash buffer.
-- [ ] Reuse existing A-share rule controls where possible: T+1, limit filter, lot size, slippage, fees.
-- [ ] Move existing single-stock strategy form into a collapsed “单股诊断” panel or secondary tab.
-- [ ] Change primary submit button text to “开始组合回测”.
-- [ ] Build `collectPortfolioRequest()` that matches `PortfolioBacktestRequest`.
-- [ ] Submit to `/portfolio-backtest`.
-- [ ] Keep existing TradingAgents panel and config behavior intact.
+- [x] Rename the primary left card header to “组合选股回测”.
+- [x] Add `<form id="portfolioBacktestForm">` as the primary form.
+- [x] Add stock-pool textarea or chip editor with default `SH603019`, `SZ002241`.
+- [x] Add “加入股票池” action from search results.
+- [x] Add client-side validation for max 4 symbols.
+- [x] Add client-side validation for `60` / `00` prefix before API call.
+- [x] Add inline validation summary with accepted/rejected symbols.
+- [x] Add factor controls: momentum lookback, volatility lookback, liquidity lookback, factor weights.
+- [x] Add selection controls: Top N, min history bars, score threshold.
+- [x] Add rebalance controls: weekly, biweekly, monthly.
+- [x] Add portfolio controls: initial cash, max single position, target exposure, cash buffer.
+- [x] Reuse existing A-share rule controls where possible: T+1, limit filter, lot size, slippage, fees.
+- [x] Move existing single-stock strategy form into a collapsed “单股诊断” panel or secondary tab.
+- [x] Change primary submit button text to “开始组合回测”.
+- [x] Build `collectPortfolioRequest()` that matches `PortfolioBacktestRequest`.
+- [x] Submit to `/portfolio-backtest`.
+- [x] Keep existing TradingAgents panel and config behavior intact.
 
 **Test todo:**
 
-- [ ] Assert template contains `portfolioBacktestForm`.
-- [ ] Assert template contains stock pool input.
-- [ ] Assert template contains `collectPortfolioRequest`.
-- [ ] Assert template contains `/portfolio-backtest`.
-- [ ] Assert template still contains single-stock form or diagnostic section.
-- [ ] Assert template still contains TradingAgents controls.
+- [x] Assert template contains `portfolioBacktestForm`.
+- [x] Assert template contains stock pool input.
+- [x] Assert template contains `collectPortfolioRequest`.
+- [x] Assert template contains `/portfolio-backtest`.
+- [x] Assert template still contains single-stock form or diagnostic section.
+- [x] Assert template still contains TradingAgents controls.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_index_template.py -q`.
+- [x] Run `python -m pytest test/test_index_template.py -q`.
 
 **Done when:**
 
-- [ ] The first screen lets a user configure and submit a portfolio backtest request without editing JSON manually.
+- [x] The first screen lets a user configure and submit a portfolio backtest request without editing JSON manually.
 
 ### Task 9: Frontend result rendering
 
@@ -552,45 +552,45 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Frontend todo:**
 
-- [ ] Add `renderPortfolioResult(result)`.
-- [ ] Add summary metric strip: final equity, total return, annual return, max drawdown, sharpe, turnover.
-- [ ] Add equity curve rendering. MVP may use inline SVG; no heavy chart dependency required.
-- [ ] Add risk flag badges.
-- [ ] Add data warning panel.
-- [ ] Add Bootstrap tabs for:
-  - [ ] 持仓
-  - [ ] 调仓记录
-  - [ ] 候选排名
-  - [ ] 成交记录
-  - [ ] 数据质量
-- [ ] Render final/current holdings table from `positions`.
-- [ ] Render `rebalance_events` with selected symbols and skipped trade reasons.
-- [ ] Render `candidate_rankings` with score and factor components.
-- [ ] Render `trades` with side, shares, price, amount, cost, reason.
-- [ ] Add click action on candidate/holding symbol to sync `taSymbol`.
-- [ ] Add empty states for no trades, no warnings, no rankings.
-- [ ] Ensure long tables use horizontal scrolling and do not break the three-column layout.
-- [ ] Update loading/error text to mention portfolio backtest.
+- [x] Add `renderPortfolioResult(result)`.
+- [x] Add summary metric strip: final equity, total return, annual return, max drawdown, sharpe, turnover.
+- [x] Add equity curve rendering. MVP may use inline SVG; no heavy chart dependency required.
+- [x] Add risk flag badges.
+- [x] Add data warning panel.
+- [x] Add Bootstrap tabs for:
+  - [x] 持仓
+  - [x] 调仓记录
+  - [x] 候选排名
+  - [x] 成交记录
+  - [x] 数据质量
+- [x] Render final/current holdings table from `positions`.
+- [x] Render `rebalance_events` with selected symbols and skipped trade reasons.
+- [x] Render `candidate_rankings` with score and factor components.
+- [x] Render `trades` with side, shares, price, amount, cost, reason.
+- [x] Add click action on candidate/holding symbol to sync `taSymbol`.
+- [x] Add empty states for no trades, no warnings, no rankings.
+- [x] Ensure long tables use horizontal scrolling and do not break the three-column layout.
+- [x] Update loading/error text to mention portfolio backtest.
 
 **Test todo:**
 
-- [ ] Assert template contains `renderPortfolioResult`.
-- [ ] Assert template contains result tab IDs or labels.
-- [ ] Assert template contains `candidate_rankings`, `rebalance_events`, and `trades` render references.
-- [ ] Assert template contains TradingAgents sync action from result rows.
+- [x] Assert template contains `renderPortfolioResult`.
+- [x] Assert template contains result tab IDs or labels.
+- [x] Assert template contains `candidate_rankings`, `rebalance_events`, and `trades` render references.
+- [x] Assert template contains TradingAgents sync action from result rows.
 
 **Manual verification todo:**
 
-- [ ] Start server.
-- [ ] Run demo pool `SH603019`, `SZ002241`.
-- [ ] Confirm visible summary metrics.
-- [ ] Confirm equity curve appears.
-- [ ] Confirm holdings/rebalance/candidate/trade tabs render.
-- [ ] Confirm clicking a symbol syncs the right-side AI analysis symbol.
+- [x] Start server.
+- [x] Run demo pool `SH603019`, `SZ002241`.
+- [x] Confirm visible summary metrics.
+- [x] Confirm equity curve appears.
+- [x] Confirm holdings/rebalance/candidate/trade tabs render.
+- [x] Confirm clicking a symbol syncs the right-side AI analysis symbol.
 
 **Done when:**
 
-- [ ] A browser user can run a portfolio backtest and understand what was bought, sold, selected, skipped, and why.
+- [x] A browser user can run a portfolio backtest and understand what was bought, sold, selected, skipped, and why.
 
 ### Task 10: End-to-end prototype hardening
 
@@ -604,29 +604,29 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Todo:**
 
-- [ ] Add one integration-style test that builds a real `PortfolioBacktestRequest` with monkeypatched data loader and checks API response shape.
-- [ ] Add one template/API contract test: frontend expected top-level keys match backend response.
-- [ ] Add README section “Phase 3.0 组合选股回测原型”.
-- [ ] Document supported symbols: only `60` / `00`, max 4 symbols.
-- [ ] Document default demo pool and smoke-test steps.
-- [ ] Confirm start script still launches app.
-- [ ] Run focused portfolio tests.
-- [ ] Run old regression tests for single-stock backtest, optimization, search, TradingAgents config.
-- [ ] Run full test suite.
-- [ ] Manually start server and perform browser smoke test.
+- [x] Add one integration-style test that builds a real `PortfolioBacktestRequest` with monkeypatched data loader and checks API response shape.
+- [x] Add one template/API contract test: frontend expected top-level keys match backend response.
+- [x] Add README section “Phase 3.0 组合选股回测原型”.
+- [x] Document supported symbols: only `60` / `00`, max 4 symbols.
+- [x] Document default demo pool and smoke-test steps.
+- [x] Confirm start script still launches app.
+- [x] Run focused portfolio tests.
+- [x] Run old regression tests for single-stock backtest, optimization, search, TradingAgents config.
+- [x] Run full test suite.
+- [x] Manually start server and perform browser smoke test.
 
 **Verification:**
 
-- [ ] `python -m pytest test/test_tradable_universe.py test/test_portfolio_models.py test/test_portfolio_data.py -q`
-- [ ] `python -m pytest test/test_factor_engine.py test/test_selection_engine.py test/test_portfolio_backtest_runner.py -q`
-- [ ] `python -m pytest test/test_portfolio_api.py test/test_index_template.py -q`
-- [ ] `python -m pytest test/test_backtest_runner.py test/test_optimize_api.py test/test_tradingagents_api.py -q`
-- [ ] `python -m pytest -q`
-- [ ] `./scripts/start_server.sh`
+- [x] `python -m pytest test/test_tradable_universe.py test/test_portfolio_models.py test/test_portfolio_data.py -q`
+- [x] `python -m pytest test/test_factor_engine.py test/test_selection_engine.py test/test_portfolio_backtest_runner.py -q`
+- [x] `python -m pytest test/test_portfolio_api.py test/test_index_template.py -q`
+- [x] `python -m pytest test/test_backtest_runner.py test/test_optimize_api.py test/test_tradingagents_api.py -q`
+- [x] `python -m pytest -q`
+- [x] `PORT=8016 ./scripts/start_server.sh`
 
 **Done when:**
 
-- [ ] The Phase 3.0 prototype is usable from the browser, and backend tests prove the deterministic engine works without live data.
+- [x] The Phase 3.0 prototype is usable from the browser, and backend tests prove the deterministic engine works without live data.
 
 ### Task 11: AI-assisted portfolio summary hook
 

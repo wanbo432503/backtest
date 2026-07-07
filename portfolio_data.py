@@ -58,4 +58,10 @@ def load_portfolio_ohlcv(
 def _prepare_runner_frame(data: pd.DataFrame) -> pd.DataFrame:
     prepared = prepare_ohlcv(data)
     columns = ["Open", "High", "Low", "Close", "Volume"]
-    return prepared[columns].copy()
+    frame = prepared[columns].copy()
+    frame.index = pd.to_datetime(frame.index)
+    if isinstance(frame.index, pd.DatetimeIndex) and frame.index.tz is not None:
+        frame.index = frame.index.tz_localize(None)
+    if isinstance(frame.index, pd.DatetimeIndex):
+        frame.index = frame.index.normalize()
+    return frame

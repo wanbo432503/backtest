@@ -100,6 +100,30 @@ def test_load_portfolio_ohlcv_prepares_columns_for_runner(monkeypatch):
     assert data["Volume"].tolist() == [0, 0]
 
 
+def test_load_portfolio_ohlcv_normalizes_timezone_aware_index(monkeypatch):
+    raw_frame = pd.DataFrame(
+        {
+            "Open": [10, 11],
+            "High": [11, 12],
+            "Low": [9, 10],
+            "Close": [10.5, 11.5],
+            "Volume": [1000, 1200],
+        },
+        index=pd.date_range("2025-01-02", periods=2, freq="D", tz="Asia/Shanghai"),
+    )
+
+    def fake_fetch(symbol, *args):
+        return DataSourceResult(data=raw_frame, provider="yfinance", warnings=[])
+
+    monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
+
+    bundle = load_portfolio_ohlcv(["SZ002241"], "2025-01-01", "2025-12-31", min_history_bars=1)
+
+    data = bundle.data_by_symbol["SZ002241"]
+    assert data.index.tz is None
+    assert data.index.tolist() == [pd.Timestamp("2025-01-02"), pd.Timestamp("2025-01-03")]
+
+
 def test_load_portfolio_ohlcv_rejects_non_daily_interval():
     with pytest.raises(ValueError, match="组合回测 MVP 仅支持日线"):
         load_portfolio_ohlcv(["SH603019"], "2025-01-01", "2025-12-31", interval="1h")

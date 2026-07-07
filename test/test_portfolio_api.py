@@ -1,8 +1,22 @@
 from fastapi.testclient import TestClient
 
 import main
+from portfolio_data import PortfolioDataBundle
 from portfolio_models import PortfolioBacktestResult
-from test.fixtures.portfolio_ohlcv import build_demo_portfolio_request
+from test.fixtures.portfolio_ohlcv import build_demo_portfolio_request, build_portfolio_ohlcv_fixture
+
+
+EXPECTED_PORTFOLIO_RESPONSE_KEYS = {
+    "summary",
+    "equity_curve",
+    "positions",
+    "trades",
+    "rebalance_events",
+    "candidate_rankings",
+    "data_warnings",
+    "risk_flags",
+    "config",
+}
 
 
 def test_validate_universe_api_accepts_60_00_symbols():
@@ -68,6 +82,35 @@ def test_portfolio_backtest_api_returns_runner_response(monkeypatch):
     assert payload["summary"]["final_equity"] == 101000.0
     assert payload["data_warnings"] == []
     assert payload["risk_flags"] == []
+
+
+def test_portfolio_backtest_api_runs_engine_with_fixture_data(monkeypatch):
+    client = TestClient(main.app)
+    fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
+
+    def fake_load_portfolio_ohlcv(symbols, *args, **kwargs):
+        return PortfolioDataBundle(
+            data_by_symbol={symbol: fixture[symbol] for symbol in symbols},
+            warnings=["fixture data"],
+            providers={symbol: "fixture" for symbol in symbols},
+        )
+
+    monkeypatch.setattr(
+        "portfolio_backtest_runner.load_portfolio_ohlcv",
+        fake_load_portfolio_ohlcv,
+    )
+
+    response = client.post("/portfolio-backtest", json=build_demo_portfolio_request())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == EXPECTED_PORTFOLIO_RESPONSE_KEYS
+    assert payload["summary"]["rebalances"] > 0
+    assert payload["equity_curve"]
+    assert payload["rebalance_events"]
+    assert payload["candidate_rankings"]
+    assert "fixture data" in payload["data_warnings"]
+    assert payload["config"]["universe"]["symbols"] == ["SH603019", "SZ002241"]
 
 
 def test_portfolio_backtest_api_maps_value_error_to_400(monkeypatch):

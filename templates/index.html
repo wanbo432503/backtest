@@ -501,6 +501,128 @@
         .optimization-results-table .action-cell {
             min-width: 108px;
         }
+        .portfolio-workbench {
+            border: 1px solid #cfd8e3;
+            border-radius: 6px;
+            background: #ffffff;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+        .portfolio-workbench-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .portfolio-workbench-title strong {
+            color: #1f2937;
+            font-size: 0.92rem;
+        }
+        .portfolio-symbol-pool {
+            min-height: 82px;
+            resize: vertical;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+        .portfolio-status {
+            min-height: 30px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 0.76rem;
+            color: #6c757d;
+            background: #f8f9fa;
+        }
+        .portfolio-status.succeeded {
+            color: #0f5132;
+            border-color: #badbcc;
+            background: #d1e7dd;
+        }
+        .portfolio-status.failed {
+            color: #842029;
+            border-color: #f5c2c7;
+            background: #f8d7da;
+        }
+        .portfolio-factor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 10px;
+        }
+        .portfolio-result-panel .card-body {
+            padding: 10px;
+        }
+        .portfolio-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .portfolio-summary-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #fbfcfe;
+            padding: 8px 10px;
+            min-height: 64px;
+        }
+        .portfolio-summary-label {
+            color: #6c757d;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .portfolio-summary-value {
+            color: #111827;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.15;
+            word-break: break-word;
+        }
+        .portfolio-badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+            min-height: 22px;
+        }
+        .portfolio-chart {
+            min-height: 240px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #ffffff;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .portfolio-chart svg {
+            display: block;
+            width: 100%;
+            height: 240px;
+        }
+        .portfolio-table-wrap {
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            background: #fff;
+        }
+        .portfolio-table {
+            min-width: 780px;
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+        .portfolio-table th {
+            color: #6c757d;
+            font-size: 0.72rem;
+            background: #f8f9fa;
+        }
+        .portfolio-table td {
+            font-size: 0.8rem;
+            vertical-align: middle;
+        }
+        .portfolio-empty {
+            color: #6c757d;
+            font-size: 0.82rem;
+            padding: 18px;
+            text-align: center;
+        }
         @media (max-width: 1199.98px) {
             body {
                 overflow: auto;
@@ -517,6 +639,9 @@
             .chart-card {
                 min-height: 680px;
             }
+            .portfolio-summary-grid {
+                grid-template-columns: repeat(2, minmax(120px, 1fr));
+            }
         }
     </style>
 </head>
@@ -530,10 +655,136 @@
             <div class="col-xl-3 col-lg-4 pane-column">
                 <div class="card settings-card">
                     <div class="card-header">
-                        <i class="fas fa-cog"></i> 回测参数设置
+                        <i class="fas fa-layer-group"></i> 组合选股回测
                     </div>
                     <div class="card-body">
-                        <form id="backtestForm">
+                        <form id="portfolioBacktestForm" class="portfolio-workbench">
+                            <div class="portfolio-workbench-title">
+                                <strong><i class="fas fa-filter"></i> 股票池与调仓</strong>
+                                <span class="badge bg-success">Phase 3.0</span>
+                            </div>
+                            <div class="mb-2">
+                                <label for="portfolioSymbols" class="form-label">股票池</label>
+                                <textarea class="form-control portfolio-symbol-pool" id="portfolioSymbols" rows="3" required>SH603019
+SZ002241</textarea>
+                                <div class="form-text">
+                                    最多 4 只，仅支持 60/00 开头股票；科创板、创业板、北交所和基金暂不纳入。
+                                </div>
+                            </div>
+                            <div class="portfolio-status mb-2" id="portfolioUniverseStatus">
+                                当前股票池: SH603019 / SZ002241
+                            </div>
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="portfolioInitialCash" class="form-label">初始资金</label>
+                                    <input type="number" class="form-control" id="portfolioInitialCash" min="10000" step="1000" value="100000" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="portfolioTopN" class="form-label">Top N</label>
+                                    <input type="number" class="form-control" id="portfolioTopN" min="1" max="4" step="1" value="2" required>
+                                </div>
+                            </div>
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="portfolioStartDate" class="form-label">开始日期</label>
+                                    <input type="date" class="form-control" id="portfolioStartDate" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="portfolioEndDate" class="form-label">结束日期</label>
+                                    <input type="date" class="form-control" id="portfolioEndDate" required>
+                                </div>
+                            </div>
+                            <div class="compact-row">
+                                <div class="mb-3">
+                                    <label for="portfolioDataProvider" class="form-label">数据源</label>
+                                    <select class="form-select" id="portfolioDataProvider" required>
+                                        <option value="auto" selected>自动（优先 mootdx）</option>
+                                        <option value="mootdx">通达信 mootdx（A股）</option>
+                                        <option value="yfinance">Yahoo Finance</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="portfolioRebalanceFrequency" class="form-label">调仓周期</label>
+                                    <select class="form-select" id="portfolioRebalanceFrequency" required>
+                                        <option value="monthly" selected>月度</option>
+                                        <option value="biweekly">双周</option>
+                                        <option value="weekly">每周</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-ranking-star"></i> 选股因子</summary>
+                                <div class="portfolio-factor-grid mt-2">
+                                    <div>
+                                        <label for="portfolioMomentumWeight" class="form-label">动量权重</label>
+                                        <input type="number" class="form-control" id="portfolioMomentumWeight" step="0.05" value="0.45">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioVolatilityWeight" class="form-label">波动权重</label>
+                                        <input type="number" class="form-control" id="portfolioVolatilityWeight" step="0.05" value="-0.25">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioLiquidityWeight" class="form-label">流动性权重</label>
+                                        <input type="number" class="form-control" id="portfolioLiquidityWeight" step="0.05" value="0.20">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioTrendWeight" class="form-label">趋势权重</label>
+                                        <input type="number" class="form-control" id="portfolioTrendWeight" step="0.05" value="0.10">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMomentumLookback" class="form-label">动量窗口</label>
+                                        <input type="number" class="form-control" id="portfolioMomentumLookback" min="5" step="1" value="60">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioVolatilityLookback" class="form-label">波动窗口</label>
+                                        <input type="number" class="form-control" id="portfolioVolatilityLookback" min="5" step="1" value="20">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioLiquidityLookback" class="form-label">流动性窗口</label>
+                                        <input type="number" class="form-control" id="portfolioLiquidityLookback" min="5" step="1" value="20">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMinHistoryBars" class="form-label">最少历史</label>
+                                        <input type="number" class="form-control" id="portfolioMinHistoryBars" min="30" step="10" value="120">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioScoreThreshold" class="form-label">最低分</label>
+                                        <input type="number" class="form-control" id="portfolioScoreThreshold" step="0.05" placeholder="可选">
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3">
+                                <summary><i class="fas fa-gauge-high"></i> 组合风控</summary>
+                                <div class="portfolio-factor-grid mt-2">
+                                    <div>
+                                        <label for="portfolioMaxPositionPct" class="form-label">单票上限 (%)</label>
+                                        <input type="number" class="form-control" id="portfolioMaxPositionPct" min="5" max="100" step="5" value="50">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioTargetExposurePct" class="form-label">目标仓位 (%)</label>
+                                        <input type="number" class="form-control" id="portfolioTargetExposurePct" min="5" max="100" step="5" value="95">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioCashBufferPct" class="form-label">现金缓冲 (%)</label>
+                                        <input type="number" class="form-control" id="portfolioCashBufferPct" min="0" max="50" step="1" value="5">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioMaxDrawdownStopPct" class="form-label">回撤警戒 (%)</label>
+                                        <input type="number" class="form-control" id="portfolioMaxDrawdownStopPct" min="1" max="80" step="1" value="30">
+                                    </div>
+                                </div>
+                            </details>
+
+                            <button type="submit" class="btn btn-success w-100" id="submitPortfolioButton">
+                                <i class="fas fa-rotate"></i> 开始组合回测
+                            </button>
+                        </form>
+
+                        <details class="config-panel border rounded p-2 mt-3" id="singleStockDiagnosticPanel">
+                            <summary><i class="fas fa-stethoscope"></i> 单股诊断</summary>
+                        <form id="backtestForm" class="mt-2">
                             <div class="mb-3">
                                 <label for="symbol" class="form-label">A股代码 
                                     <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="toggleStockSearch()" id="searchToggleBtn">
@@ -788,6 +1039,7 @@
                                 <i class="fas fa-play"></i> 开始回测
                             </button>
                         </form>
+                        </details>
                     </div>
                 </div>
                 
@@ -831,6 +1083,62 @@
                                 <span id="optimizationHistoryCount" class="badge bg-light text-dark">0</span>
                             </div>
                             <div id="optimizationHistoryHost"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="portfolioResultPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-chart-pie"></i> 组合回测结果
+                    </div>
+                    <div class="card-body">
+                        <div id="portfolioSummaryContent" class="portfolio-summary-grid"></div>
+                        <div id="portfolioRiskFlags" class="portfolio-badge-row"></div>
+                        <div id="portfolioEquityChart" class="portfolio-chart"></div>
+
+                        <ul class="nav nav-tabs nav-fill mb-2" id="portfolioResultTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="portfolioPositionsTab" data-bs-toggle="tab" data-bs-target="#portfolioPositionsPane" type="button" role="tab" aria-controls="portfolioPositionsPane" aria-selected="true">
+                                    持仓
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="portfolioRebalanceTab" data-bs-toggle="tab" data-bs-target="#portfolioRebalancePane" type="button" role="tab" aria-controls="portfolioRebalancePane" aria-selected="false">
+                                    调仓
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="portfolioCandidateTab" data-bs-toggle="tab" data-bs-target="#portfolioCandidatePane" type="button" role="tab" aria-controls="portfolioCandidatePane" aria-selected="false">
+                                    候选
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="portfolioTradeTab" data-bs-toggle="tab" data-bs-target="#portfolioTradePane" type="button" role="tab" aria-controls="portfolioTradePane" aria-selected="false">
+                                    成交
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="portfolioWarningTab" data-bs-toggle="tab" data-bs-target="#portfolioWarningPane" type="button" role="tab" aria-controls="portfolioWarningPane" aria-selected="false">
+                                    提示
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="portfolioPositionsPane" role="tabpanel" aria-labelledby="portfolioPositionsTab">
+                                <div id="portfolioPositionsTable"></div>
+                            </div>
+                            <div class="tab-pane fade" id="portfolioRebalancePane" role="tabpanel" aria-labelledby="portfolioRebalanceTab">
+                                <div id="portfolioRebalanceTable"></div>
+                            </div>
+                            <div class="tab-pane fade" id="portfolioCandidatePane" role="tabpanel" aria-labelledby="portfolioCandidateTab">
+                                <div id="portfolioCandidateTable"></div>
+                            </div>
+                            <div class="tab-pane fade" id="portfolioTradePane" role="tabpanel" aria-labelledby="portfolioTradeTab">
+                                <div id="portfolioTradeTable"></div>
+                            </div>
+                            <div class="tab-pane fade" id="portfolioWarningPane" role="tabpanel" aria-labelledby="portfolioWarningTab">
+                                <div id="portfolioWarningsList"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1104,6 +1412,159 @@
             return /^\d{6}$/.test(value)
                 || /^(SH|SZ|BJ)\d{6}$/.test(value)
                 || /^\d{6}\.(SH|SZ|BJ)$/.test(value);
+        }
+
+        function normalizePortfolioSymbol(value) {
+            const symbol = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+            if (!symbol) {
+                return '';
+            }
+            const suffixMatch = symbol.match(/^(\d{6})\.(SH|SZ)$/);
+            if (suffixMatch) {
+                return `${suffixMatch[2]}${suffixMatch[1]}`;
+            }
+            if (/^\d{6}$/.test(symbol)) {
+                if (symbol.startsWith('60')) return `SH${symbol}`;
+                if (symbol.startsWith('00')) return `SZ${symbol}`;
+            }
+            return symbol;
+        }
+
+        function isPortfolioTradableSymbol(symbol) {
+            return /^(SH60\d{4}|SZ00\d{4})$/.test(symbol);
+        }
+
+        function collectPortfolioSymbols() {
+            const raw = document.getElementById('portfolioSymbols').value;
+            const symbols = raw
+                .split(/[\s,，、;；]+/)
+                .map(normalizePortfolioSymbol)
+                .filter(Boolean);
+            return Array.from(new Set(symbols));
+        }
+
+        function setPortfolioUniverseStatus(kind, message) {
+            const status = document.getElementById('portfolioUniverseStatus');
+            status.className = `portfolio-status ${kind || ''}`.trim();
+            status.textContent = message;
+        }
+
+        function validatePortfolioUniverse(symbols = collectPortfolioSymbols()) {
+            if (!symbols.length) {
+                return { ok: false, symbols, message: '请至少输入 1 只股票' };
+            }
+            if (symbols.length > 4) {
+                return { ok: false, symbols, message: '股票池最多 4 只' };
+            }
+            const invalid = symbols.filter(symbol => !isPortfolioTradableSymbol(symbol));
+            if (invalid.length) {
+                return {
+                    ok: false,
+                    symbols,
+                    message: `仅支持 60/00 开头股票: ${invalid.join(', ')}`
+                };
+            }
+            const topN = Number(document.getElementById('portfolioTopN').value || 0);
+            if (!Number.isFinite(topN) || topN < 1) {
+                return { ok: false, symbols, message: 'Top N 必须大于 0' };
+            }
+            if (topN > symbols.length) {
+                return { ok: false, symbols, message: 'Top N 不能超过股票池数量' };
+            }
+            return { ok: true, symbols, message: `当前股票池: ${symbols.join(' / ')}` };
+        }
+
+        function syncPortfolioUniverseState() {
+            const symbols = collectPortfolioSymbols();
+            const topN = document.getElementById('portfolioTopN');
+            topN.max = String(Math.min(4, Math.max(symbols.length, 1)));
+            const validation = validatePortfolioUniverse(symbols);
+            setPortfolioUniverseStatus(validation.ok ? 'succeeded' : 'failed', validation.message);
+            return validation;
+        }
+
+        function addSymbolToPortfolio(symbol) {
+            const normalized = normalizePortfolioSymbol(symbol);
+            const currentSymbols = collectPortfolioSymbols();
+            if (normalized && !currentSymbols.includes(normalized)) {
+                currentSymbols.push(normalized);
+            }
+            document.getElementById('portfolioSymbols').value = currentSymbols.join('\n');
+            const validation = syncPortfolioUniverseState();
+            if (!validation.ok) {
+                alert(validation.message);
+            }
+        }
+
+        function readNumber(id, fallback = 0) {
+            const value = Number(document.getElementById(id).value);
+            return Number.isFinite(value) ? value : fallback;
+        }
+
+        function readNullableNumber(id) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return null;
+            }
+            const value = element.value;
+            if (value === '') {
+                return null;
+            }
+            const numberValue = Number(value);
+            return Number.isFinite(numberValue) ? numberValue : null;
+        }
+
+        function collectPortfolioRequest() {
+            const validation = validatePortfolioUniverse();
+            if (!validation.ok) {
+                throw new Error(validation.message);
+            }
+            return {
+                start_date: document.getElementById('portfolioStartDate').value,
+                end_date: document.getElementById('portfolioEndDate').value,
+                initial_cash: readNumber('portfolioInitialCash', 100000),
+                data_provider: document.getElementById('portfolioDataProvider').value,
+                universe: {
+                    symbols: validation.symbols,
+                    max_symbols: 4,
+                    allowed_code_prefixes: ['60', '00'],
+                    exclude_star: true,
+                    exclude_bj: true,
+                    exclude_funds: true
+                },
+                factors: {
+                    momentum_lookback: readNumber('portfolioMomentumLookback', 60),
+                    volatility_lookback: readNumber('portfolioVolatilityLookback', 20),
+                    liquidity_lookback: readNumber('portfolioLiquidityLookback', 20),
+                    momentum_weight: readNumber('portfolioMomentumWeight', 0.45),
+                    volatility_weight: readNumber('portfolioVolatilityWeight', -0.25),
+                    liquidity_weight: readNumber('portfolioLiquidityWeight', 0.20),
+                    trend_weight: readNumber('portfolioTrendWeight', 0.10)
+                },
+                selection: {
+                    top_n: readNumber('portfolioTopN', 2),
+                    min_history_bars: readNumber('portfolioMinHistoryBars', 120),
+                    min_avg_turnover_value: null,
+                    score_threshold: readNullableNumber('portfolioScoreThreshold')
+                },
+                rebalance: {
+                    frequency: document.getElementById('portfolioRebalanceFrequency').value,
+                    weekday: 0,
+                    monthday: 1,
+                    lookahead_safe: true
+                },
+                trading: collectAShareConfig(),
+                risk: {
+                    max_position_pct: readNumber('portfolioMaxPositionPct', 50) / 100,
+                    target_gross_exposure: readNumber('portfolioTargetExposurePct', 95) / 100,
+                    cash_buffer_pct: readNumber('portfolioCashBufferPct', 5) / 100,
+                    stop_loss_pct: null,
+                    max_drawdown_stop_pct: readNumber('portfolioMaxDrawdownStopPct', 30)
+                },
+                metadata: {
+                    ui: 'phase3_portfolio_workbench'
+                }
+            };
         }
 
         function syncTradingAgentsSymbol(symbol) {
@@ -1442,24 +1903,29 @@
                     resultsList.innerHTML = '';
                     
                     data.results.forEach(result => {
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className = 'list-group-item list-group-item-action';
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item';
                         
                         const confidence = result.confidence ? ` (相似度: ${result.confidence}%)` : '';
                         item.innerHTML = `
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                                <button type="button" class="btn btn-link text-start p-0 flex-grow-1 stock-result-main">
                                     <strong>${result.symbol}</strong> - ${result.name}
                                     <br>
                                     <small class="text-muted">${result.sector || 'N/A'} | ${result.country || 'China'}${confidence}</small>
+                                </button>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-primary">${getSearchResultBadge(result.type)}</span>
+                                    <button type="button" class="btn btn-outline-success btn-sm stock-result-add">加入股票池</button>
                                 </div>
-                                <span class="badge bg-primary">${getSearchResultBadge(result.type)}</span>
                             </div>
                         `;
                         
-                        item.onclick = () => {
+                        item.querySelector('.stock-result-main').onclick = () => {
                             setSymbol(result.symbol);
+                        };
+                        item.querySelector('.stock-result-add').onclick = () => {
+                            addSymbolToPortfolio(result.symbol);
                         };
                         
                         resultsList.appendChild(item);
@@ -1752,6 +2218,7 @@
         function renderOptimizationSummary(result) {
             document.getElementById('statsContent').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('portfolioResultPanel').style.display = 'none';
             persistCurrentOptimizationResults(result.top_results || []);
             renderOptimizationLibrary();
             setOptimizationResultsCollapsed(false);
@@ -1913,7 +2380,12 @@
                 validation_score_negative: '验证 score 为负',
                 possible_overfit: '可能过拟合',
                 too_few_trades: '交易次数不足',
-                high_drawdown: '高回撤'
+                high_drawdown: '高回撤',
+                high_turnover: '高换手',
+                data_gaps: '数据缺口',
+                underinvested: '仓位不足',
+                too_few_selected: '入选股票不足',
+                too_few_rebalances: '调仓次数不足'
             };
             return labels[flag] || flag;
         }
@@ -2060,6 +2532,218 @@
             }
         }
 
+        function formatPortfolioCurrency(value) {
+            const numberValue = Number(value);
+            if (!Number.isFinite(numberValue)) {
+                return '-';
+            }
+            return numberValue.toLocaleString('zh-CN', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+        }
+
+        function formatPortfolioPct(value) {
+            const numberValue = Number(value);
+            return Number.isFinite(numberValue) ? `${numberValue.toFixed(2)}%` : '-';
+        }
+
+        function formatPortfolioRatioPct(value) {
+            const numberValue = Number(value);
+            return Number.isFinite(numberValue) ? `${(numberValue * 100).toFixed(2)}%` : '-';
+        }
+
+        function renderPortfolioSummary(result) {
+            const summary = result.summary || {};
+            const entries = [
+                ['最终权益', formatPortfolioCurrency(summary.final_equity)],
+                ['总收益', formatPortfolioPct(summary.total_return_pct)],
+                ['年化收益', formatPortfolioPct(summary.annual_return_pct)],
+                ['最大回撤', formatPortfolioPct(summary.max_drawdown_pct)],
+                ['夏普', formatMetric(summary.sharpe)],
+                ['换手', `${formatMetric(summary.turnover)}x`],
+                ['调仓次数', summary.rebalances ?? '-'],
+                ['最终仓位', formatPortfolioRatioPct(summary.final_gross_exposure)]
+            ];
+            document.getElementById('portfolioSummaryContent').innerHTML = entries.map(([label, value]) => `
+                <div class="portfolio-summary-item">
+                    <div class="portfolio-summary-label">${escapeHtml(label)}</div>
+                    <div class="portfolio-summary-value">${escapeHtml(value)}</div>
+                </div>
+            `).join('');
+
+            const riskFlags = result.risk_flags || [];
+            document.getElementById('portfolioRiskFlags').innerHTML = riskFlags.length
+                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join('')
+                : '<span class="badge bg-success">风险标记: 无</span>';
+        }
+
+        function renderPortfolioEquityCurve(points) {
+            const host = document.getElementById('portfolioEquityChart');
+            if (!points.length) {
+                host.innerHTML = '<div class="portfolio-empty">暂无组合净值数据</div>';
+                return;
+            }
+
+            const width = 720;
+            const height = 240;
+            const padding = 28;
+            const values = points.map(point => Number(point.equity)).filter(Number.isFinite);
+            if (!values.length) {
+                host.innerHTML = '<div class="portfolio-empty">暂无有效净值数据</div>';
+                return;
+            }
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+            const span = maxValue - minValue || 1;
+            const usableWidth = width - padding * 2;
+            const usableHeight = height - padding * 2;
+            const coordinates = points.map((point, index) => {
+                const x = padding + (points.length === 1 ? 0 : index / (points.length - 1) * usableWidth);
+                const y = padding + (maxValue - Number(point.equity)) / span * usableHeight;
+                return [x, y, point];
+            });
+            const linePath = coordinates
+                .map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`)
+                .join(' ');
+            const areaPath = `${linePath} L ${coordinates[coordinates.length - 1][0].toFixed(2)} ${height - padding} L ${padding} ${height - padding} Z`;
+            const first = points[0];
+            const last = points[points.length - 1];
+
+            host.innerHTML = `
+                <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="组合净值曲线">
+                    <defs>
+                        <linearGradient id="portfolioEquityGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#198754" stop-opacity="0.26"></stop>
+                            <stop offset="100%" stop-color="#198754" stop-opacity="0.02"></stop>
+                        </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
+                    <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#e5e7eb"></line>
+                    <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#e5e7eb"></line>
+                    <path d="${areaPath}" fill="url(#portfolioEquityGradient)"></path>
+                    <path d="${linePath}" fill="none" stroke="#198754" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
+                    <circle cx="${coordinates[coordinates.length - 1][0].toFixed(2)}" cy="${coordinates[coordinates.length - 1][1].toFixed(2)}" r="4" fill="#198754"></circle>
+                    <text x="${padding}" y="18" fill="#6c757d" font-size="12">${escapeHtml(first.date || '')}</text>
+                    <text x="${width - padding}" y="18" fill="#6c757d" font-size="12" text-anchor="end">${escapeHtml(last.date || '')}</text>
+                    <text x="${width - padding}" y="${height - 8}" fill="#111827" font-size="13" font-weight="700" text-anchor="end">权益 ${escapeHtml(formatPortfolioCurrency(last.equity))}</text>
+                </svg>
+            `;
+        }
+
+        function renderPortfolioSymbolButton(symbol) {
+            if (!symbol) {
+                return '-';
+            }
+            return `<button type="button" class="btn btn-link btn-sm p-0" data-portfolio-symbol="${escapeHtml(symbol)}">${escapeHtml(symbol)}</button>`;
+        }
+
+        function renderPortfolioTable(elementId, rows, columns, emptyText) {
+            const host = document.getElementById(elementId);
+            if (!rows.length) {
+                host.innerHTML = `<div class="portfolio-empty">${escapeHtml(emptyText)}</div>`;
+                return;
+            }
+            host.innerHTML = `
+                <div class="portfolio-table-wrap">
+                    <table class="table table-sm table-bordered portfolio-table">
+                        <thead>
+                            <tr>${columns.map(column => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map(row => `
+                                <tr>
+                                    ${columns.map(column => {
+                                        const value = typeof column.value === 'function' ? column.value(row) : row[column.key];
+                                        const cellHtml = column.html ? column.html(value, row) : escapeHtml(value ?? '-');
+                                        return `<td>${cellHtml}</td>`;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderPortfolioWarnings(warnings) {
+            const host = document.getElementById('portfolioWarningsList');
+            if (!warnings.length) {
+                host.innerHTML = '<div class="portfolio-empty">暂无数据源提示</div>';
+                return;
+            }
+            host.innerHTML = `
+                <div class="list-group">
+                    ${warnings.map(warning => `<div class="list-group-item small">${escapeHtml(warning)}</div>`).join('')}
+                </div>
+            `;
+        }
+
+        function renderPortfolioResult(result) {
+            document.getElementById('portfolioResultPanel').style.display = 'block';
+            renderPortfolioSummary(result);
+            renderPortfolioEquityCurve(result.equity_curve || []);
+
+            renderPortfolioTable('portfolioPositionsTable', result.positions || [], [
+                { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '股数', key: 'shares' },
+                { label: '价格', key: 'price', value: row => formatMetric(row.price) },
+                { label: '市值', key: 'market_value', value: row => formatPortfolioCurrency(row.market_value) },
+                { label: '持仓周期', key: 'holding_bars' }
+            ], '暂无当前持仓');
+
+            const rebalanceRows = (result.rebalance_events || []).slice().reverse().map(event => ({
+                date: event.date,
+                selected_symbols: (event.selected_symbols || []).join(', '),
+                trade_count: (event.trades || []).length,
+                skipped_count: (event.skipped_trades || []).length,
+                warnings: (event.warnings || []).join('；') || '-'
+            }));
+            renderPortfolioTable('portfolioRebalanceTable', rebalanceRows, [
+                { label: '日期', key: 'date' },
+                { label: '入选股票', key: 'selected_symbols' },
+                { label: '成交数', key: 'trade_count' },
+                { label: '跳过数', key: 'skipped_count' },
+                { label: '提示', key: 'warnings' }
+            ], '暂无调仓事件');
+
+            const candidateRows = (result.candidate_rankings || []).slice(-80).reverse();
+            renderPortfolioTable('portfolioCandidateTable', candidateRows, [
+                { label: '日期', key: 'date' },
+                { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: 'Score', key: 'score', value: row => formatMetric(row.score) },
+                { label: '动量', key: 'momentum', value: row => formatMetric(row.momentum) },
+                { label: '波动', key: 'volatility', value: row => formatMetric(row.volatility) },
+                { label: '流动性', key: 'liquidity', value: row => formatMetric(row.liquidity) },
+                { label: '趋势', key: 'trend', value: row => formatMetric(row.trend) },
+                { label: '跳过原因', key: 'skip_reason', value: row => row.skip_reason || '-' }
+            ], '暂无候选排名');
+
+            const tradeRows = (result.trades || []).slice().reverse();
+            renderPortfolioTable('portfolioTradeTable', tradeRows, [
+                { label: '日期', key: 'date' },
+                { label: '方向', key: 'side', value: row => row.side === 'buy' ? '买入' : '卖出' },
+                { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '股数', key: 'shares' },
+                { label: '价格', key: 'price', value: row => formatMetric(row.price) },
+                { label: '金额', key: 'amount', value: row => formatPortfolioCurrency(row.amount) },
+                { label: '费用', key: 'cost', value: row => formatMetric(row.cost) },
+                { label: '原因', key: 'reason' }
+            ], '暂无成交记录');
+
+            renderPortfolioWarnings(result.data_warnings || []);
+        }
+
+        function handlePortfolioResultClick(event) {
+            const button = event.target.closest('[data-portfolio-symbol]');
+            if (!button) {
+                return;
+            }
+            const symbol = button.dataset.portfolioSymbol;
+            document.getElementById('symbol').value = symbol;
+            syncTradingAgentsSymbol(symbol);
+        }
+
         function renderBacktestStats(result) {
             const statsContent = document.getElementById('statsContent');
             statsContent.innerHTML = '';
@@ -2108,12 +2792,18 @@
         document.addEventListener('DOMContentLoaded', function() {
             const today = new Date();
             const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            const twoYearsAgo = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate());
             
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+            document.getElementById('portfolioEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('portfolioStartDate').value = twoYearsAgo.toISOString().split('T')[0];
             document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
             document.getElementById('symbol').addEventListener('input', event => syncTradingAgentsSymbol(event.target.value));
+            document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
+            document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
+            document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
             document.getElementById('taApiKey').addEventListener('focus', clearMaskedTradingAgentsApiKeyForEdit);
             document.getElementById('taToggleApiKeyButton').addEventListener('click', toggleTradingAgentsApiKeyVisibility);
@@ -2136,6 +2826,75 @@
             document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
             document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);
+            syncPortfolioUniverseState();
+        });
+
+        document.getElementById('portfolioBacktestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const button = document.getElementById('submitPortfolioButton');
+            let requestBody;
+            try {
+                requestBody = collectPortfolioRequest();
+            } catch (error) {
+                syncPortfolioUniverseState();
+                alert(error.message);
+                return;
+            }
+
+            const startDate = new Date(requestBody.start_date);
+            const endDate = new Date(requestBody.end_date);
+            if (startDate >= endDate) {
+                alert('组合回测开始日期必须早于结束日期');
+                return;
+            }
+
+            button.disabled = true;
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('plotContainer').innerHTML = '';
+            document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('portfolioResultPanel').style.display = 'none';
+
+            try {
+                const response = await fetch('/portfolio-backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '组合回测失败');
+                }
+
+                const result = await response.json();
+                renderPortfolioResult(result);
+                document.getElementById('plotContainer').innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-chart-pie fa-2x mb-3"></i>
+                        <div>组合回测完成，净值曲线和调仓明细已在上方展示。</div>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('plotContainer').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>组合回测错误:</strong> ${escapeHtml(error.message)}
+                        <hr>
+                        <small class="mb-0">
+                            <strong>提示:</strong><br>
+                            • 股票池最多 4 只，且仅支持 60/00 开头股票<br>
+                            • 日线组合回测需要足够历史数据<br>
+                            • 若 mootdx 不可用，可尝试自动或 yfinance 数据源
+                        </small>
+                    </div>
+                `;
+            } finally {
+                button.disabled = false;
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
         });
         
         document.getElementById('backtestForm').addEventListener('submit', async function(e) {
@@ -2189,6 +2948,7 @@
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('plotContainer').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('portfolioResultPanel').style.display = 'none';
             
             try {
                 const requestBody = optimizationEnabled ? collectOptimizationRequest() : formData;

@@ -11,7 +11,7 @@ from typing import Dict, List
 # API基础URL（根据实际部署调整）
 BASE_URL = "http://localhost:8005"
 
-def test_api_endpoint(endpoint: str, params: dict, description: str = "") -> bool:
+def check_api_endpoint(endpoint: str, params: dict, description: str = "") -> bool:
     """测试API端点"""
     try:
         url = f"{BASE_URL}{endpoint}"
@@ -135,7 +135,7 @@ def run_tests():
     
     results = []
     for test_case in test_cases:
-        success = test_api_endpoint(
+        success = check_api_endpoint(
             test_case["endpoint"],
             test_case["params"],
             test_case["description"]
