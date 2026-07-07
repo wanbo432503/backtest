@@ -328,34 +328,34 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Implement `calculate_symbol_factors(data, as_of_date, config, lookahead_safe=True)`.
-- [ ] Momentum: close return over `momentum_lookback`.
-- [ ] Volatility: rolling std of daily returns over `volatility_lookback`; lower is better.
-- [ ] Liquidity: rolling average volume or close*volume over `liquidity_lookback`; higher is better.
-- [ ] Trend: close above moving average or moving-average slope.
-- [ ] Implement `score_candidates(data_by_symbol, as_of_date, factor_config, selection_config)`.
-- [ ] Normalize each factor cross-sectionally with deterministic behavior when all values are equal.
-- [ ] Combine factors using configured weights.
-- [ ] Return rows with `symbol`, `score`, `rank`, `factor_values`, `skip_reason`.
-- [ ] When `lookahead_safe=True`, use only rows strictly before the rebalance trade date.
-- [ ] Keep function pure: no fetching data, no portfolio state mutation.
+- [x] Implement `calculate_symbol_factors(data, as_of_date, config, lookahead_safe=True)`.
+- [x] Momentum: close return over `momentum_lookback`.
+- [x] Volatility: rolling std of daily returns over `volatility_lookback`; lower is better.
+- [x] Liquidity: rolling average volume or close*volume over `liquidity_lookback`; higher is better.
+- [x] Trend: close above moving average or moving-average slope.
+- [x] Implement `score_candidates(data_by_symbol, as_of_date, factor_config, selection_config)`.
+- [x] Normalize each factor cross-sectionally with deterministic behavior when all values are equal.
+- [x] Combine factors using configured weights.
+- [x] Return rows with `symbol`, `score`, `rank`, `factor_values`, `skip_reason`.
+- [x] When `lookahead_safe=True`, use only rows strictly before the rebalance trade date.
+- [x] Keep function pure: no fetching data, no portfolio state mutation.
 
 **Test todo:**
 
-- [ ] Test upward-trending symbol outranks downward symbol with positive momentum weight.
-- [ ] Test high-volatility symbol is penalized.
-- [ ] Test illiquid symbol is penalized or ranked lower when liquidity weight is positive.
-- [ ] Test insufficient history produces `skip_reason="insufficient_history"`.
-- [ ] Test no look-ahead by making trade-date close spike and confirming it does not affect same-day score.
-- [ ] Test stable tie-breaking by symbol for equal scores.
+- [x] Test upward-trending symbol outranks downward symbol with positive momentum weight.
+- [x] Test high-volatility symbol is penalized.
+- [x] Test illiquid symbol is penalized or ranked lower when liquidity weight is positive.
+- [x] Test insufficient history produces `skip_reason="insufficient_history"`.
+- [x] Test no look-ahead by making trade-date close spike and confirming it does not affect same-day score.
+- [x] Test stable tie-breaking by symbol for equal scores.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_factor_engine.py -q`.
+- [x] Run `python -m pytest test/test_factor_engine.py -q`.
 
 **Done when:**
 
-- [ ] Every rebalance date can produce a transparent candidate ranking suitable for UI display.
+- [x] Every rebalance date can produce a transparent candidate ranking suitable for UI display.
 
 ### Task 5: Rebalance calendar and selection engine
 
