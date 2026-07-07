@@ -466,34 +466,34 @@ The implementation must produce a usable end-to-end prototype, not only backend 
 
 **Backend todo:**
 
-- [ ] Import `PortfolioBacktestRequest`.
-- [ ] Import `run_portfolio_backtest`.
-- [ ] Add `POST /portfolio/validate-universe`.
-- [ ] Add `POST /portfolio-backtest`.
-- [ ] For validation errors, return HTTP 400 and Pydantic/API messages safe for UI display.
-- [ ] For data-source failures, return HTTP 400 when user/actionable, HTTP 500 only for unexpected bugs.
-- [ ] Do not remove `/backtest`, `/optimize`, `/strategies`, `/search-stocks`, or `/tradingagents/*`.
-- [ ] Ensure endpoints execute CPU/data work in a threadpool if runtime is blocking.
-- [ ] Include `data_warnings` and `risk_flags` in API response even when empty.
+- [x] Import `PortfolioBacktestRequest`.
+- [x] Import `run_portfolio_backtest`.
+- [x] Add `POST /portfolio/validate-universe`.
+- [x] Add `POST /portfolio-backtest`.
+- [x] For validation errors, return HTTP 400 and Pydantic/API messages safe for UI display.
+- [x] For data-source failures, return HTTP 400 when user/actionable, HTTP 500 only for unexpected bugs.
+- [x] Do not remove `/backtest`, `/optimize`, `/strategies`, `/search-stocks`, or `/tradingagents/*`.
+- [x] Ensure endpoints execute CPU/data work in a threadpool if runtime is blocking.
+- [x] Include `data_warnings` and `risk_flags` in API response even when empty.
 
 **Test todo:**
 
-- [ ] Test `POST /portfolio/validate-universe` accepts `SH603019`, `SZ002241`.
-- [ ] Test validation rejects `SZ300750`.
-- [ ] Test validation rejects five symbols.
-- [ ] Test `POST /portfolio-backtest` success using monkeypatched runner.
-- [ ] Test runner `ValueError` maps to 400.
-- [ ] Test unexpected exception maps to 500.
-- [ ] Test old `/backtest` still returns expected shape with monkeypatch or existing fixture.
+- [x] Test `POST /portfolio/validate-universe` accepts `SH603019`, `SZ002241`.
+- [x] Test validation rejects `SZ300750`.
+- [x] Test validation rejects five symbols.
+- [x] Test `POST /portfolio-backtest` success using monkeypatched runner.
+- [x] Test runner `ValueError` maps to 400.
+- [x] Test unexpected exception maps to 500.
+- [x] Test old `/backtest` still returns expected shape with monkeypatch or existing fixture.
 
 **Verification:**
 
-- [ ] Run `python -m pytest test/test_portfolio_api.py -q`.
-- [ ] Run `python -m pytest test/test_backtest_runner.py test/test_optimize_api.py -q`.
+- [x] Run `python -m pytest test/test_portfolio_api.py -q`.
+- [x] Run `python -m pytest test/test_backtest_runner.py test/test_optimize_api.py -q`.
 
 **Done when:**
 
-- [ ] The browser can call `/portfolio-backtest` and receive a complete JSON result or a clear validation error.
+- [x] The browser can call `/portfolio-backtest` and receive a complete JSON result or a clear validation error.
 
 ### Task 8: Frontend portfolio workbench
 

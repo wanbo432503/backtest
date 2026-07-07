@@ -15,6 +15,8 @@ import inspect
 from stock_search import search_stocks
 from market_data import normalize_symbol
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
+from portfolio_backtest_runner import run_portfolio_backtest
+from portfolio_models import PortfolioBacktestRequest
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
@@ -26,6 +28,7 @@ from tradingagents_config import (
     update_config as update_tradingagents_config,
 )
 from tradingagents_models import TradingAgentsAnalysisRequest, TradingAgentsConfigUpdate
+from tradable_universe import validate_universe
 
 warnings.filterwarnings('ignore')
 
@@ -50,6 +53,10 @@ class BacktestRequest(BaseModel):
     data_provider: str = "auto"
     risk_config: RiskConfig | None = None
     a_share_config: AShareTradingConfig | None = None
+
+
+class UniverseValidationRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list)
 
 # 策略注册表 - 存储所有可用的策略
 STRATEGY_REGISTRY = {}
@@ -154,6 +161,41 @@ async def optimize_endpoint(payload: dict):
     except Exception as e:
         print(f"优化详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"优化执行失败: {str(e)}")
+
+
+@app.post("/portfolio/validate-universe")
+async def validate_portfolio_universe(request: UniverseValidationRequest):
+    result = validate_universe(request.symbols)
+    return {
+        "ok": result.ok,
+        "accepted_symbols": result.accepted_symbols,
+        "rejected": [
+            {
+                "raw": row.raw,
+                "symbol": row.symbol,
+                "normalized_symbol": row.normalized_symbol,
+                "reason": row.reason,
+            }
+            for row in result.rejected
+        ],
+    }
+
+
+@app.post("/portfolio-backtest")
+async def portfolio_backtest_endpoint(payload: dict):
+    try:
+        request = PortfolioBacktestRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        result = await run_in_threadpool(run_portfolio_backtest, request)
+        return result.to_api_response()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"组合回测详细错误信息: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"组合回测执行失败: {str(e)}")
 
 @app.get("/strategies")
 async def get_available_strategies():
