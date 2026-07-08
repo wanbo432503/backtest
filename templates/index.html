@@ -1587,6 +1587,7 @@ SZ002241</textarea>
         let latestPortfolioOptimizationJob = null;
         let latestPortfolioOptimizationResults = [];
         let portfolioSelectionStrategies = [];
+        let portfolioSelectionStrategyOverrides = {};
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1855,6 +1856,7 @@ SZ002241</textarea>
             if (!strategy) {
                 return false;
             }
+            portfolioSelectionStrategyOverrides = {};
             document.getElementById('portfolioTopN').value = strategy.default_top_n || 2;
             document.getElementById('portfolioRebalanceFrequency').value = strategy.default_rebalance_frequency || 'monthly';
             const factorByKey = Object.fromEntries((strategy.factors || []).map(factor => [factor.key, factor]));
@@ -1888,7 +1890,9 @@ SZ002241</textarea>
             return {
                 strategy_id: strategyId,
                 enabled: strategyId !== 'custom_factor_blend',
-                parameter_overrides: {}
+                parameter_overrides: strategyId === 'custom_factor_blend'
+                    ? {}
+                    : { ...portfolioSelectionStrategyOverrides }
             };
         }
 
@@ -2021,7 +2025,7 @@ SZ002241</textarea>
                     train_ratio: trainRatio,
                     validation_start: null
                 },
-                search_space: {
+                search_space: shouldUsePortfolioStrategyOptimizationDefaults() ? null : {
                     momentum_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationMomentumLookbacks', { integer: true, label: '动量窗口候选' }),
                     volatility_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationVolatilityLookbacks', { integer: true, label: '波动窗口候选' }),
                     liquidity_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationLiquidityLookbacks', { integer: true, label: '流动性窗口候选' }),
@@ -2037,6 +2041,11 @@ SZ002241</textarea>
                 executor_backend: document.getElementById('portfolioOptimizationExecutorBackend').value,
                 objective: 'validation_smooth_uptrend'
             };
+        }
+
+        function shouldUsePortfolioStrategyOptimizationDefaults() {
+            const strategyId = getPortfolioSelectionStrategyId();
+            return strategyId && strategyId !== 'custom_factor_blend';
         }
 
         async function createPortfolioFactorOptimizationJob(requestBody) {
@@ -2130,9 +2139,10 @@ SZ002241</textarea>
                                 <th>趋势R²</th>
                                 <th>验证回撤</th>
                                 <th>换手</th>
+                                <th>策略模板</th>
                                 <th>Top N</th>
                                 <th>参数</th>
-                                <th>风险</th>
+                                <th>风险/提示</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -2151,9 +2161,14 @@ SZ002241</textarea>
             const candidate = row.candidate || {};
             const selection = candidate.selection_config || {};
             const riskFlags = row.risk_flags || [];
+            const warnings = row.warnings || [];
             const riskBadges = riskFlags.length
                 ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
                 : '<span class="badge bg-success">无</span>';
+            const warningBadges = warnings.length
+                ? warnings.map(warning => `<span class="badge bg-secondary">${escapeHtml(portfolioOptimizationWarningLabel(warning))}</span>`).join(' ')
+                : '';
+            const strategyName = candidate.selection_strategy_name || '自定义因子组合';
             return `
                 <tr class="${index === 0 ? 'table-primary' : ''}">
                     <td>${index + 1}</td>
@@ -2165,9 +2180,10 @@ SZ002241</textarea>
                     <td>${escapeHtml(formatMetric(validation.log_equity_trend_r2))}</td>
                     <td>${escapeHtml(formatPortfolioPct(validation.max_drawdown_pct))}</td>
                     <td>${escapeHtml(formatMetric(validation.turnover))}x</td>
+                    <td>${escapeHtml(strategyName)}</td>
                     <td>${escapeHtml(selection.top_n ?? '-')}</td>
                     <td class="params-cell">${escapeHtml(formatPortfolioFactorOptimizationParams(candidate))}</td>
-                    <td>${riskBadges}</td>
+                    <td>${riskBadges} ${warningBadges}</td>
                     <td>
                         <button type="button" class="btn btn-outline-success btn-sm" data-portfolio-factor-optimization-index="${index}">
                             应用参数
@@ -2180,6 +2196,12 @@ SZ002241</textarea>
         function formatPortfolioFactorOptimizationParams(candidate) {
             const factor = candidate.factor_config || {};
             const selection = candidate.selection_config || {};
+            if (candidate.selection_strategy_id && candidate.selection_strategy_overrides) {
+                const overrideText = Object.entries(candidate.selection_strategy_overrides)
+                    .map(([key, value]) => `${key}:${Object.entries(value || {}).map(([name, item]) => `${name}=${item}`).join('/')}`)
+                    .join(' | ');
+                return `策略模板 ${candidate.selection_strategy_name || candidate.selection_strategy_id} | ${overrideText || '默认参数'} | 最低分${selection.score_threshold ?? '无'}`;
+            }
             return [
                 `动量${factor.momentum_lookback}/${factor.momentum_weight}`,
                 `波动${factor.volatility_lookback}/${factor.volatility_weight}`,
@@ -2187,6 +2209,12 @@ SZ002241</textarea>
                 `趋势${factor.trend_weight}`,
                 `最低分${selection.score_threshold ?? '无'}`
             ].join(' | ');
+        }
+
+        function portfolioOptimizationWarningLabel(warning) {
+            if (warning === 'missing_fundamentals') return '基本面覆盖不足';
+            if (String(warning).includes('fundamental coverage low')) return '基本面覆盖不足';
+            return warning;
         }
 
         function applyPortfolioFactorOptimizationResult(resultOrIndex) {
@@ -2198,6 +2226,12 @@ SZ002241</textarea>
             }
             const factorConfig = result.candidate.factor_config || {};
             const selectionConfig = result.candidate.selection_config || {};
+            const candidate = result.candidate || {};
+            if (candidate.selection_strategy_id) {
+                document.getElementById('portfolioSelectionStrategy').value = candidate.selection_strategy_id;
+                portfolioSelectionStrategyOverrides = candidate.selection_strategy_overrides || {};
+                renderPortfolioSelectionStrategyDetails();
+            }
             document.getElementById('portfolioMomentumLookback').value = factorConfig.momentum_lookback;
             document.getElementById('portfolioVolatilityLookback').value = factorConfig.volatility_lookback;
             document.getElementById('portfolioLiquidityLookback').value = factorConfig.liquidity_lookback;
@@ -3679,7 +3713,10 @@ SZ002241</textarea>
             document.getElementById('portfolioUniverseMode').addEventListener('change', syncPortfolioUniverseState);
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
-            document.getElementById('portfolioSelectionStrategy').addEventListener('change', renderPortfolioSelectionStrategyDetails);
+            document.getElementById('portfolioSelectionStrategy').addEventListener('change', () => {
+                portfolioSelectionStrategyOverrides = {};
+                renderPortfolioSelectionStrategyDetails();
+            });
             document.getElementById('portfolioApplyStrategyDefaultsButton').addEventListener('click', applyPortfolioSelectionStrategyDefaults);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
             document.getElementById('portfolioSummaryButton').addEventListener('click', runPortfolioSummary);

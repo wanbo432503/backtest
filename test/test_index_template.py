@@ -192,6 +192,20 @@ def test_index_template_renders_portfolio_factor_optimization_results_and_apply_
     assert "趋势R²" in template
 
 
+def test_index_template_supports_strategy_aware_portfolio_factor_optimization():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "function shouldUsePortfolioStrategyOptimizationDefaults" in template
+    assert "search_space: shouldUsePortfolioStrategyOptimizationDefaults() ? null" in template
+    assert "candidate.selection_strategy_name" in template
+    assert "selection_strategy_overrides" in template
+    assert "portfolioSelectionStrategyOverrides" in template
+    assert "missing_fundamentals" in template
+    assert "策略模板" in template
+    assert "基本面覆盖不足" in template
+    assert "document.getElementById('portfolioSelectionStrategy').value = candidate.selection_strategy_id" in template
+
+
 def test_index_template_contains_risk_and_a_share_rule_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

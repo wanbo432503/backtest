@@ -576,16 +576,16 @@ Task 1-3: Strategy contract and library
   - [x] Ensure changing strategy does not silently erase user edits.
   - [x] Add template/JS tests.
   - [x] Commit the WebUI selector change.
-- [ ] Task 11: Add strategy-aware optimization UI.
-  - [ ] Include selected strategy in optimization requests.
-  - [ ] Allow strategy defaults to populate candidate lists.
-  - [ ] Display strategy name in optimization results.
-  - [ ] Display validation annual return, max drawdown, turnover, volatility, trend score, and overfitting risk.
-  - [ ] Display missing fundamentals warnings for value-quality.
-  - [ ] Preserve `应用参数` behavior.
-  - [ ] Avoid any wording that implies guaranteed returns.
-  - [ ] Add template/JS tests.
-  - [ ] Commit the optimization UI change.
+- [x] Task 11: Add strategy-aware optimization UI.
+  - [x] Include selected strategy in optimization requests.
+  - [x] Allow strategy defaults to populate candidate lists.
+  - [x] Display strategy name in optimization results.
+  - [x] Display validation annual return, max drawdown, turnover, volatility, trend score, and overfitting risk.
+  - [x] Display missing fundamentals warnings for value-quality.
+  - [x] Preserve `应用参数` behavior.
+  - [x] Avoid any wording that implies guaranteed returns.
+  - [x] Add template/JS tests.
+  - [x] Commit the optimization UI change.
 
 **Workstream E: Documentation, Verification, And Handoff**
 
