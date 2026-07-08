@@ -308,16 +308,16 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Create `portfolio_factor_optimization_models.py`.
-- [ ] Add `OptimizationSplitConfig`.
-- [ ] Add `FactorSearchSpace`.
-- [ ] Add `PortfolioFactorOptimizationRequest`.
-- [ ] Add candidate/result DTOs for factor values, train metrics, validation metrics, risk flags, and objective score.
-- [ ] Validate `max_trials > 0`.
-- [ ] Validate `1 <= max_workers <= 8`.
-- [ ] Validate split ratio and explicit validation date.
-- [ ] Validate search-space Top N values do not exceed 20.
-- [ ] Set default objective to `validation_smooth_uptrend`.
+- [x] Create `portfolio_factor_optimization_models.py`.
+- [x] Add `OptimizationSplitConfig`.
+- [x] Add `FactorSearchSpace`.
+- [x] Add `PortfolioFactorOptimizationRequest`.
+- [x] Add candidate/result DTOs for factor values, train metrics, validation metrics, risk flags, and objective score.
+- [x] Validate `max_trials > 0`.
+- [x] Validate `1 <= max_workers <= 8`.
+- [x] Validate split ratio and explicit validation date.
+- [x] Validate search-space Top N values do not exceed 20.
+- [x] Set default objective to `validation_smooth_uptrend`.
 
 **Done when:** Invalid optimization payloads fail at model validation, and a valid default request can be serialized to JSON without custom encoders.
 
@@ -733,6 +733,8 @@ git commit -m "refactor: reuse portfolio backtest context"
 ---
 
 ### Task 3: Add Factor Optimization Models
+
+**Status:** Completed. Added factor optimization request, split, search-space, candidate, metrics, trial result, and final result models with validation for workers, trials, split dates, objective, and Top N search values.
 
 **Files:**
 
