@@ -41,7 +41,7 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
     assert "组合选股回测" not in template
-    assert '<summary class="card-header portfolio-backtest-summary">' in template
+    assert '<summary class="card-header settings-primary-summary">' in template
     assert '<i class="fas fa-layer-group"></i> 组合回测' in template
     assert 'id="portfolioBacktestPanel"' in template
     assert 'id="portfolioBacktestForm"' in template
@@ -72,8 +72,6 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert 'id="portfolioVolatilityLookback"' in template
     assert 'id="portfolioLiquidityLookback"' in template
     assert 'id="portfolioScoreThreshold"' in template
-    assert 'id="singleStockDiagnosticPanel"' in template
-    assert "单股诊断" in template
     assert "加入股票池" in template
     assert "function addSymbolToPortfolio" in template
     assert "function isPortfolioManualMode" in template
@@ -114,6 +112,27 @@ def test_index_template_places_selection_strategy_after_manual_diagnostics():
     assert "fetch('/portfolio-backtest/jobs'" in template
     assert "function pollPortfolioBacktestJob" in template
     assert "function renderPortfolioProgress" in template
+
+
+def test_index_template_promotes_single_stock_backtest_to_primary_panel():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="singleStockDiagnosticPanel"' not in template
+    assert 'id="singleStockBacktestPanel"' in template
+    assert "单股诊断" not in template
+    assert '<i class="fas fa-stethoscope"></i> 单股回测' in template
+
+    portfolio_index = template.index('id="portfolioBacktestPanel"')
+    single_stock_index = template.index('id="singleStockBacktestPanel"')
+    strategy_explanation_index = template.index('<i class="fas fa-info-circle"></i> 策略说明')
+    assert portfolio_index < single_stock_index < strategy_explanation_index
+
+    panel_start = template.index('id="singleStockBacktestPanel"')
+    panel_end = template.index('<i class="fas fa-info-circle"></i> 策略说明')
+    panel = template[panel_start:panel_end]
+    assert '<summary class="card-header settings-primary-summary">' in panel
+    assert 'class="card-body"' in panel
+    assert 'id="backtestForm"' in panel
 
 
 def test_index_template_renders_phase3_portfolio_results():

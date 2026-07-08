@@ -78,21 +78,21 @@
             font-weight: bold;
             font-size: 1rem;
         }
-        .portfolio-backtest-shell > summary.card-header {
+        .settings-primary-panel > summary.card-header {
             cursor: pointer;
             list-style: none;
         }
-        .portfolio-backtest-shell > summary.card-header::-webkit-details-marker {
+        .settings-primary-panel > summary.card-header::-webkit-details-marker {
             display: none;
         }
-        .portfolio-backtest-shell > summary.card-header::after {
+        .settings-primary-panel > summary.card-header::after {
             content: "\f078";
             font-family: "Font Awesome 6 Free";
             font-weight: 900;
             float: right;
             transition: transform 0.15s ease;
         }
-        .portfolio-backtest-shell[open] > summary.card-header::after {
+        .settings-primary-panel[open] > summary.card-header::after {
             transform: rotate(180deg);
         }
         .card-body {
@@ -708,8 +708,8 @@
         <div class="row g-3 app-layout">
             <div class="col-xl-3 col-lg-4 pane-column">
                 <div class="card settings-card">
-                    <details class="portfolio-backtest-shell" id="portfolioBacktestPanel" open>
-                        <summary class="card-header portfolio-backtest-summary">
+                    <details class="settings-primary-panel" id="portfolioBacktestPanel" open>
+                        <summary class="card-header settings-primary-summary">
                             <i class="fas fa-layer-group"></i> 组合回测
                         </summary>
                         <div class="card-body">
@@ -994,10 +994,12 @@ SZ002241</textarea>
                         </div>
                     </details>
 
-                    <div class="card-body pt-0">
-                        <details class="config-panel border rounded p-2 mt-3" id="singleStockDiagnosticPanel">
-                            <summary><i class="fas fa-stethoscope"></i> 单股诊断</summary>
-                        <form id="backtestForm" class="mt-2">
+                    <details class="settings-primary-panel" id="singleStockBacktestPanel">
+                        <summary class="card-header settings-primary-summary">
+                            <i class="fas fa-stethoscope"></i> 单股回测
+                        </summary>
+                        <div class="card-body">
+                        <form id="backtestForm">
                             <div class="mb-3">
                                 <label for="symbol" class="form-label">A股代码 
                                     <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="toggleStockSearch()" id="searchToggleBtn">
@@ -1252,6 +1254,7 @@ SZ002241</textarea>
                                 <i class="fas fa-play"></i> 开始回测
                             </button>
                         </form>
+                        </div>
                         </details>
                     </div>
                 </div>
