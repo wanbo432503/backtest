@@ -134,8 +134,8 @@ class SelectionConfig(BaseModel):
     @field_validator("top_n")
     @classmethod
     def validate_top_n_cap(cls, value: int) -> int:
-        if value > 4:
-            raise ValueError("top_n must be fewer than 5")
+        if value > 20:
+            raise ValueError("top_n must not exceed 20")
         return value
 
     @field_validator("min_avg_turnover_value", "min_avg_volume", "min_price", "max_price")

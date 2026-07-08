@@ -5,6 +5,7 @@ from optimization_models import AShareTradingConfig
 from portfolio_models import (
     PortfolioBacktestRequest,
     PortfolioBacktestResult,
+    SelectionConfig,
     UniverseConfig,
 )
 
@@ -23,6 +24,13 @@ def test_portfolio_backtest_request_defaults_are_prototype_ready():
     assert request.risk.max_position_pct == 0.50
     assert request.risk.target_gross_exposure == 0.95
     assert isinstance(request.trading, AShareTradingConfig)
+
+
+def test_selection_config_allows_phase31_top_n_up_to_twenty():
+    assert SelectionConfig(top_n=20).top_n == 20
+
+    with pytest.raises(ValidationError, match="top_n"):
+        SelectionConfig(top_n=21)
 
 
 def test_portfolio_backtest_request_rejects_invalid_date_order():

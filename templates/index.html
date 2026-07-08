@@ -686,7 +686,7 @@
                                 </div>
                             </div>
                             <div class="form-text mb-2">
-                                默认从全部 60/00 普通 A 股中扫描，最终持仓少于 5 只；科创板、创业板、北交所和基金暂不纳入。
+                                默认从全部 60/00 普通 A 股中扫描，最终持仓最多 20 只；科创板、创业板、北交所和基金暂不纳入。
                             </div>
                             <details class="config-panel border rounded p-2 mb-2" id="portfolioManualUniversePanel">
                                 <summary><i class="fas fa-vial"></i> 高级诊断：手动候选池</summary>
@@ -700,7 +700,7 @@ SZ002241</textarea>
                                 </div>
                             </details>
                             <div class="portfolio-status mb-2" id="portfolioUniverseStatus">
-                                自动扫描 60/00 股票池，最终持仓少于 5 只
+                                自动扫描 60/00 股票池，最终持仓最多 20 只
                             </div>
                             <div class="compact-row">
                                 <div class="mb-3">
@@ -709,7 +709,7 @@ SZ002241</textarea>
                                 </div>
                                 <div class="mb-3">
                                     <label for="portfolioTopN" class="form-label">Top N</label>
-                                    <input type="number" class="form-control" id="portfolioTopN" min="1" max="4" step="1" value="2" required>
+                                    <input type="number" class="form-control" id="portfolioTopN" min="1" max="20" step="1" value="2" required>
                                 </div>
                             </div>
                             <div class="compact-row">
@@ -1541,14 +1541,14 @@ SZ002241</textarea>
 
         function validatePortfolioUniverse(symbols = collectPortfolioSymbols()) {
             const topN = Number(document.getElementById('portfolioTopN').value || 0);
-            if (!Number.isFinite(topN) || topN < 1 || topN > 4) {
-                return { ok: false, symbols, message: 'Top N 必须在 1 到 4 之间' };
+            if (!Number.isFinite(topN) || topN < 1 || topN > 20) {
+                return { ok: false, symbols, message: 'Top N 必须在 1 到 20 之间' };
             }
             if (!isPortfolioManualMode()) {
                 return {
                     ok: true,
                     symbols: [],
-                    message: '自动扫描 60/00 股票池，最终持仓少于 5 只'
+                    message: '自动扫描 60/00 股票池，最终持仓最多 20 只'
                 };
             }
             if (!symbols.length) {
@@ -1574,7 +1574,7 @@ SZ002241</textarea>
         function syncPortfolioUniverseState() {
             const symbols = collectPortfolioSymbols();
             const topN = document.getElementById('portfolioTopN');
-            topN.max = isPortfolioManualMode() ? String(Math.min(4, Math.max(symbols.length, 1))) : '4';
+            topN.max = isPortfolioManualMode() ? String(Math.min(20, Math.max(symbols.length, 1))) : '20';
             const manualPanel = document.getElementById('portfolioManualUniversePanel');
             if (manualPanel) {
                 manualPanel.open = isPortfolioManualMode();
@@ -3171,7 +3171,7 @@ SZ002241</textarea>
                         <hr>
                         <small class="mb-0">
                             <strong>提示:</strong><br>
-                            • 默认自动扫描 60/00 股票池，最终持仓少于 5 只<br>
+                            • 默认自动扫描 60/00 股票池，最终持仓最多 20 只<br>
                             • 手动候选池仅用于高级诊断，最多 4 只且仅支持 60/00 开头股票<br>
                             • 日线组合回测需要足够历史数据<br>
                             • 若 mootdx 不可用，可尝试自动或 yfinance 数据源

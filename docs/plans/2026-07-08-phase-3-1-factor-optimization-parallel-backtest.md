@@ -277,12 +277,12 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Raise backend `SelectionConfig.top_n` cap from 4 to 20.
-- [ ] Raise frontend `portfolioTopN` max from 4 to 20.
-- [ ] Update all visible copy that still says “最终持仓少于 5 只”.
-- [ ] Keep manual diagnostic candidate pools bounded by their actual symbol count.
-- [ ] Update TradingAgents portfolio summary validation to accept up to 20 selected symbols.
-- [ ] Add regression tests proving `top_n=20` works and `top_n=21` fails.
+- [x] Raise backend `SelectionConfig.top_n` cap from 4 to 20.
+- [x] Raise frontend `portfolioTopN` max from 4 to 20.
+- [x] Update all visible copy that still says “最终持仓少于 5 只”.
+- [x] Keep manual diagnostic candidate pools bounded by their actual symbol count.
+- [x] Update TradingAgents portfolio summary validation to accept up to 20 selected symbols.
+- [x] Add regression tests proving `top_n=20` works and `top_n=21` fails.
 
 **Done when:** Normal portfolio backtest accepts Top N 1-20 in both API and UI, and old single-stock/TradingAgents behavior remains unchanged.
 
@@ -622,6 +622,8 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 ## 7. Task List
 
 ### Task 1: Raise Top N Limit To 20
+
+**Status:** Completed. Focused RED tests were added first, then backend, WebUI, and TradingAgents limits were updated to support Top N up to 20 while keeping manual diagnostic pools bounded by their actual symbol count.
 
 **Files:**
 

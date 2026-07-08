@@ -124,7 +124,7 @@ class TradingAgentsPortfolioSummaryRequest(BaseModel):
     @field_validator("selected_symbols")
     @classmethod
     def validate_selected_symbols(cls, value: list[str]) -> list[str]:
-        result = validate_universe(value, policy=TradableUniversePolicy(max_symbols=4))
+        result = validate_universe(value, policy=TradableUniversePolicy(max_symbols=20))
         if not result.accepted_symbols:
             raise ValueError("selected_symbols must contain at least one 60/00 stock")
         if not result.ok:
