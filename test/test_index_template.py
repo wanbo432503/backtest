@@ -1,6 +1,8 @@
 from pathlib import Path
 import re
 
+from bs4 import BeautifulSoup
+
 
 def test_index_template_only_shows_a_share_symbol_examples():
     template = Path("templates/index.html").read_text(encoding="utf-8")
@@ -133,6 +135,27 @@ def test_index_template_promotes_single_stock_backtest_to_primary_panel():
     assert '<summary class="card-header settings-primary-summary">' in panel
     assert 'class="card-body"' in panel
     assert 'id="backtestForm"' in panel
+
+
+def test_index_template_preserves_bootstrap_column_hierarchy():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+    soup = BeautifulSoup(template, "html5lib")
+
+    layout = soup.select_one(".app-layout")
+    direct_children = [
+        child
+        for child in layout.find_all(recursive=False)
+        if getattr(child, "name", None)
+    ]
+
+    assert len(direct_children) == 3
+    assert all("pane-column" in (child.get("class") or []) for child in direct_children)
+    assert soup.select_one("#centerPaneColumn").parent is layout
+    assert soup.select_one("#rightAnalysisColumn").parent is layout
+
+    left_column = direct_children[0]
+    assert soup.select_one(".settings-card").parent is left_column
+    assert "策略说明" in left_column.get_text()
 
 
 def test_index_template_renders_phase3_portfolio_results():
