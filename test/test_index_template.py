@@ -117,6 +117,63 @@ def test_index_template_renders_phase3_portfolio_results():
     assert "syncTradingAgentsSymbol" in template
 
 
+def test_index_template_contains_portfolio_factor_optimization_controls():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="portfolioFactorOptimizationPanel"' in template
+    assert "因子优化" in template
+    assert "参数候选" in template
+    assert "虚拟盘参考" in template
+    assert 'id="portfolioOptimizationMaxTrials"' in template
+    assert 'id="portfolioOptimizationMaxWorkers"' in template
+    assert 'id="portfolioOptimizationTrainRatio"' in template
+    assert 'id="portfolioOptimizationExecutorBackend"' in template
+    assert 'id="portfolioOptimizationIncludeTopN"' in template
+    assert 'id="portfolioOptimizationTopNCandidates"' in template
+    assert 'id="portfolioOptimizationMomentumLookbacks"' in template
+    assert 'id="portfolioOptimizationVolatilityLookbacks"' in template
+    assert 'id="portfolioOptimizationLiquidityLookbacks"' in template
+    assert 'id="portfolioOptimizationMomentumWeights"' in template
+    assert 'id="portfolioOptimizationVolatilityWeights"' in template
+    assert 'id="portfolioOptimizationLiquidityWeights"' in template
+    assert 'id="portfolioOptimizationTrendWeights"' in template
+    assert 'id="portfolioOptimizationScoreThresholds"' in template
+    assert 'id="startPortfolioFactorOptimizationButton"' in template
+    assert "function parsePortfolioOptimizationNumberList" in template
+    assert "function collectPortfolioFactorOptimizationRequest()" in template
+    assert "function createPortfolioFactorOptimizationJob" in template
+    assert "function pollPortfolioFactorOptimizationJob" in template
+    assert "fetchJson('/portfolio-factor-optimization/jobs'" in template
+    assert "portfolio-factor-optimization/jobs/${encodeURIComponent(jobId)}" in template
+
+
+def test_index_template_renders_portfolio_factor_optimization_results_and_apply_flow():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="portfolioFactorOptimizationProgressPanel"' in template
+    assert 'id="portfolioFactorOptimizationProgressBar"' in template
+    assert 'id="portfolioFactorOptimizationProgressText"' in template
+    assert 'id="portfolioFactorOptimizationResults"' in template
+    assert 'id="portfolioFactorOptimizationResultBody"' in template
+    assert 'id="portfolioFactorOptimizationApplyStatus"' in template
+    assert "function renderPortfolioFactorOptimizationProgress" in template
+    assert "function renderPortfolioFactorOptimizationResults" in template
+    assert "function applyPortfolioFactorOptimizationResult" in template
+    assert "portfolioMomentumLookback').value = factorConfig.momentum_lookback" in template
+    assert "portfolioVolatilityLookback').value = factorConfig.volatility_lookback" in template
+    assert "portfolioLiquidityLookback').value = factorConfig.liquidity_lookback" in template
+    assert "portfolioMomentumWeight').value = factorConfig.momentum_weight" in template
+    assert "portfolioVolatilityWeight').value = factorConfig.volatility_weight" in template
+    assert "portfolioLiquidityWeight').value = factorConfig.liquidity_weight" in template
+    assert "portfolioTrendWeight').value = factorConfig.trend_weight" in template
+    assert "portfolioTopN').value = selectionConfig.top_n" in template
+    assert "不会自动下单" in template
+    assert "应用参数" in template
+    assert "验证年化" in template
+    assert "验证波动" in template
+    assert "趋势R²" in template
+
+
 def test_index_template_contains_risk_and_a_share_rule_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

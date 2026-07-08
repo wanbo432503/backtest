@@ -548,6 +548,34 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px 10px;
         }
+        .portfolio-optimization-note {
+            font-size: 0.74rem;
+            line-height: 1.35;
+            color: #5f6b7a;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 6px 8px;
+        }
+        .portfolio-optimization-table {
+            min-width: 1120px;
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+        .portfolio-optimization-table th {
+            color: #6c757d;
+            font-size: 0.72rem;
+            background: #f8f9fa;
+        }
+        .portfolio-optimization-table td {
+            font-size: 0.78rem;
+            vertical-align: middle;
+        }
+        .portfolio-optimization-table .params-cell {
+            min-width: 260px;
+            white-space: normal;
+            word-break: break-word;
+        }
         .portfolio-result-panel .card-body {
             padding: 10px;
         }
@@ -815,6 +843,77 @@ SZ002241</textarea>
                                         <input type="number" class="form-control" id="portfolioScoreThreshold" step="0.05" placeholder="可选">
                                     </div>
                                 </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3" id="portfolioFactorOptimizationPanel">
+                                <summary><i class="fas fa-sliders"></i> 因子优化</summary>
+                                <div class="portfolio-optimization-note mt-2 mb-2">
+                                    参数候选用于虚拟盘参考，不会自动下单；默认更重视验证集净值稳步抬升、低波动和低回撤。
+                                </div>
+                                <div class="portfolio-factor-grid mt-2">
+                                    <div>
+                                        <label for="portfolioOptimizationMaxTrials" class="form-label">最大试验</label>
+                                        <input type="number" class="form-control" id="portfolioOptimizationMaxTrials" min="1" max="1000" step="1" value="200">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationMaxWorkers" class="form-label">并行 worker</label>
+                                        <input type="number" class="form-control" id="portfolioOptimizationMaxWorkers" min="1" max="8" step="1" value="8">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationTrainRatio" class="form-label">训练占比</label>
+                                        <input type="number" class="form-control" id="portfolioOptimizationTrainRatio" min="0.5" max="0.9" step="0.05" value="0.7">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationExecutorBackend" class="form-label">执行后端</label>
+                                        <select class="form-select" id="portfolioOptimizationExecutorBackend">
+                                            <option value="process" selected>进程并行</option>
+                                            <option value="thread">线程回退</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationMomentumLookbacks" class="form-label">动量窗口候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationMomentumLookbacks" value="20,40,60,90,120">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationVolatilityLookbacks" class="form-label">波动窗口候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationVolatilityLookbacks" value="10,20,40">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationLiquidityLookbacks" class="form-label">流动性窗口候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationLiquidityLookbacks" value="10,20,40">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationMomentumWeights" class="form-label">动量权重候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationMomentumWeights" value="0.2,0.35,0.5,0.65">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationVolatilityWeights" class="form-label">波动权重候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationVolatilityWeights" value="-0.5,-0.25,0">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationLiquidityWeights" class="form-label">流动性权重候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationLiquidityWeights" value="0,0.15,0.3">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationTrendWeights" class="form-label">趋势权重候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationTrendWeights" value="0,0.1,0.2">
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationScoreThresholds" class="form-label">最低分候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationScoreThresholds" placeholder="留空=null">
+                                    </div>
+                                    <div class="form-check align-self-end mb-1">
+                                        <input class="form-check-input" type="checkbox" id="portfolioOptimizationIncludeTopN">
+                                        <label class="form-check-label" for="portfolioOptimizationIncludeTopN">优化 Top N</label>
+                                    </div>
+                                    <div>
+                                        <label for="portfolioOptimizationTopNCandidates" class="form-label">Top N 候选</label>
+                                        <input type="text" class="form-control" id="portfolioOptimizationTopNCandidates" value="2,3,5,10,20">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-outline-success w-100 mt-2" id="startPortfolioFactorOptimizationButton">
+                                    <i class="fas fa-ranking-star"></i> 开始因子优化
+                                </button>
                             </details>
 
                             <details class="config-panel border rounded p-2 mb-3">
@@ -1149,6 +1248,31 @@ SZ002241</textarea>
                     </div>
                 </div>
 
+                <div id="portfolioFactorOptimizationProgressPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-ranking-star"></i> 因子优化进度
+                    </div>
+                    <div class="card-body">
+                        <div class="portfolio-status mb-2" id="portfolioFactorOptimizationProgressText">等待因子优化</div>
+                        <div class="progress" role="progressbar" aria-label="因子优化进度">
+                            <div class="progress-bar bg-success" id="portfolioFactorOptimizationProgressBar" style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="portfolioFactorOptimizationResults" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-table"></i> 因子优化结果
+                    </div>
+                    <div class="card-body">
+                        <div class="portfolio-optimization-note mb-2">
+                            参数候选仅作虚拟盘参考，不会自动下单；建议优先观察验证年化、验证波动、趋势R²、回撤和风险标记。
+                        </div>
+                        <div id="portfolioFactorOptimizationApplyStatus" class="portfolio-status mb-2">等待选择参数候选</div>
+                        <div id="portfolioFactorOptimizationResultBody"></div>
+                    </div>
+                </div>
+
                 <div id="portfolioProgressPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
                     <div class="card-header">
                         <i class="fas fa-signal"></i> 组合扫描进度
@@ -1430,6 +1554,8 @@ SZ002241</textarea>
         let tradingAgentsApiKeyMasked = false;
         let tradingAgentsApiKeyVisible = false;
         let latestPortfolioResult = null;
+        let latestPortfolioOptimizationJob = null;
+        let latestPortfolioOptimizationResults = [];
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1679,6 +1805,308 @@ SZ002241</textarea>
                     ui: 'phase3_portfolio_workbench'
                 }
             };
+        }
+
+        function parsePortfolioOptimizationNumberList(id, options = {}) {
+            const rawValue = document.getElementById(id).value.trim();
+            const allowNull = Boolean(options.allowNull);
+            const integer = Boolean(options.integer);
+            if (!rawValue) {
+                if (allowNull) {
+                    return [null];
+                }
+                throw new Error(`${options.label || id} 不能为空`);
+            }
+            const values = rawValue
+                .split(/[\s,，、;；]+/)
+                .map(value => value.trim())
+                .filter(Boolean)
+                .map(value => {
+                    const lowered = value.toLowerCase();
+                    if (allowNull && ['null', 'none', 'na', '-'].includes(lowered)) {
+                        return null;
+                    }
+                    const numberValue = Number(value);
+                    if (!Number.isFinite(numberValue)) {
+                        throw new Error(`${options.label || id} 包含无效数字: ${value}`);
+                    }
+                    if (integer && !Number.isInteger(numberValue)) {
+                        throw new Error(`${options.label || id} 必须是整数`);
+                    }
+                    return numberValue;
+                });
+            if (!values.length) {
+                throw new Error(`${options.label || id} 不能为空`);
+            }
+            return Array.from(new Map(values.map(value => [String(value), value])).values());
+        }
+
+        function collectPortfolioFactorOptimizationRequest() {
+            const baseRequest = collectPortfolioRequest();
+            const maxTrials = readNumber('portfolioOptimizationMaxTrials', 200);
+            const maxWorkers = readNumber('portfolioOptimizationMaxWorkers', 8);
+            const trainRatio = readNumber('portfolioOptimizationTrainRatio', 0.7);
+            if (!Number.isFinite(maxTrials) || maxTrials < 1) {
+                throw new Error('最大试验必须大于 0');
+            }
+            if (!Number.isFinite(maxWorkers) || maxWorkers < 1 || maxWorkers > 8) {
+                throw new Error('并行 worker 必须在 1 到 8 之间');
+            }
+            if (!Number.isFinite(trainRatio) || trainRatio < 0.5 || trainRatio > 0.9) {
+                throw new Error('训练占比必须在 0.5 到 0.9 之间');
+            }
+            const includeTopN = document.getElementById('portfolioOptimizationIncludeTopN').checked;
+            const topNCandidates = includeTopN
+                ? parsePortfolioOptimizationNumberList('portfolioOptimizationTopNCandidates', { integer: true, label: 'Top N 候选' })
+                : [baseRequest.selection.top_n];
+            const invalidTopN = topNCandidates.filter(value => value < 1 || value > 20);
+            if (invalidTopN.length) {
+                throw new Error('Top N 候选必须在 1 到 20 之间');
+            }
+            return {
+                base_request: baseRequest,
+                split: {
+                    method: 'ratio',
+                    train_ratio: trainRatio,
+                    validation_start: null
+                },
+                search_space: {
+                    momentum_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationMomentumLookbacks', { integer: true, label: '动量窗口候选' }),
+                    volatility_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationVolatilityLookbacks', { integer: true, label: '波动窗口候选' }),
+                    liquidity_lookback: parsePortfolioOptimizationNumberList('portfolioOptimizationLiquidityLookbacks', { integer: true, label: '流动性窗口候选' }),
+                    momentum_weight: parsePortfolioOptimizationNumberList('portfolioOptimizationMomentumWeights', { label: '动量权重候选' }),
+                    volatility_weight: parsePortfolioOptimizationNumberList('portfolioOptimizationVolatilityWeights', { label: '波动权重候选' }),
+                    liquidity_weight: parsePortfolioOptimizationNumberList('portfolioOptimizationLiquidityWeights', { label: '流动性权重候选' }),
+                    trend_weight: parsePortfolioOptimizationNumberList('portfolioOptimizationTrendWeights', { label: '趋势权重候选' }),
+                    top_n: topNCandidates,
+                    score_threshold: parsePortfolioOptimizationNumberList('portfolioOptimizationScoreThresholds', { allowNull: true, label: '最低分候选' })
+                },
+                max_trials: Math.trunc(maxTrials),
+                max_workers: Math.trunc(maxWorkers),
+                executor_backend: document.getElementById('portfolioOptimizationExecutorBackend').value,
+                objective: 'validation_smooth_uptrend'
+            };
+        }
+
+        async function createPortfolioFactorOptimizationJob(requestBody) {
+            return fetchJson('/portfolio-factor-optimization/jobs', {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+        }
+
+        async function pollPortfolioFactorOptimizationJob(jobId) {
+            while (true) {
+                const job = await fetchJson(`/portfolio-factor-optimization/jobs/${encodeURIComponent(jobId)}`);
+                latestPortfolioOptimizationJob = job;
+                renderPortfolioFactorOptimizationProgress(job);
+                if (job.status === 'succeeded') {
+                    renderPortfolioFactorOptimizationResults(job.result || {});
+                    return job.result;
+                }
+                if (job.status === 'failed') {
+                    throw new Error(job.error || '因子优化失败');
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        function portfolioFactorOptimizationProgressPercent(job) {
+            const progress = job.progress || {};
+            if (job.status === 'succeeded') {
+                return 100;
+            }
+            if (progress.total_trials) {
+                const completed = Number(progress.completed_trials || 0) + Number(progress.failed_trials || 0);
+                return Math.max(5, Math.min(95, Math.round(completed / Number(progress.total_trials) * 100)));
+            }
+            return job.status === 'running' ? 10 : 3;
+        }
+
+        function renderPortfolioFactorOptimizationProgress(job) {
+            const panel = document.getElementById('portfolioFactorOptimizationProgressPanel');
+            const text = document.getElementById('portfolioFactorOptimizationProgressText');
+            const bar = document.getElementById('portfolioFactorOptimizationProgressBar');
+            const progress = job.progress || {};
+            const percent = portfolioFactorOptimizationProgressPercent(job);
+            const trialText = progress.total_trials
+                ? ` | ${Number(progress.completed_trials || 0) + Number(progress.failed_trials || 0)}/${progress.total_trials}`
+                : '';
+            const bestText = progress.best_objective_score !== null && progress.best_objective_score !== undefined
+                ? ` | best ${formatMetric(progress.best_objective_score)}`
+                : '';
+            const workerText = progress.max_workers
+                ? ` | worker ${progress.max_workers}`
+                : '';
+            const trendText = progress.best_equity_trend_r2 !== null && progress.best_equity_trend_r2 !== undefined
+                ? ` | 趋势R² ${formatMetric(progress.best_equity_trend_r2)}`
+                : '';
+            const volText = progress.best_validation_volatility_pct !== null && progress.best_validation_volatility_pct !== undefined
+                ? ` | 验证波动 ${formatPortfolioPct(progress.best_validation_volatility_pct)}`
+                : '';
+            panel.style.display = 'block';
+            text.className = `portfolio-status ${job.status === 'failed' ? 'failed' : 'succeeded'} mb-2`;
+            text.textContent = `${job.message || job.phase || '运行中'}${trialText}${workerText}${bestText}${trendText}${volText}`;
+            bar.style.width = `${percent}%`;
+            bar.textContent = `${percent}%`;
+        }
+
+        function renderPortfolioFactorOptimizationResults(result) {
+            const panel = document.getElementById('portfolioFactorOptimizationResults');
+            const body = document.getElementById('portfolioFactorOptimizationResultBody');
+            const rows = result.top_results || [];
+            latestPortfolioOptimizationResults = rows;
+            panel.style.display = 'block';
+            document.getElementById('portfolioFactorOptimizationApplyStatus').className = 'portfolio-status mb-2';
+            document.getElementById('portfolioFactorOptimizationApplyStatus').textContent = rows.length
+                ? `已生成 ${rows.length} 组参数候选，点击应用参数后再手动组合回测。`
+                : '没有可用参数候选';
+            if (!rows.length) {
+                body.innerHTML = '<div class="portfolio-empty">暂无因子优化结果</div>';
+                return;
+            }
+            body.innerHTML = `
+                <div class="portfolio-table-wrap">
+                    <table class="table table-sm table-bordered portfolio-optimization-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>目标分</th>
+                                <th>训练年化</th>
+                                <th>验证年化</th>
+                                <th>验证波动</th>
+                                <th>下行波动</th>
+                                <th>趋势R²</th>
+                                <th>验证回撤</th>
+                                <th>换手</th>
+                                <th>Top N</th>
+                                <th>参数</th>
+                                <th>风险</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map((row, index) => renderPortfolioFactorOptimizationRow(row, index)).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            scrollPortfolioPanelIntoView('portfolioFactorOptimizationResults');
+        }
+
+        function renderPortfolioFactorOptimizationRow(row, index) {
+            const train = row.train_metrics || {};
+            const validation = row.validation_metrics || {};
+            const candidate = row.candidate || {};
+            const selection = candidate.selection_config || {};
+            const riskFlags = row.risk_flags || [];
+            const riskBadges = riskFlags.length
+                ? riskFlags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join(' ')
+                : '<span class="badge bg-success">无</span>';
+            return `
+                <tr class="${index === 0 ? 'table-primary' : ''}">
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(formatMetric(row.objective_score))}</td>
+                    <td>${escapeHtml(formatPortfolioPct(train.annual_return_pct))}</td>
+                    <td>${escapeHtml(formatPortfolioPct(validation.annual_return_pct))}</td>
+                    <td>${escapeHtml(formatPortfolioPct(validation.return_volatility_pct))}</td>
+                    <td>${escapeHtml(formatPortfolioPct(validation.downside_volatility_pct))}</td>
+                    <td>${escapeHtml(formatMetric(validation.log_equity_trend_r2))}</td>
+                    <td>${escapeHtml(formatPortfolioPct(validation.max_drawdown_pct))}</td>
+                    <td>${escapeHtml(formatMetric(validation.turnover))}x</td>
+                    <td>${escapeHtml(selection.top_n ?? '-')}</td>
+                    <td class="params-cell">${escapeHtml(formatPortfolioFactorOptimizationParams(candidate))}</td>
+                    <td>${riskBadges}</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-success btn-sm" data-portfolio-factor-optimization-index="${index}">
+                            应用参数
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function formatPortfolioFactorOptimizationParams(candidate) {
+            const factor = candidate.factor_config || {};
+            const selection = candidate.selection_config || {};
+            return [
+                `动量${factor.momentum_lookback}/${factor.momentum_weight}`,
+                `波动${factor.volatility_lookback}/${factor.volatility_weight}`,
+                `流动性${factor.liquidity_lookback}/${factor.liquidity_weight}`,
+                `趋势${factor.trend_weight}`,
+                `最低分${selection.score_threshold ?? '无'}`
+            ].join(' | ');
+        }
+
+        function applyPortfolioFactorOptimizationResult(resultOrIndex) {
+            const result = typeof resultOrIndex === 'number'
+                ? latestPortfolioOptimizationResults[resultOrIndex]
+                : resultOrIndex;
+            if (!result || !result.candidate) {
+                return false;
+            }
+            const factorConfig = result.candidate.factor_config || {};
+            const selectionConfig = result.candidate.selection_config || {};
+            document.getElementById('portfolioMomentumLookback').value = factorConfig.momentum_lookback;
+            document.getElementById('portfolioVolatilityLookback').value = factorConfig.volatility_lookback;
+            document.getElementById('portfolioLiquidityLookback').value = factorConfig.liquidity_lookback;
+            document.getElementById('portfolioMomentumWeight').value = factorConfig.momentum_weight;
+            document.getElementById('portfolioVolatilityWeight').value = factorConfig.volatility_weight;
+            document.getElementById('portfolioLiquidityWeight').value = factorConfig.liquidity_weight;
+            document.getElementById('portfolioTrendWeight').value = factorConfig.trend_weight;
+            document.getElementById('portfolioTopN').value = selectionConfig.top_n;
+            document.getElementById('portfolioScoreThreshold').value =
+                selectionConfig.score_threshold === null || selectionConfig.score_threshold === undefined
+                    ? ''
+                    : selectionConfig.score_threshold;
+            syncPortfolioUniverseState();
+            const status = document.getElementById('portfolioFactorOptimizationApplyStatus');
+            status.className = 'portfolio-status succeeded mb-2';
+            status.textContent = '已应用参数候选；不会自动下单，也不会自动开始组合回测。';
+            return true;
+        }
+
+        function handlePortfolioFactorOptimizationResultClick(event) {
+            const button = event.target.closest('[data-portfolio-factor-optimization-index]');
+            if (!button) {
+                return;
+            }
+            applyPortfolioFactorOptimizationResult(Number(button.dataset.portfolioFactorOptimizationIndex));
+        }
+
+        async function runPortfolioFactorOptimization() {
+            const button = document.getElementById('startPortfolioFactorOptimizationButton');
+            let requestBody;
+            try {
+                requestBody = collectPortfolioFactorOptimizationRequest();
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+            button.disabled = true;
+            document.getElementById('portfolioFactorOptimizationResults').style.display = 'none';
+            renderPortfolioFactorOptimizationProgress({
+                status: 'running',
+                phase: 'queued',
+                message: '正在创建因子优化任务',
+                progress: {}
+            });
+            scrollPortfolioPanelIntoView('portfolioFactorOptimizationProgressPanel');
+            try {
+                const job = await createPortfolioFactorOptimizationJob(requestBody);
+                latestPortfolioOptimizationJob = job;
+                renderPortfolioFactorOptimizationProgress(job);
+                await pollPortfolioFactorOptimizationJob(job.job_id);
+            } catch (error) {
+                renderPortfolioFactorOptimizationProgress({
+                    status: 'failed',
+                    phase: 'failed',
+                    message: `因子优化失败: ${error.message}`,
+                    progress: latestPortfolioOptimizationJob?.progress || {}
+                });
+            } finally {
+                button.disabled = false;
+            }
         }
 
         function syncTradingAgentsSymbol(symbol) {
@@ -2499,7 +2927,13 @@ SZ002241</textarea>
                 data_gaps: '数据缺口',
                 underinvested: '仓位不足',
                 too_few_selected: '入选股票不足',
-                too_few_rebalances: '调仓次数不足'
+                too_few_rebalances: '调仓次数不足',
+                negative_validation_return: '验证收益为负',
+                train_validation_gap: '训练验证差距大',
+                high_validation_volatility: '验证波动高',
+                low_equity_trend_quality: '趋势质量低',
+                high_validation_drawdown: '验证高回撤',
+                too_few_selected_symbols: '入选股票不足'
             };
             return labels[flag] || flag;
         }
@@ -3096,6 +3530,8 @@ SZ002241</textarea>
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
             document.getElementById('portfolioSummaryButton').addEventListener('click', runPortfolioSummary);
+            document.getElementById('startPortfolioFactorOptimizationButton').addEventListener('click', runPortfolioFactorOptimization);
+            document.getElementById('portfolioFactorOptimizationResults').addEventListener('click', handlePortfolioFactorOptimizationResultClick);
             document.getElementById('taClearButton').addEventListener('click', clearTradingAgentsReports);
             document.getElementById('taApiKey').addEventListener('focus', clearMaskedTradingAgentsApiKeyForEdit);
             document.getElementById('taToggleApiKeyButton').addEventListener('click', toggleTradingAgentsApiKeyVisibility);
