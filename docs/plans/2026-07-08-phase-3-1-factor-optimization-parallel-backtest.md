@@ -495,19 +495,21 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Run focused model tests.
-- [ ] Run focused optimizer tests.
-- [ ] Run focused API/job-store tests.
-- [ ] Run focused template tests.
-- [ ] Run full `python -m pytest -q`.
-- [ ] Run `git diff --check`.
-- [ ] Start local server.
-- [ ] Browser-smoke Top N 20.
-- [ ] Browser-smoke a tiny optimization with 4 trials and 2 workers.
-- [ ] Apply one optimized result.
-- [ ] Run normal portfolio backtest with applied parameters.
-- [ ] Confirm holdings, rebalance, candidates, trades, warnings, and optimization results render.
-- [ ] Update README with user-facing workflow and caveats.
+- [x] Run focused model tests.
+- [x] Run focused optimizer tests.
+- [x] Run focused API/job-store tests.
+- [x] Run focused template tests.
+- [x] Run full `python -m pytest -q`.
+- [x] Run `git diff --check`.
+- [x] Start local server.
+- [x] Browser-smoke Top N 20.
+- [x] Browser-smoke a tiny optimization with 4 trials and 2 workers.
+- [x] Apply one optimized result.
+- [x] Run normal portfolio backtest with applied parameters.
+- [x] Confirm holdings, rebalance, candidates, trades, warnings, and optimization results render.
+- [x] Update README with user-facing workflow and caveats.
+
+**Status:** Completed. Verified focused and full automated tests, JS syntax, local server startup, real browser Top N 20 collection, a 4-trial/2-worker factor optimization, apply-parameter flow, a normal portfolio backtest with applied parameters, desktop/narrow screenshots, and README workflow updates.
 
 **Done when:** Phase 3.1 can be demonstrated end-to-end without hand-editing requests or relying on hidden backend-only behavior.
 
@@ -530,7 +532,7 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 - [x] Keep compact operational styling consistent with the current Bootstrap workbench.
 - [x] Avoid nested cards inside the existing workbench; use full-width bands, details panels, tables, and compact controls.
 - [x] Ensure Top N 1-20 does not break the current two-column form layout.
-- [ ] Ensure optimization results remain readable on narrow desktop and mobile widths.
+- [x] Ensure optimization results remain readable on narrow desktop and mobile widths.
 
 **Form Controls Todo:**
 
@@ -618,16 +620,16 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Browser Smoke Todo:**
 
-- [ ] Start the local FastAPI app.
-- [ ] Confirm the `因子优化` panel is visible and expandable.
-- [ ] Confirm invalid worker/trial inputs show client-side validation.
-- [ ] Run a tiny optimization job.
-- [ ] Confirm progress updates are visible.
-- [ ] Confirm optimization results render.
-- [ ] Apply one candidate.
-- [ ] Confirm factor fields and Top N update.
-- [ ] Run normal portfolio backtest with the applied parameters.
-- [ ] Confirm portfolio results still render in the existing result tabs.
+- [x] Start the local FastAPI app.
+- [x] Confirm the `因子优化` panel is visible and expandable.
+- [x] Confirm invalid worker/trial inputs show client-side validation.
+- [x] Run a tiny optimization job.
+- [x] Confirm progress updates are visible.
+- [x] Confirm optimization results render.
+- [x] Apply one candidate.
+- [x] Confirm factor fields and Top N update.
+- [x] Run normal portfolio backtest with the applied parameters.
+- [x] Confirm portfolio results still render in the existing result tabs.
 
 **Done when:** A user can configure, start, monitor, review, and apply factor optimization entirely from the WebUI, then manually rerun a normal portfolio backtest with the chosen parameters.
 
