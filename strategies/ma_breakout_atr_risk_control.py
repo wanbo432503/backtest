@@ -12,6 +12,15 @@ def rolling_mean(values, window):
     return pd.Series(values, dtype="float64").rolling(window).mean().to_numpy()
 
 
+def rolling_mean_min_periods(values, window, min_periods):
+    return (
+        pd.Series(values, dtype="float64")
+        .rolling(window, min_periods=min(int(min_periods), int(window)))
+        .mean()
+        .to_numpy()
+    )
+
+
 def calculate_atr(high, low, close, period):
     high_series = pd.Series(high, dtype="float64")
     low_series = pd.Series(low, dtype="float64")
@@ -42,6 +51,29 @@ def should_enter_ma_breakout(
     if any(np.isnan(float(value)) for value in values):
         return False
     if close <= ma120:
+        return False
+    if ma20 <= ma60:
+        return False
+    if close <= previous_highest_high:
+        return False
+    if average_volume <= 0 or volume <= average_volume * volume_multiplier:
+        return False
+    return True
+
+
+def should_enter_trend_bootstrap(
+    close,
+    ma20,
+    ma60,
+    previous_highest_high,
+    volume,
+    average_volume,
+    volume_multiplier,
+) -> bool:
+    values = [close, ma20, ma60, previous_highest_high, volume, average_volume]
+    if any(np.isnan(float(value)) for value in values):
+        return False
+    if close <= ma60:
         return False
     if ma20 <= ma60:
         return False
@@ -107,7 +139,7 @@ class MABreakoutATRRiskControlStrategy(Strategy):
 
     strategy_name = "ma_breakout_atr_risk_control"
     display_name = "均线突破ATR风控策略"
-    description = "MA120 多头过滤、MA20/MA60 趋势确认、40日高点放量突破买入，并使用 ATR 移动止损和波动率仓位控制。"
+    description = "长期均线多头过滤、MA20/MA60 趋势确认、高点放量突破买入；回测开头可用启动捕捉窗口减少长均线预热漏判，并使用 ATR 移动止损和波动率仓位控制。"
 
     short_ma = 20
     medium_ma = 60
@@ -115,6 +147,7 @@ class MABreakoutATRRiskControlStrategy(Strategy):
     breakout_lookback = 40
     volume_lookback = 20
     volume_multiplier = 1.5
+    bootstrap_bars = 120
     atr_period = 14
     atr_stop_multiplier = 2.5
     max_holding_bars = 80
@@ -129,7 +162,12 @@ class MABreakoutATRRiskControlStrategy(Strategy):
         volume = self.data.Volume
         self.ma20 = self.I(SMA, close, self.short_ma)
         self.ma60 = self.I(SMA, close, self.medium_ma)
-        self.ma120 = self.I(SMA, close, self.long_ma)
+        self.ma120 = self.I(
+            rolling_mean_min_periods,
+            close,
+            self.long_ma,
+            self.medium_ma,
+        )
         self.highest_high = self.I(rolling_max, high, self.breakout_lookback)
         self.average_volume = self.I(rolling_mean, volume, self.volume_lookback)
         self.atr = self.I(calculate_atr, high, low, close, self.atr_period)
@@ -137,12 +175,19 @@ class MABreakoutATRRiskControlStrategy(Strategy):
         self.highest_close = None
 
     def next(self):
-        min_bars = max(
+        strict_min_bars = max(
             self.long_ma,
             self.breakout_lookback,
             self.volume_lookback,
             self.atr_period,
         ) + 2
+        bootstrap_min_bars = max(
+            self.medium_ma,
+            self.breakout_lookback,
+            self.volume_lookback,
+            self.atr_period,
+        ) + 2
+        min_bars = bootstrap_min_bars if self.bootstrap_bars > 0 else strict_min_bars
         if len(self.data.Close) < min_bars:
             return
 
@@ -174,16 +219,35 @@ class MABreakoutATRRiskControlStrategy(Strategy):
                 self.highest_close = None
             return
 
-        if should_enter_ma_breakout(
-            close=current_close,
-            ma20=current_ma20,
-            ma60=current_ma60,
-            ma120=current_ma120,
-            previous_highest_high=previous_highest_high,
-            volume=current_volume,
-            average_volume=average_volume,
-            volume_multiplier=self.volume_multiplier,
-        ):
+        strict_entry = (
+            len(self.data.Close) >= strict_min_bars
+            and should_enter_ma_breakout(
+                close=current_close,
+                ma20=current_ma20,
+                ma60=current_ma60,
+                ma120=current_ma120,
+                previous_highest_high=previous_highest_high,
+                volume=current_volume,
+                average_volume=average_volume,
+                volume_multiplier=self.volume_multiplier,
+            )
+        )
+        bootstrap_entry = (
+            not strict_entry
+            and self.bootstrap_bars > 0
+            and len(self.data.Close) < strict_min_bars + self.bootstrap_bars
+            and should_enter_trend_bootstrap(
+                close=current_close,
+                ma20=current_ma20,
+                ma60=current_ma60,
+                previous_highest_high=previous_highest_high,
+                volume=current_volume,
+                average_volume=average_volume,
+                volume_multiplier=self.volume_multiplier,
+            )
+        )
+
+        if strict_entry or bootstrap_entry:
             position_pct = calculate_atr_position_pct(
                 close=current_close,
                 atr=current_atr,

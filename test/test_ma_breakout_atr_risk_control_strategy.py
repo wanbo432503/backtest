@@ -1,10 +1,14 @@
 from fastapi.testclient import TestClient
+import pandas as pd
+from backtesting import Backtest
 
 import main
 from strategies.ma_breakout_atr_risk_control import (
+    MABreakoutATRRiskControlStrategy,
     calculate_atr_position_pct,
     get_ma_breakout_atr_exit_reason,
     should_enter_ma_breakout,
+    should_enter_trend_bootstrap,
 )
 
 
@@ -49,6 +53,27 @@ def test_ma_breakout_atr_blocks_entry_without_long_trend_or_volume():
         ma120=12.0,
         previous_highest_high=15.0,
         volume=1_500_000,
+        average_volume=1_000_000,
+        volume_multiplier=1.5,
+    )
+
+
+def test_trend_bootstrap_allows_early_breakout_before_long_ma_is_ready():
+    assert should_enter_trend_bootstrap(
+        close=15.2,
+        ma20=14.0,
+        ma60=13.5,
+        previous_highest_high=15.0,
+        volume=1_600_000,
+        average_volume=1_000_000,
+        volume_multiplier=1.5,
+    )
+    assert not should_enter_trend_bootstrap(
+        close=15.2,
+        ma20=13.0,
+        ma60=13.5,
+        previous_highest_high=15.0,
+        volume=1_600_000,
         average_volume=1_000_000,
         volume_multiplier=1.5,
     )
@@ -121,3 +146,48 @@ def test_ma_breakout_atr_strategy_appears_in_strategy_list():
     strategy = strategies["ma_breakout_atr_risk_control"]
     assert strategy["display_name"] == "均线突破ATR风控策略"
     assert strategy["parameters"]
+
+
+def test_ma_breakout_atr_bootstrap_can_trade_before_long_ma_window_is_full():
+    closes = [
+        *([10.0] * 25),
+        10.5,
+        11.2,
+        12.1,
+        13.0,
+        14.2,
+        15.5,
+        16.4,
+        17.2,
+        15.0,
+        13.5,
+        12.0,
+        *([12.0] * 84),
+    ]
+    volumes = [1_000_000] * 25 + [1_700_000] * (len(closes) - 25)
+    data = pd.DataFrame({
+        "Open": closes,
+        "High": [value * 1.01 for value in closes],
+        "Low": [value * 0.99 for value in closes],
+        "Close": closes,
+        "Volume": volumes,
+    })
+    bt = Backtest(data, MABreakoutATRRiskControlStrategy, cash=10000, commission=0)
+
+    stats = bt.run(
+        short_ma=5,
+        medium_ma=20,
+        long_ma=90,
+        breakout_lookback=10,
+        volume_lookback=5,
+        volume_multiplier=1.2,
+        atr_period=5,
+        atr_stop_multiplier=3,
+        max_holding_bars=20,
+        target_atr_risk_pct=0.03,
+        min_position_pct=0.5,
+        max_position_pct=0.95,
+        bootstrap_bars=120,
+    )
+
+    assert int(stats["# Trades"]) >= 1

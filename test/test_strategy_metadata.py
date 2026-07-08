@@ -67,6 +67,7 @@ def test_ma_breakout_atr_metadata_exposes_trend_breakout_parameters():
         "breakout_lookback",
         "volume_lookback",
         "volume_multiplier",
+        "bootstrap_bars",
         "atr_period",
         "atr_stop_multiplier",
         "max_holding_bars",
@@ -82,6 +83,8 @@ def test_ma_breakout_atr_metadata_exposes_trend_breakout_parameters():
     assert params["long_ma"].default == 120
     assert params["breakout_lookback"].default == 40
     assert params["volume_multiplier"].default == 1.5
+    assert params["bootstrap_bars"].default == 120
+    assert params["bootstrap_bars"].search_values == [0, 60, 120]
     assert params["atr_stop_multiplier"].default == 2.5
 
 

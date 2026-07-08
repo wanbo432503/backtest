@@ -329,6 +329,17 @@ STRATEGY_METADATA: dict[str, StrategyMeta] = {
                 step=0.1,
             ),
             StrategyParamMeta(
+                name="bootstrap_bars",
+                label="启动捕捉窗口",
+                type="int",
+                default=120,
+                search_values=[0, 60, 120],
+                min_value=0,
+                max_value=250,
+                step=1,
+                description="回测开头长期均线尚未充分预热时，允许用中期趋势突破捕捉早期启动；0 表示关闭。",
+            ),
+            StrategyParamMeta(
                 name="atr_period",
                 label="ATR周期",
                 type="int",

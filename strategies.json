@@ -27,7 +27,7 @@
     "ma_breakout_atr_risk_control": {
       "name": "ma_breakout_atr_risk_control",
       "display_name": "均线突破ATR风控策略",
-      "description": "MA120 多头过滤、MA20/MA60 趋势确认、40日高点放量突破买入，并使用 ATR 移动止损和波动率仓位控制。",
+      "description": "长期均线多头过滤、MA20/MA60 趋势确认、高点放量突破买入；回测开头可用启动捕捉窗口减少长均线预热漏判，并使用 ATR 移动止损和波动率仓位控制。",
       "class_name": "MABreakoutATRRiskControlStrategy"
     }
   }
