@@ -1333,27 +1333,27 @@ SZ002241</textarea>
 
                         <ul class="nav nav-tabs nav-fill mb-2" id="portfolioResultTabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="portfolioPositionsTab" data-bs-toggle="tab" data-bs-target="#portfolioPositionsPane" type="button" role="tab" aria-controls="portfolioPositionsPane" aria-selected="true">
+                                <button class="nav-link active" id="portfolioPositionsTab" data-portfolio-target="#portfolioPositionsPane" type="button" role="tab" aria-controls="portfolioPositionsPane" aria-selected="true">
                                     持仓
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="portfolioRebalanceTab" data-bs-toggle="tab" data-bs-target="#portfolioRebalancePane" type="button" role="tab" aria-controls="portfolioRebalancePane" aria-selected="false">
+                                <button class="nav-link" id="portfolioRebalanceTab" data-portfolio-target="#portfolioRebalancePane" type="button" role="tab" aria-controls="portfolioRebalancePane" aria-selected="false">
                                     调仓
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="portfolioCandidateTab" data-bs-toggle="tab" data-bs-target="#portfolioCandidatePane" type="button" role="tab" aria-controls="portfolioCandidatePane" aria-selected="false">
+                                <button class="nav-link" id="portfolioCandidateTab" data-portfolio-target="#portfolioCandidatePane" type="button" role="tab" aria-controls="portfolioCandidatePane" aria-selected="false">
                                     候选
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="portfolioTradeTab" data-bs-toggle="tab" data-bs-target="#portfolioTradePane" type="button" role="tab" aria-controls="portfolioTradePane" aria-selected="false">
+                                <button class="nav-link" id="portfolioTradeTab" data-portfolio-target="#portfolioTradePane" type="button" role="tab" aria-controls="portfolioTradePane" aria-selected="false">
                                     成交
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="portfolioWarningTab" data-bs-toggle="tab" data-bs-target="#portfolioWarningPane" type="button" role="tab" aria-controls="portfolioWarningPane" aria-selected="false">
+                                <button class="nav-link" id="portfolioWarningTab" data-portfolio-target="#portfolioWarningPane" type="button" role="tab" aria-controls="portfolioWarningPane" aria-selected="false">
                                     提示
                                 </button>
                             </li>
@@ -3653,6 +3653,35 @@ SZ002241</textarea>
             syncTradingAgentsSymbol(symbol);
         }
 
+        function activatePortfolioResultTab(button) {
+            const targetSelector = button.dataset.portfolioTarget;
+            if (!targetSelector) {
+                return;
+            }
+            document.querySelectorAll('#portfolioResultTabs .nav-link').forEach(tabButton => {
+                const selected = tabButton === button;
+                tabButton.classList.toggle('active', selected);
+                tabButton.setAttribute('aria-selected', String(selected));
+            });
+            document.querySelectorAll('#portfolioResultPanel .tab-pane').forEach(pane => {
+                pane.classList.remove('active', 'show');
+            });
+            const targetPane = document.querySelector(targetSelector);
+            if (targetPane) {
+                targetPane.classList.add('active', 'show');
+            }
+        }
+
+        function handlePortfolioResultTabClick(event) {
+            const button = event.target.closest('#portfolioResultTabs .nav-link');
+            if (!button) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            activatePortfolioResultTab(button);
+        }
+
         function renderBacktestStats(result) {
             const statsContent = document.getElementById('statsContent');
             statsContent.innerHTML = '';
@@ -3719,6 +3748,7 @@ SZ002241</textarea>
             });
             document.getElementById('portfolioApplyStrategyDefaultsButton').addEventListener('click', applyPortfolioSelectionStrategyDefaults);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
+            document.getElementById('portfolioResultTabs').addEventListener('click', handlePortfolioResultTabClick);
             document.getElementById('portfolioSummaryButton').addEventListener('click', runPortfolioSummary);
             document.getElementById('startPortfolioFactorOptimizationButton').addEventListener('click', runPortfolioFactorOptimization);
             document.getElementById('portfolioFactorOptimizationResults').addEventListener('click', handlePortfolioFactorOptimizationResultClick);

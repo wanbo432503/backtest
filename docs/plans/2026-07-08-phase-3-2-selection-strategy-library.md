@@ -590,32 +590,32 @@ Task 1-3: Strategy contract and library
 **Workstream E: Documentation, Verification, And Handoff**
 
 - [ ] Task 12: Documentation and E2E smoke.
-  - [ ] Update README with the strategy-library concept.
-  - [ ] Explain raw factors vs strategy templates vs factor optimization.
-  - [ ] Document all five initial strategies.
-  - [ ] Document value-quality free-data limitations.
-  - [ ] Document that outputs are virtual/paper-trading references, not automatic orders.
-  - [ ] Run focused backend tests.
-  - [ ] Run template tests.
-  - [ ] Run the full pytest suite.
-  - [ ] Run `git diff --check`.
-  - [ ] Start a local FastAPI server.
-  - [ ] Browser-smoke the five strategy options.
-  - [ ] Browser-smoke a tiny strategy-aware optimization.
-  - [ ] Browser-smoke applying one optimized result back into normal portfolio backtest.
-  - [ ] Confirm holdings, rebalance, candidates, trades, warnings, and diagnostics render.
-  - [ ] Commit the documentation and smoke-tested final state.
+  - [x] Update README with the strategy-library concept.
+  - [x] Explain raw factors vs strategy templates vs factor optimization.
+  - [x] Document all five initial strategies.
+  - [x] Document value-quality free-data limitations.
+  - [x] Document that outputs are virtual/paper-trading references, not automatic orders.
+  - [x] Run focused backend tests.
+  - [x] Run template tests.
+  - [x] Run the full pytest suite.
+  - [x] Run `git diff --check`.
+  - [x] Start a local FastAPI server.
+  - [x] Browser-smoke the five strategy options.
+  - [x] Browser-smoke a tiny strategy-aware optimization.
+  - [x] Browser-smoke applying one optimized result back into normal portfolio backtest.
+  - [x] Confirm holdings, rebalance, candidates, trades, warnings, and diagnostics render.
+  - [x] Commit the documentation and smoke-tested final state.
 
 **Definition of Done for Phase 3.2:**
 
-- [ ] Users can pick a strategy template before running portfolio selection backtests.
-- [ ] The five initial strategies have real factor definitions, defaults, caveats, and optimization ranges.
-- [ ] Named strategy backtests use strategy-aware scoring.
-- [ ] `custom_factor_blend` keeps the existing Phase 3.1 raw-factor behavior.
-- [ ] Optimization can run from strategy defaults without forcing users to hand-edit raw candidate lists.
-- [ ] Value-quality handles missing fundamentals honestly and visibly.
-- [ ] Frontend requests, backend API models, optimizer results, and rendered diagnostics all use the same strategy id/name.
-- [ ] Tests and browser smoke pass before declaring the prototype usable.
+- [x] Users can pick a strategy template before running portfolio selection backtests.
+- [x] The five initial strategies have real factor definitions, defaults, caveats, and optimization ranges.
+- [x] Named strategy backtests use strategy-aware scoring.
+- [x] `custom_factor_blend` keeps the existing Phase 3.1 raw-factor behavior.
+- [x] Optimization can run from strategy defaults without forcing users to hand-edit raw candidate lists.
+- [x] Value-quality handles missing fundamentals honestly and visibly.
+- [x] Frontend requests, backend API models, optimizer results, and rendered diagnostics all use the same strategy id/name.
+- [x] Tests and browser smoke pass before declaring the prototype usable.
 
 ### Task 1: Add Strategy Models And Backward-Compatible Request Field
 

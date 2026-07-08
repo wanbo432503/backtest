@@ -117,6 +117,18 @@ def test_index_template_renders_phase3_portfolio_results():
     assert "syncTradingAgentsSymbol" in template
 
 
+def test_index_template_keeps_one_active_portfolio_result_tab():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "function activatePortfolioResultTab" in template
+    assert "portfolioResultTabs" in template
+    assert "data-portfolio-target" in template
+    assert "portfolioResultPanel .tab-pane" in template
+    assert "event.stopPropagation()" in template
+    assert "classList.remove('active', 'show')" in template
+    assert "classList.add('active', 'show')" in template
+
+
 def test_index_template_contains_portfolio_factor_optimization_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
