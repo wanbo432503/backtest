@@ -402,16 +402,18 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Implement `run_factor_optimization(...)`.
-- [ ] Load portfolio context once for the full base date range.
-- [ ] Generate and resolve candidates before launching workers.
-- [ ] Support `ProcessPoolExecutor` by default.
-- [ ] Support `ThreadPoolExecutor` fallback.
-- [ ] Enforce `max_workers <= 8`.
-- [ ] Emit progress after each completed trial.
-- [ ] Keep failed candidate errors without failing the whole job if other candidates succeed.
-- [ ] Sort top results by objective score descending.
-- [ ] Limit returned result count to a compact top-N list.
+- [x] Implement `run_factor_optimization(...)`.
+- [x] Load portfolio context once for the full base date range.
+- [x] Generate and resolve candidates before launching workers.
+- [x] Support `ProcessPoolExecutor` by default.
+- [x] Support `ThreadPoolExecutor` fallback.
+- [x] Enforce `max_workers <= 8`.
+- [x] Emit progress after each completed trial.
+- [x] Keep failed candidate errors without failing the whole job if other candidates succeed.
+- [x] Sort top results by objective score descending.
+- [x] Limit returned result count to a compact top-N list.
+
+**Status:** Completed. Added the bounded optimization runner with one-time context loading, deterministic candidate preparation, process/thread executor selection, per-trial progress, failure isolation, ranked top results, and compact diagnostics.
 
 **Done when:** A bounded 8-worker optimization run returns ranked candidates with progress updates and does not refetch OHLCV per trial.
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -10,10 +11,15 @@ from typing import Any
 from portfolio_factor_optimization_models import (
     PortfolioFactorCandidate,
     PortfolioFactorMetrics,
+    PortfolioFactorOptimizationResult,
     PortfolioFactorOptimizationRequest,
     PortfolioFactorOptimizationTrialResult,
 )
-from portfolio_backtest_runner import PortfolioBacktestContext, run_portfolio_backtest_with_context
+from portfolio_backtest_runner import (
+    PortfolioBacktestContext,
+    load_portfolio_backtest_context,
+    run_portfolio_backtest_with_context,
+)
 from portfolio_models import (
     FactorConfig,
     PortfolioBacktestRequest,
@@ -27,9 +33,14 @@ _REBALANCE_CYCLE_DAYS = {
     "biweekly": 14,
     "monthly": 31,
 }
+_TOP_OPTIMIZATION_RESULTS = 20
 BacktestRunner = Callable[
     [PortfolioBacktestRequest, PortfolioBacktestContext],
     PortfolioBacktestResult,
+]
+CandidateEvaluator = Callable[
+    [PortfolioFactorCandidate, "ResolvedOptimizationSplit", PortfolioBacktestContext],
+    PortfolioFactorOptimizationTrialResult,
 ]
 
 
@@ -306,6 +317,117 @@ def evaluate_factor_candidate(
     )
 
 
+def run_factor_optimization(
+    request: PortfolioFactorOptimizationRequest,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    *,
+    context_loader: Any = load_portfolio_backtest_context,
+    candidate_evaluator: CandidateEvaluator = evaluate_factor_candidate,
+) -> PortfolioFactorOptimizationResult:
+    _emit_progress(progress_callback, phase="loading_context", message="正在加载股票池行情")
+    context = context_loader(request.base_request, progress_callback=progress_callback)
+    split = resolve_optimization_split(request)
+    candidates = generate_factor_candidates(request)
+    total_trials = len(candidates)
+    max_workers = max(1, min(request.max_workers, total_trials, 8))
+    _emit_progress(
+        progress_callback,
+        phase="optimizing",
+        message="正在并行回测候选因子",
+        total_trials=total_trials,
+        completed_trials=0,
+        failed_trials=0,
+        max_workers=max_workers,
+        best_objective_score=None,
+    )
+
+    completed_results: list[PortfolioFactorOptimizationTrialResult] = []
+    failed_candidates: list[dict[str, str]] = []
+    executor_class = ProcessPoolExecutor if request.executor_backend == "process" else ThreadPoolExecutor
+    with executor_class(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(candidate_evaluator, candidate, split, context): candidate
+            for candidate in candidates
+        }
+        for future in as_completed(futures):
+            candidate = futures[future]
+            try:
+                completed_results.append(future.result())
+            except Exception as exc:
+                failed_candidates.append({
+                    "candidate_id": candidate.candidate_id,
+                    "error": str(exc),
+                })
+            best_result = _best_trial(completed_results)
+            _emit_progress(
+                progress_callback,
+                phase="optimizing",
+                message="正在并行回测候选因子",
+                total_trials=total_trials,
+                completed_trials=len(completed_results),
+                failed_trials=len(failed_candidates),
+                max_workers=max_workers,
+                best_objective_score=(
+                    best_result.objective_score if best_result is not None else None
+                ),
+                best_equity_trend_r2=(
+                    best_result.validation_metrics.log_equity_trend_r2
+                    if best_result is not None
+                    else None
+                ),
+                best_validation_volatility_pct=(
+                    best_result.validation_metrics.return_volatility_pct
+                    if best_result is not None
+                    else None
+                ),
+            )
+
+    top_results = _sort_trials(completed_results)[:_TOP_OPTIMIZATION_RESULTS]
+    best_result = top_results[0] if top_results else None
+    warnings = _dedupe_text([
+        *context.warnings,
+        *[
+            f"{item['candidate_id']} failed: {item['error']}"
+            for item in failed_candidates
+        ],
+    ])
+    diagnostics = {
+        "generated_candidates": len(candidates),
+        "total_trials": total_trials,
+        "completed_trials": len(completed_results),
+        "failed_trials": len(failed_candidates),
+        "failed_candidates": failed_candidates,
+        "max_workers": max_workers,
+        "executor_backend": request.executor_backend,
+        "top_results_limit": _TOP_OPTIMIZATION_RESULTS,
+        "provider_count": len(context.providers),
+        "context": dict(context.diagnostics),
+    }
+    _emit_progress(
+        progress_callback,
+        phase="completed",
+        message="因子优化完成",
+        total_trials=total_trials,
+        completed_trials=len(completed_results),
+        failed_trials=len(failed_candidates),
+        max_workers=max_workers,
+        best_objective_score=best_result.objective_score if best_result else None,
+        best_equity_trend_r2=(
+            best_result.validation_metrics.log_equity_trend_r2 if best_result else None
+        ),
+        best_validation_volatility_pct=(
+            best_result.validation_metrics.return_volatility_pct if best_result else None
+        ),
+    )
+    return PortfolioFactorOptimizationResult(
+        best_result=best_result,
+        top_results=top_results,
+        split=split.to_result_payload(),
+        diagnostics=diagnostics,
+        warnings=warnings,
+    )
+
+
 def _candidate_key(values: tuple) -> tuple:
     (
         momentum_lookback,
@@ -433,6 +555,30 @@ def _dedupe_text(values: list[str]) -> list[str]:
         seen.add(value)
         result.append(value)
     return result
+
+
+def _sort_trials(
+    results: list[PortfolioFactorOptimizationTrialResult],
+) -> list[PortfolioFactorOptimizationTrialResult]:
+    return sorted(
+        results,
+        key=lambda item: (-item.objective_score, item.candidate.candidate_id),
+    )
+
+
+def _best_trial(
+    results: list[PortfolioFactorOptimizationTrialResult],
+) -> PortfolioFactorOptimizationTrialResult | None:
+    sorted_results = _sort_trials(results)
+    return sorted_results[0] if sorted_results else None
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    **event: Any,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(event)
 
 
 def _minimum_window_days(frequency: str) -> int:

@@ -1,12 +1,18 @@
 import pytest
 
-from portfolio_factor_optimization_models import FactorSearchSpace, PortfolioFactorOptimizationRequest
+from portfolio_factor_optimization_models import (
+    FactorSearchSpace,
+    PortfolioFactorMetrics,
+    PortfolioFactorOptimizationRequest,
+    PortfolioFactorOptimizationTrialResult,
+)
 from portfolio_factor_optimizer import (
     build_optimization_risk_flags,
     calculate_equity_curve_quality,
     calculate_validation_smooth_uptrend_score,
     evaluate_factor_candidate,
     generate_factor_candidates,
+    run_factor_optimization,
     resolve_optimization_split,
 )
 from portfolio_backtest_runner import PortfolioBacktestContext
@@ -98,6 +104,34 @@ def _portfolio_result(
         equity_curve=_curve(values),
         data_warnings=warnings or [],
         scan_diagnostics={"selected_symbols": selected_symbols or ["SH600000"]},
+    )
+
+
+def _metrics(annual_return_pct: float = 10.0) -> PortfolioFactorMetrics:
+    return PortfolioFactorMetrics(
+        final_equity=110000,
+        total_return_pct=10,
+        annual_return_pct=annual_return_pct,
+        max_drawdown_pct=5,
+        turnover=1,
+        rebalances=6,
+        trades=12,
+        return_volatility_pct=8,
+        downside_volatility_pct=3,
+        log_equity_trend_r2=0.9,
+        equity_trend_score=max(annual_return_pct, 0) * 0.9,
+        positive_return_day_ratio=0.65,
+    )
+
+
+def _trial(candidate, objective_score: float) -> PortfolioFactorOptimizationTrialResult:
+    return PortfolioFactorOptimizationTrialResult(
+        candidate=candidate,
+        objective_score=objective_score,
+        train_metrics=_metrics(annual_return_pct=18),
+        validation_metrics=_metrics(annual_return_pct=objective_score),
+        risk_flags=[],
+        warnings=[],
     )
 
 
@@ -400,3 +434,95 @@ def test_evaluate_factor_candidate_runs_train_and_validation_with_candidate_conf
         "validation warning",
     ]
     assert "equity_curve" not in result.model_dump(mode="json")
+
+
+def test_run_factor_optimization_loads_context_once_and_ranks_by_objective():
+    request = PortfolioFactorOptimizationRequest(
+        base_request=_base_request(),
+        search_space=_small_search_space(top_n=[2, 5]),
+        max_workers=2,
+        executor_backend="thread",
+    )
+    context = PortfolioBacktestContext(
+        data_by_symbol={},
+        providers={"SH600000": "fake"},
+        warnings=["context warning"],
+        diagnostics={"loaded_symbols": 1},
+    )
+    load_calls = []
+    evaluated = []
+    progress_events = []
+
+    def fake_loader(base_request, progress_callback=None):
+        load_calls.append(base_request)
+        return context
+
+    def fake_evaluator(candidate, split, backtest_context):
+        evaluated.append(candidate)
+        assert backtest_context is context
+        score = 3.0 if candidate.selection_config.top_n == 5 else 1.0
+        return _trial(candidate, objective_score=score)
+
+    result = run_factor_optimization(
+        request,
+        progress_callback=progress_events.append,
+        context_loader=fake_loader,
+        candidate_evaluator=fake_evaluator,
+    )
+
+    assert load_calls == [request.base_request]
+    assert sorted(candidate.selection_config.top_n for candidate in evaluated) == [2, 5]
+    assert result.best_result is not None
+    assert result.best_result.candidate.selection_config.top_n == 5
+    assert [trial.objective_score for trial in result.top_results] == [3.0, 1.0]
+    assert result.split["validation_start"] == "2025-05-26"
+    assert result.diagnostics["completed_trials"] == 2
+    assert result.diagnostics["failed_trials"] == 0
+    assert result.diagnostics["max_workers"] == 2
+    assert result.diagnostics["executor_backend"] == "thread"
+    assert result.diagnostics["context"]["loaded_symbols"] == 1
+    assert result.warnings == ["context warning"]
+    assert progress_events[-1]["phase"] == "completed"
+    assert progress_events[-1]["completed_trials"] == 2
+    assert progress_events[-1]["best_objective_score"] == 3.0
+
+
+def test_run_factor_optimization_records_failed_candidates_without_failing_job():
+    request = PortfolioFactorOptimizationRequest(
+        base_request=_base_request(),
+        search_space=_small_search_space(top_n=[2, 5]),
+        max_workers=2,
+        executor_backend="thread",
+    )
+    context = PortfolioBacktestContext(
+        data_by_symbol={},
+        providers={},
+        warnings=[],
+        diagnostics={},
+    )
+
+    def fake_loader(base_request, progress_callback=None):
+        return context
+
+    def fake_evaluator(candidate, split, backtest_context):
+        if candidate.selection_config.top_n == 2:
+            raise RuntimeError("candidate exploded")
+        return _trial(candidate, objective_score=2.0)
+
+    result = run_factor_optimization(
+        request,
+        context_loader=fake_loader,
+        candidate_evaluator=fake_evaluator,
+    )
+
+    assert result.best_result is not None
+    assert result.best_result.candidate.selection_config.top_n == 5
+    assert result.diagnostics["completed_trials"] == 1
+    assert result.diagnostics["failed_trials"] == 1
+    assert result.diagnostics["failed_candidates"] == [
+        {
+            "candidate_id": "candidate-0001",
+            "error": "candidate exploded",
+        }
+    ]
+    assert result.warnings == ["candidate-0001 failed: candidate exploded"]
