@@ -1,7 +1,13 @@
-from portfolio_factor_optimization_models import FactorSearchSpace, PortfolioFactorOptimizationRequest
 import pytest
 
-from portfolio_factor_optimizer import generate_factor_candidates, resolve_optimization_split
+from portfolio_factor_optimization_models import FactorSearchSpace, PortfolioFactorOptimizationRequest
+from portfolio_factor_optimizer import (
+    build_optimization_risk_flags,
+    calculate_equity_curve_quality,
+    calculate_validation_smooth_uptrend_score,
+    generate_factor_candidates,
+    resolve_optimization_split,
+)
 from portfolio_models import PortfolioBacktestRequest
 
 
@@ -37,6 +43,33 @@ def _small_search_space(**overrides) -> FactorSearchSpace:
     }
     payload.update(overrides)
     return FactorSearchSpace(**payload)
+
+
+def _curve(values: list[float]) -> list[dict[str, float | str]]:
+    return [
+        {"date": f"2024-01-{index + 1:02d}", "equity": value}
+        for index, value in enumerate(values)
+    ]
+
+
+def _summary(
+    *,
+    final_equity: float,
+    annual_return_pct: float,
+    max_drawdown_pct: float = 0.0,
+    turnover: float = 1.0,
+    rebalances: int = 6,
+    trades: int = 12,
+) -> dict[str, float | int]:
+    return {
+        "final_equity": final_equity,
+        "total_return_pct": final_equity / 100000 * 100 - 100,
+        "annual_return_pct": annual_return_pct,
+        "max_drawdown_pct": max_drawdown_pct,
+        "turnover": turnover,
+        "rebalances": rebalances,
+        "trades": trades,
+    }
 
 
 def test_generate_factor_candidates_is_deterministic_and_capped():
@@ -182,3 +215,86 @@ def test_resolve_optimization_split_rejects_invalid_windows(base_request, split_
 
     with pytest.raises(ValueError, match=message):
         resolve_optimization_split(request)
+
+
+def test_calculate_equity_curve_quality_prefers_stable_uptrend_shape():
+    smooth_values = [100000 * (1.0005 ** index) for index in range(120)]
+    jagged_values = [
+        100000 + (index * 700) + (18000 if index % 2 == 0 else -18000)
+        for index in range(120)
+    ]
+
+    smooth = calculate_equity_curve_quality(
+        _summary(final_equity=smooth_values[-1], annual_return_pct=13.0),
+        _curve(smooth_values),
+    )
+    jagged = calculate_equity_curve_quality(
+        _summary(
+            final_equity=jagged_values[-1],
+            annual_return_pct=32.0,
+            max_drawdown_pct=28.0,
+        ),
+        _curve(jagged_values),
+    )
+
+    assert smooth.log_equity_trend_r2 > 0.99
+    assert smooth.log_equity_trend_r2 > jagged.log_equity_trend_r2
+    assert smooth.return_volatility_pct < jagged.return_volatility_pct
+    assert smooth.downside_volatility_pct < jagged.downside_volatility_pct
+    assert smooth.positive_return_day_ratio > jagged.positive_return_day_ratio
+
+
+def test_validation_smooth_uptrend_score_penalizes_jagged_high_return_curve():
+    train = calculate_equity_curve_quality(
+        _summary(final_equity=120000, annual_return_pct=18.0),
+        _curve([100000 * (1.0007 ** index) for index in range(120)]),
+    )
+    smooth_validation = calculate_equity_curve_quality(
+        _summary(final_equity=112000, annual_return_pct=12.0),
+        _curve([100000 * (1.00045 ** index) for index in range(120)]),
+    )
+    jagged_validation = calculate_equity_curve_quality(
+        _summary(final_equity=142000, annual_return_pct=38.0, max_drawdown_pct=35.0),
+        _curve([
+            100000 + (index * 900) + (26000 if index % 2 == 0 else -26000)
+            for index in range(120)
+        ]),
+    )
+
+    assert calculate_validation_smooth_uptrend_score(
+        train,
+        smooth_validation,
+    ) > calculate_validation_smooth_uptrend_score(
+        train,
+        jagged_validation,
+    )
+
+
+def test_build_optimization_risk_flags_marks_volatility_and_low_trend_quality():
+    train = calculate_equity_curve_quality(
+        _summary(final_equity=170000, annual_return_pct=70.0),
+        _curve([100000 * (1.002 ** index) for index in range(120)]),
+    )
+    validation = calculate_equity_curve_quality(
+        _summary(
+            final_equity=92000,
+            annual_return_pct=-8.0,
+            max_drawdown_pct=36.0,
+            turnover=12.5,
+            rebalances=1,
+        ),
+        _curve([
+            100000 + (index * 120) + (24000 if index % 2 == 0 else -26000)
+            for index in range(120)
+        ]),
+    )
+
+    flags = build_optimization_risk_flags(train, validation)
+
+    assert "negative_validation_return" in flags
+    assert "train_validation_gap" in flags
+    assert "high_validation_volatility" in flags
+    assert "low_equity_trend_quality" in flags
+    assert "high_validation_drawdown" in flags
+    assert "high_turnover" in flags
+    assert "too_few_rebalances" in flags

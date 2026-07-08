@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from itertools import product
@@ -7,6 +8,7 @@ from typing import Any
 
 from portfolio_factor_optimization_models import (
     PortfolioFactorCandidate,
+    PortfolioFactorMetrics,
     PortfolioFactorOptimizationRequest,
 )
 from portfolio_models import FactorConfig, PortfolioBacktestRequest, SelectionConfig
@@ -170,6 +172,84 @@ def resolve_optimization_split(
     )
 
 
+def calculate_equity_curve_quality(
+    summary: dict[str, Any],
+    equity_curve: list[dict[str, Any]],
+) -> PortfolioFactorMetrics:
+    equities = [
+        float(point.get("equity", 0.0))
+        for point in equity_curve
+        if _is_positive_finite(point.get("equity", 0.0))
+    ]
+    returns = _equity_returns(equities)
+    return_volatility_pct = _sample_std(returns) * math.sqrt(252) * 100
+    downside_volatility_pct = _downside_deviation(returns) * math.sqrt(252) * 100
+    log_equity_trend_r2 = _log_equity_trend_r2(equities)
+    annual_return_pct = float(summary.get("annual_return_pct", 0.0) or 0.0)
+    equity_trend_score = max(annual_return_pct, 0.0) * log_equity_trend_r2
+    positive_return_day_ratio = (
+        sum(1 for value in returns if value > 0) / len(returns)
+        if returns
+        else 0.0
+    )
+    return PortfolioFactorMetrics(
+        final_equity=round(float(summary.get("final_equity", equities[-1] if equities else 0.0) or 0.0), 6),
+        total_return_pct=round(float(summary.get("total_return_pct", 0.0) or 0.0), 6),
+        annual_return_pct=round(annual_return_pct, 6),
+        max_drawdown_pct=round(float(summary.get("max_drawdown_pct", 0.0) or 0.0), 6),
+        turnover=round(float(summary.get("turnover", 0.0) or 0.0), 6),
+        rebalances=int(summary.get("rebalances", 0) or 0),
+        trades=int(summary.get("trades", 0) or 0),
+        return_volatility_pct=round(return_volatility_pct, 6),
+        downside_volatility_pct=round(downside_volatility_pct, 6),
+        log_equity_trend_r2=round(log_equity_trend_r2, 6),
+        equity_trend_score=round(equity_trend_score, 6),
+        positive_return_day_ratio=round(positive_return_day_ratio, 6),
+    )
+
+
+def calculate_validation_smooth_uptrend_score(
+    train_metrics: PortfolioFactorMetrics,
+    validation_metrics: PortfolioFactorMetrics,
+) -> float:
+    score = (
+        validation_metrics.equity_trend_score * 0.60
+        + validation_metrics.annual_return_pct * 0.40
+        + min(train_metrics.annual_return_pct, validation_metrics.annual_return_pct) * 0.10
+        - validation_metrics.return_volatility_pct * 0.35
+        - validation_metrics.downside_volatility_pct * 0.25
+        - abs(validation_metrics.max_drawdown_pct) * 0.25
+        - validation_metrics.turnover * 0.02
+    )
+    return round(score, 6)
+
+
+def build_optimization_risk_flags(
+    train_metrics: PortfolioFactorMetrics,
+    validation_metrics: PortfolioFactorMetrics,
+    *,
+    selected_symbols_count: int | None = None,
+) -> list[str]:
+    flags = []
+    if validation_metrics.annual_return_pct < 0:
+        flags.append("negative_validation_return")
+    if train_metrics.annual_return_pct - validation_metrics.annual_return_pct > 20:
+        flags.append("train_validation_gap")
+    if validation_metrics.return_volatility_pct > 35:
+        flags.append("high_validation_volatility")
+    if validation_metrics.log_equity_trend_r2 < 0.45:
+        flags.append("low_equity_trend_quality")
+    if validation_metrics.max_drawdown_pct > 30:
+        flags.append("high_validation_drawdown")
+    if validation_metrics.turnover > 10:
+        flags.append("high_turnover")
+    if validation_metrics.rebalances < 2:
+        flags.append("too_few_rebalances")
+    if selected_symbols_count is not None and selected_symbols_count < 1:
+        flags.append("too_few_selected_symbols")
+    return flags
+
+
 def _candidate_key(values: tuple) -> tuple:
     (
         momentum_lookback,
@@ -195,6 +275,64 @@ def _candidate_key(values: tuple) -> tuple:
         score_sort,
         None if score_threshold is None else float(score_threshold),
     )
+
+
+def _is_positive_finite(value: Any) -> bool:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return False
+    return numeric > 0 and math.isfinite(numeric)
+
+
+def _equity_returns(equities: list[float]) -> list[float]:
+    returns = []
+    for previous, current in zip(equities, equities[1:]):
+        if previous <= 0:
+            continue
+        returns.append(current / previous - 1)
+    return returns
+
+
+def _sample_std(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    return math.sqrt(max(variance, 0.0))
+
+
+def _downside_deviation(returns: list[float]) -> float:
+    if not returns:
+        return 0.0
+    downside_squares = [min(value, 0.0) ** 2 for value in returns]
+    return math.sqrt(sum(downside_squares) / len(returns))
+
+
+def _log_equity_trend_r2(equities: list[float]) -> float:
+    if len(equities) < 2:
+        return 0.0
+    y_values = [math.log(value) for value in equities]
+    x_values = list(range(len(y_values)))
+    x_mean = sum(x_values) / len(x_values)
+    y_mean = sum(y_values) / len(y_values)
+    ss_xx = sum((value - x_mean) ** 2 for value in x_values)
+    if ss_xx == 0:
+        return 0.0
+    slope = sum(
+        (x_value - x_mean) * (y_value - y_mean)
+        for x_value, y_value in zip(x_values, y_values)
+    ) / ss_xx
+    intercept = y_mean - slope * x_mean
+    fitted = [intercept + slope * x_value for x_value in x_values]
+    ss_total = sum((value - y_mean) ** 2 for value in y_values)
+    if ss_total == 0:
+        return 1.0
+    ss_residual = sum(
+        (actual - predicted) ** 2
+        for actual, predicted in zip(y_values, fitted)
+    )
+    return max(0.0, min(1.0, 1 - ss_residual / ss_total))
 
 
 def _copy_request_with_dates(

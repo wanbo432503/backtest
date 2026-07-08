@@ -362,15 +362,17 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Implement `calculate_equity_curve_quality(...)`.
-- [ ] Compute annualized validation return volatility.
-- [ ] Compute annualized validation downside volatility.
-- [ ] Compute validation log-equity trend R-squared.
-- [ ] Compute validation positive-return day ratio.
-- [ ] Compute validation equity trend score.
-- [ ] Implement `validation_smooth_uptrend` objective score.
-- [ ] Add risk flags for high volatility and low trend quality.
-- [ ] Add tests where a smoother rising curve beats a higher-return jagged curve.
+- [x] Implement `calculate_equity_curve_quality(...)`.
+- [x] Compute annualized validation return volatility.
+- [x] Compute annualized validation downside volatility.
+- [x] Compute validation log-equity trend R-squared.
+- [x] Compute validation positive-return day ratio.
+- [x] Compute validation equity trend score.
+- [x] Implement `validation_smooth_uptrend` objective score.
+- [x] Add risk flags for high volatility and low trend quality.
+- [x] Add tests where a smoother rising curve beats a higher-return jagged curve.
+
+**Status:** Completed. Added equity-curve quality metrics, the validation smooth-uptrend objective, and optimization risk flags so ranking can prefer stable upward validation curves over jagged high-return candidates.
 
 **Done when:** Optimizer ranking prefers a stable upward validation equity curve over a high-return but violently fluctuating one, all else reasonably comparable.
 
