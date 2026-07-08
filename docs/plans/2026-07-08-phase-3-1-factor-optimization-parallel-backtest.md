@@ -4,7 +4,7 @@
 
 **Goal:** Add configurable factor optimization for the Phase 3 portfolio selector, raise portfolio Top N to 20, and run many rolling-rebalance portfolio backtests in parallel on an 8-core machine.
 
-**Architecture:** Keep the existing deterministic Phase 3.0 portfolio backtest engine as the source of truth. Add a reusable optimization layer that generates candidate factor/selection configurations, runs the same rolling rebalance backtest across train and validation periods, ranks candidates by validation return with overfit/risk diagnostics, and lets the user apply the winning configuration back to the portfolio workbench. Introduce a bounded parallel worker pool for optimization jobs while reusing loaded universe OHLCV data to avoid refetching the same 60/00 stock pool for every trial.
+**Architecture:** Keep the existing deterministic Phase 3.0 portfolio backtest engine as the source of truth. Add a reusable optimization layer that generates candidate factor/selection configurations, runs the same rolling rebalance backtest across train and validation periods, ranks candidates by validation smooth-uptrend quality rather than raw return alone, and lets the user apply the winning configuration back to the portfolio workbench. Introduce a bounded parallel worker pool for optimization jobs while reusing loaded universe OHLCV data to avoid refetching the same 60/00 stock pool for every trial.
 
 **Tech Stack:** FastAPI, Pydantic, pandas, concurrent.futures, Bootstrap, pytest, existing mootdx/yfinance data adapters.
 
@@ -26,7 +26,7 @@
   - train period is used to search and fit candidate factor configurations
   - validation period is used to rank and reject overfit candidates
   - no future bars may be used by factor calculation on any rebalance date
-- The default objective is maximum validation annual return, with train-return consistency and risk diagnostics shown beside it.
+- The default objective prioritizes a steadily rising validation equity curve: meaningful annual return, lower return volatility, lower downside volatility, lower drawdown, and less train/validation mismatch.
 - The UI must make clear that optimized factors are not live trading signals by themselves; they are parameter candidates for paper-trading or manual review.
 
 ### 1.2 What Phase 3.1 Does Not Add
@@ -68,17 +68,23 @@ Each candidate configuration produces two normal portfolio backtests:
 - Train backtest: `train_start -> train_end`
 - Validation backtest: `validation_start -> validation_end`
 
-Rank candidates by:
+Rank candidates by the default `validation_smooth_uptrend` objective:
 
 ```text
+validation_equity_trend_score =
+max(validation_annual_return_pct, 0) * validation_log_equity_trend_r2
+
 objective_score =
-validation_annual_return_pct * 1.0
-+ min(train_annual_return_pct, validation_annual_return_pct) * 0.15
-- abs(validation_max_drawdown_pct) * 0.15
+validation_equity_trend_score * 0.60
++ validation_annual_return_pct * 0.40
++ min(train_annual_return_pct, validation_annual_return_pct) * 0.10
+- validation_return_volatility_pct * 0.35
+- validation_downside_volatility_pct * 0.25
+- abs(validation_max_drawdown_pct) * 0.25
 - validation_turnover * 0.02
 ```
 
-The primary goal remains maximum validation return. The extra terms are small guardrails to avoid selecting a configuration that only wins validation through extreme drawdown or unstable train/validation mismatch.
+The most important preference is a validation equity curve that steadily rises. A candidate with slower but smoother gains should be allowed to beat a candidate with higher annual return but violent equity swings. `validation_log_equity_trend_r2` is the R-squared of a linear trend fitted to log equity; a curve that climbs steadily has a higher value, while a jagged curve has a lower value. If validation annual return is negative, the trend score is zero.
 
 ### 3.2 Diagnostics
 
@@ -86,10 +92,15 @@ Every result must expose:
 
 - train annual return
 - validation annual return
+- validation return volatility
+- validation downside volatility
 - train total return
 - validation total return
 - train max drawdown
 - validation max drawdown
+- validation log equity trend R-squared
+- validation equity trend score
+- validation positive-return day ratio
 - train/validation return gap
 - turnover
 - rebalances
@@ -97,6 +108,8 @@ Every result must expose:
 - risk flags:
   - `negative_validation_return`
   - `train_validation_gap`
+  - `high_validation_volatility`
+  - `low_equity_trend_quality`
   - `high_validation_drawdown`
   - `high_turnover`
   - `too_few_rebalances`
@@ -196,7 +209,7 @@ Request:
   "max_trials": 200,
   "max_workers": 8,
   "executor_backend": "process",
-  "objective": "validation_return_guarded"
+  "objective": "validation_smooth_uptrend"
 }
 ```
 
@@ -231,7 +244,9 @@ Response includes:
     "completed_trials": 37,
     "failed_trials": 0,
     "max_workers": 8,
-    "best_objective_score": 18.4
+    "best_objective_score": 18.4,
+    "best_equity_trend_r2": 0.82,
+    "best_validation_volatility_pct": 12.5
   },
   "result": null,
   "error": null
@@ -377,6 +392,7 @@ Cover:
 - `max_workers` must be between 1 and 8 by default policy
 - split ratio must be between 0.5 and 0.9
 - invalid executor backend is rejected
+- default objective is `validation_smooth_uptrend`
 - generated Top N values cannot exceed 20
 
 **Step 2: Run tests to verify failure**
@@ -417,7 +433,7 @@ class PortfolioFactorOptimizationRequest(BaseModel):
     max_trials: int = 200
     max_workers: int = 8
     executor_backend: Literal["process", "thread"] = "process"
-    objective: Literal["validation_return_guarded"] = "validation_return_guarded"
+    objective: Literal["validation_smooth_uptrend"] = "validation_smooth_uptrend"
 ```
 
 **Step 4: Verify**
@@ -565,7 +581,9 @@ Use synthetic OHLCV where one factor setting clearly wins validation. Assert:
 - one candidate runs a train backtest
 - the same candidate runs a validation backtest
 - returned metrics include train and validation returns
-- objective score prioritizes validation annual return
+- returned metrics include validation return volatility and downside volatility
+- returned metrics include validation log-equity trend R-squared
+- objective score prefers a smoother rising validation curve over a higher-return but highly volatile curve
 - result includes the exact candidate factor parameters
 
 **Step 2: Run tests to verify failure**
@@ -583,6 +601,9 @@ Expected: FAIL because evaluator does not exist.
 Add:
 
 ```python
+def calculate_equity_curve_quality(equity_curve: list[dict[str, Any]]) -> dict[str, float]:
+    ...
+
 def evaluate_factor_candidate(
     candidate: PortfolioFactorCandidate,
     base_request: PortfolioBacktestRequest,
@@ -598,6 +619,16 @@ Build two request copies:
 - validation request with candidate factors and validation dates
 
 Call `run_portfolio_backtest_with_context(...)` for both.
+
+`calculate_equity_curve_quality(...)` must compute:
+
+- `return_volatility_pct`: annualized standard deviation of daily equity returns.
+- `downside_volatility_pct`: annualized standard deviation of negative daily equity returns.
+- `log_equity_trend_r2`: R-squared of a linear fit on log equity over time.
+- `positive_return_day_ratio`: ratio of positive equity-return days.
+- `equity_trend_score`: `max(annual_return_pct, 0) * log_equity_trend_r2`.
+
+The objective score must use validation quality metrics. It must not let a high-return but jagged validation curve dominate a slower, steadier validation curve when the steadier curve has meaningfully lower volatility and higher trend R-squared.
 
 **Step 4: Verify**
 
@@ -630,6 +661,7 @@ Cover:
 - runner evaluates all candidates
 - runner respects `max_workers`
 - progress callback receives total/completed counts
+- progress callback exposes best current trend quality and validation volatility when available
 - failed candidate does not crash the whole job if at least one result succeeds
 - top results are sorted by objective score descending
 
@@ -842,6 +874,9 @@ Display:
   - objective score
   - train annual return
   - validation annual return
+  - validation return volatility
+  - validation downside volatility
+  - validation trend R-squared
   - validation max drawdown
   - turnover
   - Top N
@@ -968,6 +1003,8 @@ git commit -m "docs: document phase 3.1 factor optimization"
 - Normal portfolio backtest still works without using optimization.
 - Factor optimization runs the same rolling rebalance portfolio logic as normal backtest.
 - Optimization uses chronological train and validation periods.
+- The default objective rewards smooth validation equity growth, not raw annual return alone.
+- Results expose validation return volatility, downside volatility, and equity trend quality.
 - Factor calculations remain lookahead-safe.
 - Optimization jobs can use up to 8 parallel workers.
 - Optimization loads universe data once per job, not once per trial.
@@ -979,10 +1016,9 @@ git commit -m "docs: document phase 3.1 factor optimization"
 
 ## 8. Risks And Mitigations
 
-- **Overfitting:** Always show train and validation metrics side by side. Rank primarily by validation return and expose risk flags.
+- **Overfitting:** Always show train and validation metrics side by side. Rank by validation smooth-uptrend quality, not return alone; slower but steadier equity growth should beat sharp, unstable gains.
 - **Data source slowness:** Load OHLCV once per optimization job and reuse context. Keep `max_trials` bounded.
 - **CPU pressure:** Default max workers to 8 but allow lower values. Do not run unbounded optimization jobs.
 - **Memory pressure:** Limit result payload to top results and compact diagnostics. Avoid returning full equity curves for every trial unless explicitly requested later.
 - **Process-pool pickling cost:** Keep process payloads compact. If this becomes too slow, switch `executor_backend` to `thread` or use precomputed factor matrices in a later phase.
 - **User confusion between optimized and live-ready:** UI labels should say “应用参数” and “虚拟盘参考”, not “自动买入”.
-
