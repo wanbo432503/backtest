@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 
 from portfolio_models import FactorConfig, SelectionConfig
+from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
 
 
 FACTOR_KEYS = ("momentum", "volatility", "liquidity", "trend")
@@ -47,6 +48,62 @@ def calculate_symbol_factors(
             "liquidity": float(liquidity),
             "trend": float(trend),
         },
+        "skip_reason": None,
+    }
+
+
+def calculate_strategy_factor_values(
+    data: pd.DataFrame,
+    as_of_date: pd.Timestamp | str,
+    strategy: PortfolioSelectionStrategyDefinition,
+    min_history_bars: int = 120,
+    lookahead_safe: bool = True,
+    parameter_overrides: dict[str, Any] | None = None,
+    fundamentals: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    history = _history_until(data, as_of_date, lookahead_safe)
+    lookbacks = _strategy_lookbacks(strategy, parameter_overrides or {})
+    required_bars = max([min_history_bars, *(lookback + 1 for lookback in lookbacks.values())])
+    if len(history) < required_bars:
+        return {
+            "factor_values": {},
+            "skip_reason": "insufficient_history",
+        }
+
+    close = history["Close"].astype(float)
+    high = history["High"].astype(float) if "High" in history else close
+    volume = history["Volume"].astype(float)
+    returns = close.pct_change().dropna()
+    factor_values: dict[str, float] = {}
+
+    for factor in strategy.factors:
+        key = factor.key
+        lookback = lookbacks.get(key)
+        if key == "momentum_return" and lookback is not None:
+            factor_values[key] = _momentum_return(close, lookback)
+        elif key == "realized_volatility" and lookback is not None:
+            factor_values[key] = _realized_volatility(returns, lookback)
+        elif key == "downside_volatility" and lookback is not None:
+            factor_values[key] = _downside_volatility(returns, lookback)
+        elif key == "liquidity_turnover" and lookback is not None:
+            factor_values[key] = _liquidity_turnover(close, volume, lookback)
+        elif key == "ma_trend" and lookback is not None:
+            factor_values[key] = _ma_trend(close, lookback)
+        elif key == "breakout_strength" and lookback is not None:
+            factor_values[key] = _breakout_strength(close, high, lookback)
+        elif key == "volume_expansion" and lookback is not None:
+            factor_values[key] = _volume_expansion(volume, lookback)
+        elif key == "volume_stability" and lookback is not None:
+            factor_values[key] = _volume_stability(volume, lookback)
+        elif key == "max_drawdown_window" and lookback is not None:
+            factor_values[key] = _max_drawdown_window(close, lookback)
+        elif key == "recovery_strength" and lookback is not None:
+            factor_values[key] = _recovery_strength(close, lookback)
+        elif fundamentals and key in fundamentals:
+            factor_values[key] = _safe_float(fundamentals.get(key))
+
+    return {
+        "factor_values": factor_values,
         "skip_reason": None,
     }
 
@@ -106,6 +163,21 @@ def score_candidates(
     return rows
 
 
+def _strategy_lookbacks(
+    strategy: PortfolioSelectionStrategyDefinition,
+    parameter_overrides: dict[str, Any],
+) -> dict[str, int]:
+    lookbacks: dict[str, int] = {}
+    for factor in strategy.factors:
+        override = parameter_overrides.get(factor.key, {})
+        override_lookback = override.get("lookback") if isinstance(override, dict) else None
+        if override_lookback is not None:
+            lookbacks[factor.key] = int(override_lookback)
+        elif factor.default_lookback is not None:
+            lookbacks[factor.key] = factor.default_lookback
+    return lookbacks
+
+
 def _history_until(
     data: pd.DataFrame,
     as_of_date: pd.Timestamp | str,
@@ -116,6 +188,80 @@ def _history_until(
     if lookahead_safe:
         return frame[frame.index < timestamp]
     return frame[frame.index <= timestamp]
+
+
+def _momentum_return(close: pd.Series, lookback: int) -> float:
+    return _safe_float(close.iloc[-1] / close.iloc[-lookback - 1] - 1)
+
+
+def _realized_volatility(returns: pd.Series, lookback: int) -> float:
+    return _safe_float(returns.tail(lookback).std())
+
+
+def _downside_volatility(returns: pd.Series, lookback: int) -> float:
+    downside = returns.tail(lookback)
+    downside = downside[downside < 0]
+    if downside.empty:
+        return 0.0
+    return _safe_float(downside.std())
+
+
+def _liquidity_turnover(close: pd.Series, volume: pd.Series, lookback: int) -> float:
+    return _safe_float((close * volume).tail(lookback).mean())
+
+
+def _ma_trend(close: pd.Series, lookback: int) -> float:
+    moving_average = close.tail(lookback).mean()
+    if not moving_average:
+        return 0.0
+    return _safe_float(close.iloc[-1] / moving_average - 1)
+
+
+def _breakout_strength(close: pd.Series, high: pd.Series, lookback: int) -> float:
+    previous_high = high.iloc[-lookback - 1 : -1].max()
+    if not previous_high:
+        return 0.0
+    return _safe_float(close.iloc[-1] / previous_high - 1)
+
+
+def _volume_expansion(volume: pd.Series, lookback: int) -> float:
+    window = volume.tail(lookback)
+    recent_count = max(1, min(5, len(window) // 3))
+    recent = window.tail(recent_count).mean()
+    baseline = window.iloc[: -recent_count].mean() if len(window) > recent_count else window.mean()
+    if not baseline:
+        return 0.0
+    return _safe_float(recent / baseline - 1)
+
+
+def _volume_stability(volume: pd.Series, lookback: int) -> float:
+    window = volume.tail(lookback)
+    mean_value = window.mean()
+    if not mean_value:
+        return 0.0
+    coefficient = window.std() / mean_value
+    return _safe_float(1 / (1 + coefficient))
+
+
+def _max_drawdown_window(close: pd.Series, lookback: int) -> float:
+    window = close.tail(lookback)
+    running_peak = window.cummax()
+    drawdown = window / running_peak - 1
+    return abs(_safe_float(drawdown.min()))
+
+
+def _recovery_strength(close: pd.Series, lookback: int) -> float:
+    window = close.tail(lookback)
+    trough = window.min()
+    if not trough:
+        return 0.0
+    return _safe_float(close.iloc[-1] / trough - 1)
+
+
+def _safe_float(value: Any) -> float:
+    if pd.isna(value):
+        return 0.0
+    return float(value)
 
 
 def _normalize_factors(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:

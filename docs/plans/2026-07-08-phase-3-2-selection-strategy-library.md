@@ -490,21 +490,21 @@ Task 1-3: Strategy contract and library
 
 **Workstream B: Strategy Factor Engine And Scoring**
 
-- [ ] Task 4: Extend the factor engine with the strategy factor superset.
-  - [ ] Add momentum-return calculation that is safe for rolling rebalance dates.
-  - [ ] Add realized volatility.
-  - [ ] Add downside volatility.
-  - [ ] Add liquidity turnover.
-  - [ ] Add moving-average trend confirmation.
-  - [ ] Add breakout strength.
-  - [ ] Add volume expansion.
-  - [ ] Add volume stability.
-  - [ ] Add recent max drawdown.
-  - [ ] Add recovery strength.
-  - [ ] Return clear `skip_reason` for insufficient history.
-  - [ ] Add synthetic-data tests for each new factor.
-  - [ ] Add lookahead-safety tests.
-  - [ ] Commit the factor-engine change.
+- [x] Task 4: Extend the factor engine with the strategy factor superset.
+  - [x] Add momentum-return calculation that is safe for rolling rebalance dates.
+  - [x] Add realized volatility.
+  - [x] Add downside volatility.
+  - [x] Add liquidity turnover.
+  - [x] Add moving-average trend confirmation.
+  - [x] Add breakout strength.
+  - [x] Add volume expansion.
+  - [x] Add volume stability.
+  - [x] Add recent max drawdown.
+  - [x] Add recovery strength.
+  - [x] Return clear `skip_reason` for insufficient history.
+  - [x] Add synthetic-data tests for each new factor.
+  - [x] Add lookahead-safety tests.
+  - [x] Commit the factor-engine change.
 - [ ] Task 5: Add strategy-aware candidate scoring.
   - [ ] Normalize each factor cross-sectionally per rebalance date.
   - [ ] Apply `higher_better` and `lower_better` directions correctly.
