@@ -96,6 +96,27 @@ def test_optimization_request_validates_trials_workers_backend_and_objective():
         PortfolioFactorOptimizationRequest(base_request=_base_request(), executor_backend="gpu")
 
 
+def test_optimization_request_accepts_null_search_space_for_named_selection_strategy():
+    request = PortfolioFactorOptimizationRequest.model_validate({
+        "base_request": {
+            "start_date": "2024-01-01",
+            "end_date": "2026-01-01",
+            "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+            "selection": {"top_n": 2, "min_history_bars": 60},
+            "selection_strategy": {
+                "strategy_id": "steady_low_vol_momentum",
+                "enabled": True,
+            },
+        },
+        "search_space": None,
+        "max_trials": 5,
+    })
+
+    assert request.search_space is None
+    assert request.base_request.selection_strategy is not None
+    assert request.base_request.selection_strategy.strategy_id == "steady_low_vol_momentum"
+
+
 def test_optimization_split_validates_ratio_and_explicit_validation_start():
     assert OptimizationSplitConfig(train_ratio=0.7).method == "ratio"
 

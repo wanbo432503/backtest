@@ -543,17 +543,17 @@ Task 1-3: Strategy contract and library
   - [x] Preserve automatic `60/00` universe behavior.
   - [x] Test named strategy and legacy paths.
   - [x] Commit the backtest integration change.
-- [ ] Task 8: Integrate the strategy library with factor optimization.
-  - [ ] Allow optimization requests to omit raw `search_space` when a named strategy is selected.
-  - [ ] Resolve the selected strategy before generating trials.
-  - [ ] Generate trials from the strategy search space.
-  - [ ] Preserve `max_workers <= 8`.
-  - [ ] Preserve process/thread backend selection.
-  - [ ] Include strategy id/name in trial results.
-  - [ ] Include strategy warnings and risk flags in optimization output.
-  - [ ] Keep default ranking by validation smooth-uptrend objective.
-  - [ ] Test strategy-derived optimization and legacy raw optimization.
-  - [ ] Commit the optimizer integration change.
+- [x] Task 8: Integrate the strategy library with factor optimization.
+  - [x] Allow optimization requests to omit raw `search_space` when a named strategy is selected.
+  - [x] Resolve the selected strategy before generating trials.
+  - [x] Generate trials from the strategy search space.
+  - [x] Preserve `max_workers <= 8`.
+  - [x] Preserve process/thread backend selection.
+  - [x] Include strategy id/name in trial results.
+  - [x] Include strategy warnings and risk flags in optimization output.
+  - [x] Keep default ranking by validation smooth-uptrend objective.
+  - [x] Test strategy-derived optimization and legacy raw optimization.
+  - [x] Commit the optimizer integration change.
 
 **Workstream D: API And WebUI**
 

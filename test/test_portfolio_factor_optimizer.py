@@ -201,6 +201,34 @@ def test_generate_factor_candidates_returns_valid_factor_and_selection_configs()
     assert candidate.selection_config.min_history_bars == 60
 
 
+def test_generate_factor_candidates_uses_strategy_defaults_when_raw_search_space_is_null():
+    base_request = PortfolioBacktestRequest(
+        start_date="2024-01-01",
+        end_date="2026-01-01",
+        universe={"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+        selection={"top_n": 2, "min_history_bars": 60},
+        selection_strategy={
+            "strategy_id": "steady_low_vol_momentum",
+            "enabled": True,
+        },
+    )
+    request = PortfolioFactorOptimizationRequest(
+        base_request=base_request,
+        search_space=None,
+        max_trials=3,
+    )
+
+    candidates = generate_factor_candidates(request)
+
+    assert len(candidates) == 3
+    assert {candidate.selection_strategy_id for candidate in candidates} == {"steady_low_vol_momentum"}
+    assert {candidate.selection_strategy_name for candidate in candidates} == {"稳健低波动动量策略"}
+    assert all("momentum_return" in candidate.selection_strategy_overrides for candidate in candidates)
+    assert all("realized_volatility" in candidate.selection_strategy_overrides for candidate in candidates)
+    assert all(candidate.selection_config.top_n in {2, 3, 5, 10} for candidate in candidates)
+    assert candidates[0].model_dump(mode="json")["selection_strategy_id"] == "steady_low_vol_momentum"
+
+
 def test_resolve_optimization_split_uses_default_ratio_without_overlap():
     request = PortfolioFactorOptimizationRequest(
         base_request=_base_request(),

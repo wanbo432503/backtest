@@ -9,6 +9,7 @@ from itertools import product
 from typing import Any
 
 from portfolio_factor_optimization_models import (
+    FactorSearchSpace,
     PortfolioFactorCandidate,
     PortfolioFactorMetrics,
     PortfolioFactorOptimizationResult,
@@ -25,6 +26,10 @@ from portfolio_models import (
     PortfolioBacktestRequest,
     PortfolioBacktestResult,
     SelectionConfig,
+)
+from portfolio_selection_strategy_library import (
+    build_factor_search_space_for_strategy,
+    get_selection_strategy,
 )
 
 
@@ -77,6 +82,9 @@ class ResolvedOptimizationSplit:
 def generate_factor_candidates(
     request: PortfolioFactorOptimizationRequest,
 ) -> list[PortfolioFactorCandidate]:
+    if request.search_space is None:
+        return _generate_strategy_factor_candidates(request)
+
     rows = []
     seen: set[tuple] = set()
     space = request.search_space
@@ -134,6 +142,126 @@ def generate_factor_candidates(
             )
         )
     return candidates
+
+
+def _generate_strategy_factor_candidates(
+    request: PortfolioFactorOptimizationRequest,
+) -> list[PortfolioFactorCandidate]:
+    strategy_config = request.base_request.selection_strategy
+    if strategy_config is None:
+        raise ValueError("selection strategy is required when search_space is null")
+    strategy = get_selection_strategy(strategy_config.strategy_id)
+    strategy_space = build_factor_search_space_for_strategy(strategy.strategy_id)
+    legacy_space = strategy_space.legacy_factor_search_space or FactorSearchSpace()
+
+    dimensions: list[tuple[str, str, list[Any]]] = []
+    for factor_key in sorted(strategy_space.factor_lookbacks):
+        dimensions.append(("lookback", factor_key, list(strategy_space.factor_lookbacks[factor_key])))
+    for factor_key in sorted(strategy_space.factor_weights):
+        dimensions.append(("weight", factor_key, list(strategy_space.factor_weights[factor_key])))
+
+    rows = []
+    seen: set[tuple] = set()
+    values_by_dimension = [dimension[2] for dimension in dimensions]
+    for dimension_values in product(
+        *values_by_dimension,
+        strategy_space.top_n,
+        strategy_space.score_threshold,
+    ):
+        factor_values = dimension_values[: len(dimensions)]
+        top_n = int(dimension_values[-2])
+        score_threshold = dimension_values[-1]
+        overrides = _strategy_overrides_from_values(dimensions, factor_values)
+        key = (
+            tuple(
+                sorted(
+                    (factor_key, tuple(sorted(values.items())))
+                    for factor_key, values in overrides.items()
+                )
+            ),
+            top_n,
+            float("-inf") if score_threshold is None else float(score_threshold),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append((key, overrides, top_n, score_threshold))
+
+    candidates = []
+    for index, (_key, overrides, top_n, score_threshold) in enumerate(
+        sorted(rows, key=lambda row: row[0])[: request.max_trials],
+        start=1,
+    ):
+        factor_config = _legacy_factor_config_for_strategy_candidate(
+            request.base_request.factors,
+            legacy_space,
+            overrides,
+        )
+        selection_payload = request.base_request.selection.model_dump()
+        selection_payload.update({
+            "top_n": top_n,
+            "score_threshold": score_threshold,
+        })
+        candidates.append(
+            PortfolioFactorCandidate(
+                candidate_id=f"candidate-{index:04d}",
+                factor_config=factor_config,
+                selection_config=SelectionConfig.model_validate(selection_payload),
+                selection_strategy_id=strategy.strategy_id,
+                selection_strategy_name=strategy.name,
+                selection_strategy_overrides=overrides,
+            )
+        )
+    return candidates
+
+
+def _strategy_overrides_from_values(
+    dimensions: list[tuple[str, str, list[Any]]],
+    values: tuple[Any, ...],
+) -> dict[str, dict[str, Any]]:
+    overrides: dict[str, dict[str, Any]] = {}
+    for (kind, factor_key, _candidates), value in zip(dimensions, values):
+        overrides.setdefault(factor_key, {})[kind] = value
+    return overrides
+
+
+def _legacy_factor_config_for_strategy_candidate(
+    base_config: FactorConfig,
+    legacy_space: FactorSearchSpace,
+    overrides: dict[str, dict[str, Any]],
+) -> FactorConfig:
+    payload = base_config.model_dump()
+    if "momentum_return" in overrides and "lookback" in overrides["momentum_return"]:
+        payload["momentum_lookback"] = overrides["momentum_return"]["lookback"]
+    if "liquidity_turnover" in overrides and "lookback" in overrides["liquidity_turnover"]:
+        payload["liquidity_lookback"] = overrides["liquidity_turnover"]["lookback"]
+    for key in ("realized_volatility", "downside_volatility", "max_drawdown_window"):
+        if key in overrides and "lookback" in overrides[key]:
+            payload["volatility_lookback"] = overrides[key]["lookback"]
+            break
+
+    payload["momentum_weight"] = overrides.get("momentum_return", {}).get(
+        "weight",
+        legacy_space.momentum_weight[0],
+    )
+    payload["volatility_weight"] = -abs(float(
+        overrides.get("realized_volatility", {}).get(
+            "weight",
+            overrides.get("downside_volatility", {}).get(
+                "weight",
+                legacy_space.volatility_weight[0],
+            ),
+        )
+    ))
+    payload["liquidity_weight"] = overrides.get("liquidity_turnover", {}).get(
+        "weight",
+        legacy_space.liquidity_weight[0],
+    )
+    payload["trend_weight"] = overrides.get("ma_trend", {}).get(
+        "weight",
+        legacy_space.trend_weight[0],
+    )
+    return FactorConfig.model_validate(payload)
 
 
 def resolve_optimization_split(
@@ -538,9 +666,26 @@ def _apply_candidate_to_request(
     payload = base_request.model_dump(mode="json")
     metadata = dict(payload.get("metadata") or {})
     metadata["optimization_candidate_id"] = candidate.candidate_id
+    if candidate.selection_strategy_id is not None:
+        metadata["optimization_selection_strategy_id"] = candidate.selection_strategy_id
+        metadata["optimization_selection_strategy_name"] = candidate.selection_strategy_name
+
+    selection_strategy_payload = payload.get("selection_strategy")
+    if selection_strategy_payload and candidate.selection_strategy_overrides:
+        existing_overrides = dict(selection_strategy_payload.get("parameter_overrides") or {})
+        for factor_key, overrides in candidate.selection_strategy_overrides.items():
+            existing = dict(existing_overrides.get(factor_key) or {})
+            existing.update(overrides)
+            existing_overrides[factor_key] = existing
+        selection_strategy_payload = {
+            **selection_strategy_payload,
+            "parameter_overrides": existing_overrides,
+        }
+
     payload.update({
         "factors": candidate.factor_config.model_dump(mode="json"),
         "selection": candidate.selection_config.model_dump(mode="json"),
+        "selection_strategy": selection_strategy_payload,
         "metadata": metadata,
     })
     return base_request.__class__.model_validate(payload)

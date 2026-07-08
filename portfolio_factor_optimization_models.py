@@ -156,6 +156,9 @@ class PortfolioFactorCandidate(BaseModel):
     candidate_id: str
     factor_config: FactorConfig
     selection_config: SelectionConfig
+    selection_strategy_id: str | None = None
+    selection_strategy_name: str | None = None
+    selection_strategy_overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class PortfolioFactorMetrics(BaseModel):
@@ -193,7 +196,7 @@ class PortfolioFactorOptimizationResult(BaseModel):
 class PortfolioFactorOptimizationRequest(BaseModel):
     base_request: PortfolioBacktestRequest
     split: OptimizationSplitConfig = Field(default_factory=OptimizationSplitConfig)
-    search_space: FactorSearchSpace = Field(default_factory=FactorSearchSpace)
+    search_space: FactorSearchSpace | None = Field(default_factory=FactorSearchSpace)
     max_trials: int = 200
     max_workers: int = 8
     executor_backend: Literal["process", "thread"] = "process"
@@ -212,6 +215,18 @@ class PortfolioFactorOptimizationRequest(BaseModel):
         if value < 1 or value > 8:
             raise ValueError("max_workers must be between 1 and 8")
         return value
+
+    @model_validator(mode="after")
+    def validate_search_space_or_strategy(self) -> "PortfolioFactorOptimizationRequest":
+        strategy_config = self.base_request.selection_strategy
+        has_named_strategy = (
+            strategy_config is not None
+            and strategy_config.enabled
+            and strategy_config.strategy_id != "custom_factor_blend"
+        )
+        if self.search_space is None and not has_named_strategy:
+            raise ValueError("search_space can be null only when a named selection strategy is enabled")
+        return self
 
 
 def _parse_date(value: str, field_name: str) -> datetime:
