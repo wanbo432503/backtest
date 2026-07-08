@@ -327,13 +327,13 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Implement `generate_factor_candidates(...)`.
-- [ ] Use deterministic Cartesian product over configured windows, weights, Top N, and score threshold.
-- [ ] Deduplicate equivalent candidates.
-- [ ] Sort candidates deterministically.
-- [ ] Respect `max_trials`.
-- [ ] Include the candidate id/index in each generated candidate.
-- [ ] Add tests for determinism, uniqueness, and max-trial truncation.
+- [x] Implement `generate_factor_candidates(...)`.
+- [x] Use deterministic Cartesian product over configured windows, weights, Top N, and score threshold.
+- [x] Deduplicate equivalent candidates.
+- [x] Sort candidates deterministically.
+- [x] Respect `max_trials`.
+- [x] Include the candidate id/index in each generated candidate.
+- [x] Add tests for determinism, uniqueness, and max-trial truncation.
 
 **Done when:** Running candidate generation twice with the same request returns the same ordered candidates.
 
@@ -812,6 +812,8 @@ git commit -m "feat: add portfolio factor optimization models"
 ---
 
 ### Task 4: Generate Candidate Factor Configurations
+
+**Status:** Completed. Added deterministic candidate generation with duplicate removal, stable candidate ids, max-trial truncation, and valid `FactorConfig` / `SelectionConfig` outputs.
 
 **Files:**
 
