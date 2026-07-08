@@ -1,3 +1,6 @@
+import time
+from threading import Lock
+
 from backtest_runner import BacktestResult
 from optimization_models import OptimizationConfig, OptimizationRequest, StrategyParamConfig
 from optimization_runner import (
@@ -97,6 +100,60 @@ def test_run_optimization_sorts_by_validate_score(monkeypatch):
     assert result.top_results[0]["params"] == {"rsi_period": 14}
     assert result.top_results[0]["validate_score"] == 5
     assert result.top_results[1]["params"] == {"rsi_period": 6}
+
+
+def test_run_optimization_runs_trials_in_parallel_batches_and_sorts_top_results(monkeypatch):
+    active_trials = 0
+    max_active_trials = 0
+    lock = Lock()
+
+    def fake_run_train_validate(**kwargs):
+        nonlocal active_trials, max_active_trials
+        with lock:
+            active_trials += 1
+            max_active_trials = max(max_active_trials, active_trials)
+        time.sleep(0.03)
+        with lock:
+            active_trials -= 1
+
+        period = kwargs["params"]["rsi_period"]
+        return {
+            "symbol": kwargs["symbol"],
+            "strategy_name": kwargs["strategy_config"].strategy_name,
+            "params": kwargs["params"],
+            "train_metrics": {"score": period, "trades": 8},
+            "validate_metrics": {"score": period, "trades": 8},
+            "train_score": period,
+            "validate_score": period,
+            "validate_stats": {},
+            "data_provider": "test",
+            "data_warnings": [],
+        }
+
+    monkeypatch.setattr("optimization_runner.run_train_validate", fake_run_train_validate)
+
+    request = OptimizationRequest(
+        start_date="2025-07-03",
+        end_date="2026-07-04",
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[
+                StrategyParamConfig(
+                    strategy_name="rsi_risk_control",
+                    search_space={"rsi_period": [6, 14, 20, 30]},
+                )
+            ],
+            top_n=2,
+            min_trades=5,
+            max_workers=2,
+        ),
+    )
+
+    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+
+    assert max_active_trials == 2
+    assert [row["params"]["rsi_period"] for row in result.top_results] == [30, 20]
+    assert [row["rank"] for row in result.top_results] == [1, 2]
 
 
 def test_run_optimization_emits_trial_progress(monkeypatch):

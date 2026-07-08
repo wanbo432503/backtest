@@ -1,6 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from backtesting import Strategy
 
@@ -58,6 +59,7 @@ def run_optimization(
     progress_log = []
     rows = []
     trial_groups = []
+    trial_specs = []
 
     if not strategies:
         warnings.append("未配置优化策略")
@@ -72,43 +74,55 @@ def run_optimization(
             progress_log.append(
                 f"{symbol} {strategy_config.strategy_name}: {len(combinations)} combinations"
             )
+            for combination in combinations:
+                params = {**strategy_config.fixed_params, **combination}
+                trial_specs.append((symbol, strategy_config, params))
 
     total_trials = sum(len(combinations) for _, _, combinations in trial_groups)
+    max_workers = max(1, min(config.max_workers, total_trials or 1))
     _emit_progress(
         progress_callback,
         phase="optimizing",
-        message="正在回测参数候选",
+        message="正在并行回测参数候选",
         total_trials=total_trials,
         completed_trials=0,
         current_symbol=config.symbols[0] if config.symbols else None,
         current_strategy=strategies[0].strategy_name if strategies else None,
+        max_workers=max_workers,
         best_validate_score=None,
     )
     completed_trials = 0
 
-    for symbol, strategy_config, combinations in trial_groups:
-        for combination in combinations:
-            params = {**strategy_config.fixed_params, **combination}
-            row = run_train_validate(
-                symbol=symbol,
-                strategy_config=strategy_config,
-                params=params,
-                request=request,
-                strategy_registry=strategy_registry,
-            )
-            rows.append(_decorate_result(row, min_trades=config.min_trades))
-            completed_trials += 1
-            best_row = max(rows, key=lambda item: item["validate_score"]) if rows else None
-            _emit_progress(
-                progress_callback,
-                phase="optimizing",
-                message="正在回测参数候选",
-                total_trials=total_trials,
-                completed_trials=completed_trials,
-                current_symbol=symbol,
-                current_strategy=strategy_config.strategy_name,
-                best_validate_score=best_row["validate_score"] if best_row else None,
-            )
+    for batch in _batched(trial_specs, max_workers):
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
+            futures = {
+                executor.submit(
+                    run_train_validate,
+                    symbol=symbol,
+                    strategy_config=strategy_config,
+                    params=params,
+                    request=request,
+                    strategy_registry=strategy_registry,
+                ): (symbol, strategy_config)
+                for symbol, strategy_config, params in batch
+            }
+            for future in as_completed(futures):
+                symbol, strategy_config = futures[future]
+                row = future.result()
+                rows.append(_decorate_result(row, min_trades=config.min_trades))
+                completed_trials += 1
+                best_row = max(rows, key=lambda item: item["validate_score"]) if rows else None
+                _emit_progress(
+                    progress_callback,
+                    phase="optimizing",
+                    message="正在并行回测参数候选",
+                    total_trials=total_trials,
+                    completed_trials=completed_trials,
+                    current_symbol=symbol,
+                    current_strategy=strategy_config.strategy_name,
+                    max_workers=max_workers,
+                    best_validate_score=best_row["validate_score"] if best_row else None,
+                )
 
     rows.sort(key=lambda item: item["validate_score"], reverse=True)
     top_results = rows[: config.top_n]
@@ -121,6 +135,7 @@ def run_optimization(
         message="参数优化完成",
         total_trials=total_trials,
         completed_trials=completed_trials,
+        max_workers=max_workers,
         best_validate_score=top_results[0]["validate_score"] if top_results else None,
     )
 
@@ -186,6 +201,20 @@ def _emit_progress(
 ) -> None:
     if progress_callback is not None:
         progress_callback(event)
+
+
+def _batched(items: Iterable[Any], batch_size: int) -> list[list[Any]]:
+    batch_size = max(1, batch_size)
+    batch = []
+    batches = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= batch_size:
+            batches.append(batch)
+            batch = []
+    if batch:
+        batches.append(batch)
+    return batches
 
 
 def _decorate_result(row: dict[str, Any], min_trades: int) -> dict[str, Any]:

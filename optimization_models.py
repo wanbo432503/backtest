@@ -60,6 +60,7 @@ class OptimizationConfig(BaseModel):
     objective: Literal["score"] = "score"
     top_n: int = 10
     max_combinations: int = 300
+    max_workers: int = 8
     min_trades: int = 5
     train_start_date: str | None = None
     train_end_date: str | None = None
@@ -75,6 +76,13 @@ class OptimizationConfig(BaseModel):
             raise ValueError("max_combinations must not exceed 1000")
         if value <= 0:
             raise ValueError("max_combinations must be greater than 0")
+        return value
+
+    @field_validator("max_workers")
+    @classmethod
+    def validate_max_workers(cls, value: int) -> int:
+        if value < 1 or value > 8:
+            raise ValueError("max_workers must be between 1 and 8")
         return value
 
     @field_validator("symbols")

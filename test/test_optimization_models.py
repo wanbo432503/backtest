@@ -39,6 +39,7 @@ def test_optimization_config_defaults_focus_on_one_a_share_target():
     assert config.objective == "score"
     assert config.top_n == 10
     assert config.max_combinations == 300
+    assert config.max_workers == 8
     assert config.min_trades == 5
 
 
@@ -90,3 +91,11 @@ def test_a_share_trading_config_rejects_invalid_lot_size():
 def test_optimization_config_rejects_too_many_combinations():
     with pytest.raises(ValidationError):
         OptimizationConfig(max_combinations=1001)
+
+
+def test_optimization_config_rejects_invalid_max_workers():
+    with pytest.raises(ValidationError):
+        OptimizationConfig(max_workers=0)
+
+    with pytest.raises(ValidationError):
+        OptimizationConfig(max_workers=9)
