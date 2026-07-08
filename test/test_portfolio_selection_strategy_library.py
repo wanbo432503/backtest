@@ -3,6 +3,7 @@ import math
 import pytest
 
 from portfolio_selection_strategy_library import (
+    build_factor_search_space_for_strategy,
     get_selection_strategy,
     list_selection_strategies,
 )
@@ -73,3 +74,40 @@ def test_get_selection_strategy_returns_requested_definition_and_rejects_unknown
 
     with pytest.raises(ValueError, match="unknown portfolio selection strategy"):
         get_selection_strategy("missing_strategy")
+
+
+def test_each_strategy_can_generate_valid_optimization_search_space():
+    for strategy_id in EXPECTED_STRATEGY_IDS:
+        search_space = build_factor_search_space_for_strategy(strategy_id)
+
+        assert search_space.strategy_id == strategy_id
+        assert search_space.factor_weights
+        assert search_space.top_n
+        assert 1 <= min(search_space.top_n)
+        assert max(search_space.top_n) <= 20
+        assert search_space.score_threshold == [None]
+        for candidates in search_space.factor_weights.values():
+            assert candidates
+            assert all(math.isfinite(candidate) for candidate in candidates)
+        for candidates in search_space.factor_lookbacks.values():
+            assert candidates
+            assert all(candidate > 0 for candidate in candidates)
+
+
+def test_strategy_search_space_exposes_legacy_factor_space_for_compatible_factors():
+    search_space = build_factor_search_space_for_strategy("steady_low_vol_momentum")
+
+    assert search_space.legacy_factor_search_space is not None
+    assert search_space.legacy_factor_search_space.momentum_lookback == [40, 60, 90, 120]
+    assert search_space.legacy_factor_search_space.volatility_lookback == [10, 20, 40]
+    assert search_space.legacy_factor_search_space.liquidity_lookback == [10, 20, 40]
+    assert search_space.legacy_factor_search_space.top_n == [2, 3, 5, 10]
+
+
+def test_value_quality_search_space_includes_fundamental_and_confirmation_candidates():
+    search_space = build_factor_search_space_for_strategy("value_quality")
+
+    assert {"pe_inverse", "pb_inverse", "roe", "profit_growth"}.issubset(search_space.factor_weights)
+    assert {"ma_trend", "liquidity_turnover"}.issubset(search_space.factor_weights)
+    assert search_space.factor_lookbacks["ma_trend"] == [40, 60, 90]
+    assert search_space.legacy_factor_search_space is not None

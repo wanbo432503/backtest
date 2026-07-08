@@ -9,6 +9,7 @@ from portfolio_factor_optimization_models import (
     PortfolioFactorOptimizationRequest,
     PortfolioFactorOptimizationResult,
     PortfolioFactorOptimizationTrialResult,
+    SelectionStrategySearchSpace,
 )
 from portfolio_models import FactorConfig, PortfolioBacktestRequest, SelectionConfig
 
@@ -42,6 +43,39 @@ def test_factor_search_space_rejects_empty_lists_and_top_n_above_twenty():
 
     with pytest.raises(ValidationError, match="top_n"):
         FactorSearchSpace(top_n=[2, 21])
+
+
+def test_selection_strategy_search_space_validates_candidates():
+    space = SelectionStrategySearchSpace(
+        strategy_id="steady_low_vol_momentum",
+        factor_lookbacks={"momentum_return": [40, 60]},
+        factor_weights={"momentum_return": [0.2, 0.4]},
+        top_n=[2, 5, 20],
+        score_threshold=[None],
+    )
+
+    assert space.factor_lookbacks["momentum_return"] == [40, 60]
+    assert space.factor_weights["momentum_return"] == [0.2, 0.4]
+
+    with pytest.raises(ValidationError, match="top_n"):
+        SelectionStrategySearchSpace(
+            strategy_id="bad",
+            factor_weights={"momentum_return": [0.2]},
+            top_n=[21],
+        )
+
+    with pytest.raises(ValidationError, match="lookback"):
+        SelectionStrategySearchSpace(
+            strategy_id="bad",
+            factor_lookbacks={"momentum_return": [0]},
+            factor_weights={"momentum_return": [0.2]},
+        )
+
+    with pytest.raises(ValidationError, match="finite"):
+        SelectionStrategySearchSpace(
+            strategy_id="bad",
+            factor_weights={"momentum_return": [float("inf")]},
+        )
 
 
 def test_optimization_request_validates_trials_workers_backend_and_objective():

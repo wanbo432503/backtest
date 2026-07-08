@@ -4,6 +4,7 @@ from portfolio_selection_strategy_models import (
     PortfolioSelectionStrategyDefinition,
     StrategyFactorSpec,
 )
+from portfolio_factor_optimization_models import FactorSearchSpace, SelectionStrategySearchSpace
 
 
 def list_selection_strategies() -> list[PortfolioSelectionStrategyDefinition]:
@@ -16,6 +17,37 @@ def get_selection_strategy(strategy_id: str) -> PortfolioSelectionStrategyDefini
         if strategy.strategy_id == normalized_id:
             return strategy
     raise ValueError(f"unknown portfolio selection strategy: {strategy_id}")
+
+
+def build_factor_search_space_for_strategy(strategy_id: str) -> SelectionStrategySearchSpace:
+    strategy = get_selection_strategy(strategy_id)
+    factor_lookbacks: dict[str, list[int]] = {}
+    factor_weights: dict[str, list[float]] = {}
+
+    for factor in strategy.factors:
+        if factor.lookback_candidates:
+            factor_lookbacks[factor.key] = list(factor.lookback_candidates)
+        elif factor.default_lookback is not None:
+            factor_lookbacks[factor.key] = [factor.default_lookback]
+
+        factor_weights[factor.key] = (
+            list(factor.weight_candidates)
+            if factor.weight_candidates
+            else [factor.default_weight]
+        )
+
+    return SelectionStrategySearchSpace(
+        strategy_id=strategy.strategy_id,
+        factor_lookbacks=factor_lookbacks,
+        factor_weights=factor_weights,
+        top_n=list(strategy.top_n_candidates),
+        score_threshold=list(strategy.score_threshold_candidates),
+        legacy_factor_search_space=_build_legacy_factor_search_space(
+            strategy,
+            factor_lookbacks=factor_lookbacks,
+            factor_weights=factor_weights,
+        ),
+    )
 
 
 def _factor(
@@ -39,6 +71,58 @@ def _factor(
         weight_candidates=weight_candidates or [],
         required=required,
     )
+
+
+def _build_legacy_factor_search_space(
+    strategy: PortfolioSelectionStrategyDefinition,
+    *,
+    factor_lookbacks: dict[str, list[int]],
+    factor_weights: dict[str, list[float]],
+) -> FactorSearchSpace:
+    default_space = FactorSearchSpace()
+
+    momentum_lookback = factor_lookbacks.get("momentum_return", default_space.momentum_lookback)
+    volatility_lookback = (
+        factor_lookbacks.get("realized_volatility")
+        or factor_lookbacks.get("downside_volatility")
+        or factor_lookbacks.get("max_drawdown_window")
+        or default_space.volatility_lookback
+    )
+    liquidity_lookback = factor_lookbacks.get("liquidity_turnover", default_space.liquidity_lookback)
+
+    return FactorSearchSpace(
+        momentum_lookback=momentum_lookback,
+        volatility_lookback=volatility_lookback,
+        liquidity_lookback=liquidity_lookback,
+        momentum_weight=factor_weights.get("momentum_return", default_space.momentum_weight),
+        volatility_weight=_legacy_volatility_weights(
+            strategy,
+            factor_weights.get("realized_volatility")
+            or factor_weights.get("downside_volatility")
+            or factor_weights.get("max_drawdown_window")
+            or default_space.volatility_weight,
+        ),
+        liquidity_weight=factor_weights.get("liquidity_turnover", default_space.liquidity_weight),
+        trend_weight=factor_weights.get("ma_trend", default_space.trend_weight),
+        top_n=list(strategy.top_n_candidates),
+        score_threshold=list(strategy.score_threshold_candidates),
+    )
+
+
+def _legacy_volatility_weights(
+    strategy: PortfolioSelectionStrategyDefinition,
+    weights: list[float],
+) -> list[float]:
+    lower_better_factor_keys = {
+        factor.key
+        for factor in strategy.factors
+        if factor.direction == "lower_better"
+    }
+    if lower_better_factor_keys.intersection(
+        {"realized_volatility", "downside_volatility", "max_drawdown_window"}
+    ):
+        return sorted({-abs(float(weight)) for weight in weights})
+    return list(weights)
 
 
 _STRATEGIES: tuple[PortfolioSelectionStrategyDefinition, ...] = (

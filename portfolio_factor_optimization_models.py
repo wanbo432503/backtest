@@ -88,6 +88,70 @@ class FactorSearchSpace(BaseModel):
         return value
 
 
+class SelectionStrategySearchSpace(BaseModel):
+    strategy_id: str
+    factor_lookbacks: dict[str, list[int]] = Field(default_factory=dict)
+    factor_weights: dict[str, list[float]]
+    top_n: list[int] = Field(default_factory=lambda: [3, 5, 10])
+    score_threshold: list[float | None] = Field(default_factory=lambda: [None])
+    legacy_factor_search_space: FactorSearchSpace | None = None
+
+    @field_validator("strategy_id")
+    @classmethod
+    def validate_strategy_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("strategy_id must not be empty")
+        return value.strip()
+
+    @field_validator("factor_lookbacks")
+    @classmethod
+    def validate_factor_lookbacks(cls, value: dict[str, list[int]]) -> dict[str, list[int]]:
+        for factor_key, candidates in value.items():
+            if not factor_key.strip():
+                raise ValueError("factor lookback keys must not be empty")
+            if not candidates:
+                raise ValueError("lookback candidate lists must not be empty")
+            if any(item <= 0 for item in candidates):
+                raise ValueError("lookback candidates must be positive")
+        return value
+
+    @field_validator("factor_weights")
+    @classmethod
+    def validate_factor_weights(cls, value: dict[str, list[float]]) -> dict[str, list[float]]:
+        if not value:
+            raise ValueError("factor_weights must not be empty")
+        for factor_key, candidates in value.items():
+            if not factor_key.strip():
+                raise ValueError("factor weight keys must not be empty")
+            if not candidates:
+                raise ValueError("factor weight candidate lists must not be empty")
+            if any(not math.isfinite(float(item)) for item in candidates):
+                raise ValueError("factor weight candidates must be finite")
+        return value
+
+    @field_validator("top_n")
+    @classmethod
+    def validate_strategy_top_n(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("top_n candidates must not be empty")
+        if any(item <= 0 or item > 20 for item in value):
+            raise ValueError("top_n candidates must be between 1 and 20")
+        return value
+
+    @field_validator("score_threshold")
+    @classmethod
+    def validate_strategy_score_threshold(
+        cls,
+        value: list[float | None],
+    ) -> list[float | None]:
+        if not value:
+            raise ValueError("score_threshold candidates must not be empty")
+        finite_values = [item for item in value if item is not None]
+        if any(not math.isfinite(float(item)) for item in finite_values):
+            raise ValueError("score_threshold candidates must be finite")
+        return value
+
+
 class PortfolioFactorCandidate(BaseModel):
     candidate_id: str
     factor_config: FactorConfig

@@ -479,14 +479,14 @@ Task 1-3: Strategy contract and library
   - [x] Add `get_selection_strategy(strategy_id)`.
   - [x] Test uniqueness, required fields, factor definitions, and missing strategy errors.
   - [x] Commit the library definition change.
-- [ ] Task 3: Generate optimization search spaces from strategy templates.
-  - [ ] Convert factor lookback candidates into optimizer candidates.
-  - [ ] Convert factor weight candidates into optimizer candidates.
-  - [ ] Enforce `Top N` candidates within 1-20.
-  - [ ] Preserve Phase 3.1 raw factor optimization behavior.
-  - [ ] Add value-quality search-space coverage for fundamentals plus technical confirmation.
-  - [ ] Test every strategy can generate a valid default search space.
-  - [ ] Commit the strategy-search-space change.
+- [x] Task 3: Generate optimization search spaces from strategy templates.
+  - [x] Convert factor lookback candidates into optimizer candidates.
+  - [x] Convert factor weight candidates into optimizer candidates.
+  - [x] Enforce `Top N` candidates within 1-20.
+  - [x] Preserve Phase 3.1 raw factor optimization behavior.
+  - [x] Add value-quality search-space coverage for fundamentals plus technical confirmation.
+  - [x] Test every strategy can generate a valid default search space.
+  - [x] Commit the strategy-search-space change.
 
 **Workstream B: Strategy Factor Engine And Scoring**
 
