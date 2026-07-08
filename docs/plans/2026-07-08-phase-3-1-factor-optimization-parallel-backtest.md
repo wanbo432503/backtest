@@ -497,6 +497,126 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Done when:** Phase 3.1 can be demonstrated end-to-end without hand-editing requests or relying on hidden backend-only behavior.
 
+### 6.13 WebUI Modification Plan
+
+**Purpose:** Make every Phase 3.1 backend capability discoverable and usable in the existing single-page portfolio workbench. WebUI changes are required for Phase 3.1; backend-only optimization is not considered complete.
+
+**Files:**
+
+- Modify: `templates/index.html`
+- Test: `test/test_index_template.py`
+- Optional if UI grows too large: create `static/portfolio_optimization.js`
+- Optional if CSS grows too large: create `static/portfolio_optimization.css`
+
+**Layout Todo:**
+
+- [ ] Keep the first screen as the portfolio workbench; do not add a landing page.
+- [ ] Keep the normal portfolio backtest controls visible as the primary workflow.
+- [ ] Add `因子优化` as an expandable panel near `选股因子`, not as a separate page.
+- [ ] Keep compact operational styling consistent with the current Bootstrap workbench.
+- [ ] Avoid nested cards inside the existing workbench; use full-width bands, details panels, tables, and compact controls.
+- [ ] Ensure Top N 1-20 does not break the current two-column form layout.
+- [ ] Ensure optimization results remain readable on narrow desktop and mobile widths.
+
+**Form Controls Todo:**
+
+- [ ] Add `portfolioFactorOptimizationPanel`.
+- [ ] Add `portfolioOptimizationMaxTrials`.
+- [ ] Add `portfolioOptimizationMaxWorkers`.
+- [ ] Add `portfolioOptimizationTrainRatio`.
+- [ ] Add `portfolioOptimizationExecutorBackend`.
+- [ ] Add `portfolioOptimizationIncludeTopN`.
+- [ ] Add `portfolioOptimizationTopNCandidates`.
+- [ ] Add text inputs for factor window candidate lists.
+- [ ] Add text inputs for factor weight candidate lists.
+- [ ] Add client-side parsing for comma/space separated numeric lists.
+- [ ] Add validation for max trials, max workers, train ratio, Top N candidates, and empty search-space lists.
+- [ ] Disable the start button while an optimization job is queued/running.
+
+**Request And State Todo:**
+
+- [ ] Reuse `collectPortfolioRequest()` as `base_request`.
+- [ ] Add `collectPortfolioFactorOptimizationRequest()`.
+- [ ] Keep `latestPortfolioOptimizationJob` or equivalent client-side state.
+- [ ] Keep normal portfolio backtest state separate from optimization state.
+- [ ] Do not mutate normal factor fields until the user clicks `应用参数`.
+- [ ] Persist no optimization API keys or secrets; this flow does not need secrets.
+- [ ] Reset stale optimization errors when a new job starts.
+
+**Async Job UX Todo:**
+
+- [ ] Add `createPortfolioFactorOptimizationJob()`.
+- [ ] Add `pollPortfolioFactorOptimizationJob()`.
+- [ ] Add `renderPortfolioFactorOptimizationProgress()`.
+- [ ] Show queued/running/succeeded/failed status.
+- [ ] Show completed trials, failed trials, total trials, worker count, best score, trend R-squared, and volatility.
+- [ ] Scroll or reveal the optimization progress area after job start.
+- [ ] Show actionable error text if validation fails or backend job fails.
+- [ ] Keep the normal “开始组合回测” button usable after optimization failure.
+
+**Result Rendering Todo:**
+
+- [ ] Add `portfolioFactorOptimizationProgressPanel`.
+- [ ] Add `portfolioFactorOptimizationResults`.
+- [ ] Add `renderPortfolioFactorOptimizationResults()`.
+- [ ] Render the top optimization candidates in a compact table.
+- [ ] Display objective score.
+- [ ] Display train annual return.
+- [ ] Display validation annual return.
+- [ ] Display validation volatility.
+- [ ] Display validation downside volatility.
+- [ ] Display validation trend R-squared.
+- [ ] Display validation max drawdown.
+- [ ] Display turnover.
+- [ ] Display Top N.
+- [ ] Display factor windows and weights.
+- [ ] Display risk flags.
+- [ ] Provide an empty state before optimization has run.
+- [ ] Provide a failed state if all candidates fail.
+
+**Apply Parameters Todo:**
+
+- [ ] Add `applyPortfolioFactorOptimizationResult(result)`.
+- [ ] Add an `应用参数` button to each result row.
+- [ ] Copy selected factor windows into existing portfolio factor inputs.
+- [ ] Copy selected factor weights into existing portfolio factor inputs.
+- [ ] Copy selected Top N if the optimized candidate includes Top N.
+- [ ] Do not automatically start a portfolio backtest after applying parameters.
+- [ ] Show a small success status after applying parameters.
+- [ ] Keep the optimized result row visible after applying parameters so the user can compare and rerun manually.
+
+**Safety Copy Todo:**
+
+- [ ] Label results as `虚拟盘参考` or `参数候选`, not as automatic live-trading instructions.
+- [ ] Explain in compact text that smoother validation equity growth is preferred over raw annual return.
+- [ ] Show train and validation metrics side by side to expose overfitting.
+- [ ] Show risk flags prominently enough to discourage blindly applying high-risk candidates.
+- [ ] Avoid large explanatory paragraphs inside the workbench; use terse labels and tooltips where needed.
+
+**WebUI Test Todo:**
+
+- [ ] Extend `test/test_index_template.py` to assert every new DOM id exists.
+- [ ] Assert every new JS function exists.
+- [ ] Assert the optimization request posts to `/portfolio-factor-optimization/jobs`.
+- [ ] Assert polling calls `/portfolio-factor-optimization/jobs/{job_id}`.
+- [ ] Assert `applyPortfolioFactorOptimizationResult` writes back to factor input ids.
+- [ ] Assert no optimization UI text implies live trading or automatic buying.
+
+**Browser Smoke Todo:**
+
+- [ ] Start the local FastAPI app.
+- [ ] Confirm the `因子优化` panel is visible and expandable.
+- [ ] Confirm invalid worker/trial inputs show client-side validation.
+- [ ] Run a tiny optimization job.
+- [ ] Confirm progress updates are visible.
+- [ ] Confirm optimization results render.
+- [ ] Apply one candidate.
+- [ ] Confirm factor fields and Top N update.
+- [ ] Run normal portfolio backtest with the applied parameters.
+- [ ] Confirm portfolio results still render in the existing result tabs.
+
+**Done when:** A user can configure, start, monitor, review, and apply factor optimization entirely from the WebUI, then manually rerun a normal portfolio backtest with the chosen parameters.
+
 ---
 
 ## 7. Task List
@@ -1018,10 +1138,15 @@ Assert template contains:
 - `id="portfolioOptimizationMaxWorkers"`
 - `id="portfolioOptimizationMaxTrials"`
 - `id="portfolioOptimizationTrainRatio"`
+- `id="portfolioOptimizationExecutorBackend"`
+- `id="portfolioOptimizationIncludeTopN"`
+- `id="portfolioOptimizationTopNCandidates"`
 - `id="startPortfolioFactorOptimizationButton"`
 - `function collectPortfolioFactorOptimizationRequest`
 - `function createPortfolioFactorOptimizationJob`
 - `function pollPortfolioFactorOptimizationJob`
+- `fetch('/portfolio-factor-optimization/jobs'`
+- `portfolio-factor-optimization/jobs/`
 
 **Step 2: Run tests to verify failure**
 
@@ -1049,6 +1174,7 @@ Controls:
 - factor weight candidate lists
 
 Keep the UI compact; do not add a landing page or large explanatory copy.
+Client-side validation must reject invalid worker counts, invalid train ratios, empty candidate lists, and Top N candidates outside 1-20 before posting the job.
 
 **Step 4: Verify**
 
@@ -1083,6 +1209,10 @@ Assert template contains:
 - `function renderPortfolioFactorOptimizationProgress`
 - `function renderPortfolioFactorOptimizationResults`
 - `function applyPortfolioFactorOptimizationResult`
+- `validation_log_equity_trend_r2`
+- `validation_return_volatility_pct`
+- `validation_downside_volatility_pct`
+- `虚拟盘参考`
 
 **Step 2: Run tests to verify failure**
 
@@ -1118,6 +1248,7 @@ Display:
 - “应用参数” button per row.
 
 `applyPortfolioFactorOptimizationResult(result)` copies factors and selection values into the normal portfolio form. It must not start a backtest automatically.
+It must show a small success status and keep the optimization results visible for comparison.
 
 **Step 4: Verify**
 
