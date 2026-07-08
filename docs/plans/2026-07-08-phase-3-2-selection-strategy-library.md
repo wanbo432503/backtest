@@ -444,6 +444,179 @@ If `search_space` is null, backend uses the strategy library default search spac
 
 ## 6. Detailed Task List
 
+### 6.0 子任务总览与 Todo Board
+
+Phase 3.2 should be implemented as twelve small, testable tasks. The task order matters: models and strategy definitions come first, strategy factor calculation comes next, then backtest/optimization integration, then API/UI, and finally documentation plus browser smoke.
+
+**Execution order:**
+
+```text
+Task 1-3: Strategy contract and library
+-> Task 4-6: Strategy factor calculation and scoring
+-> Task 7-8: Backtest and optimization integration
+-> Task 9-11: API and WebUI
+-> Task 12: Documentation and end-to-end smoke
+```
+
+**Workstream A: Strategy Contract And Library**
+
+- [ ] Task 1: Add strategy models and request compatibility.
+  - [ ] Define `StrategyFactorSpec`.
+  - [ ] Define `PortfolioSelectionStrategyDefinition`.
+  - [ ] Define request-side `PortfolioSelectionStrategyConfig`.
+  - [ ] Add optional `selection_strategy` to `PortfolioBacktestRequest`.
+  - [ ] Preserve old Phase 3.1 request payload compatibility.
+  - [ ] Add model tests for valid definitions, invalid directions, and old payloads.
+  - [ ] Commit the model-only change.
+- [ ] Task 2: Build the initial strategy library.
+  - [ ] Add `steady_low_vol_momentum`.
+  - [ ] Add `strong_trend_breakout`.
+  - [ ] Add `high_liquidity_trend`.
+  - [ ] Add `drawdown_control_rotation`.
+  - [ ] Add `value_quality`.
+  - [ ] Add `custom_factor_blend` as the backward-compatible escape hatch.
+  - [ ] Add `list_selection_strategies()`.
+  - [ ] Add `get_selection_strategy(strategy_id)`.
+  - [ ] Test uniqueness, required fields, factor definitions, and missing strategy errors.
+  - [ ] Commit the library definition change.
+- [ ] Task 3: Generate optimization search spaces from strategy templates.
+  - [ ] Convert factor lookback candidates into optimizer candidates.
+  - [ ] Convert factor weight candidates into optimizer candidates.
+  - [ ] Enforce `Top N` candidates within 1-20.
+  - [ ] Preserve Phase 3.1 raw factor optimization behavior.
+  - [ ] Add value-quality search-space coverage for fundamentals plus technical confirmation.
+  - [ ] Test every strategy can generate a valid default search space.
+  - [ ] Commit the strategy-search-space change.
+
+**Workstream B: Strategy Factor Engine And Scoring**
+
+- [ ] Task 4: Extend the factor engine with the strategy factor superset.
+  - [ ] Add momentum-return calculation that is safe for rolling rebalance dates.
+  - [ ] Add realized volatility.
+  - [ ] Add downside volatility.
+  - [ ] Add liquidity turnover.
+  - [ ] Add moving-average trend confirmation.
+  - [ ] Add breakout strength.
+  - [ ] Add volume expansion.
+  - [ ] Add volume stability.
+  - [ ] Add recent max drawdown.
+  - [ ] Add recovery strength.
+  - [ ] Return clear `skip_reason` for insufficient history.
+  - [ ] Add synthetic-data tests for each new factor.
+  - [ ] Add lookahead-safety tests.
+  - [ ] Commit the factor-engine change.
+- [ ] Task 5: Add strategy-aware candidate scoring.
+  - [ ] Normalize each factor cross-sectionally per rebalance date.
+  - [ ] Apply `higher_better` and `lower_better` directions correctly.
+  - [ ] Apply strategy default weights.
+  - [ ] Apply request-level parameter overrides.
+  - [ ] Return strategy factor values in candidate diagnostics.
+  - [ ] Return normalized factor values in candidate diagnostics.
+  - [ ] Keep legacy `FactorConfig` scoring unchanged.
+  - [ ] Test steady low-vol momentum ranks smooth uptrends above jagged names.
+  - [ ] Test strong trend breakout requires breakout plus volume confirmation.
+  - [ ] Test drawdown-control rotation penalizes recent deep drawdowns.
+  - [ ] Commit the strategy-scoring change.
+- [ ] Task 6: Add optional fundamentals support for value-quality.
+  - [ ] Add a `FundamentalsBundle` model.
+  - [ ] Add a yfinance-backed loader with no mandatory network dependency in tests.
+  - [ ] Add dependency injection or mock hooks for unit tests.
+  - [ ] Calculate `pe_inverse`.
+  - [ ] Calculate `pb_inverse`.
+  - [ ] Read or derive `roe` when available.
+  - [ ] Read or derive revenue growth when available.
+  - [ ] Read or derive profit growth when available.
+  - [ ] Add coverage diagnostics for loaded/missing fundamentals.
+  - [ ] Warn clearly when value-quality coverage is too low.
+  - [ ] Ensure missing fundamentals never crash a backtest.
+  - [ ] Commit the fundamentals change.
+
+**Workstream C: Portfolio Backtest And Optimization Integration**
+
+- [ ] Task 7: Integrate strategy scoring into portfolio backtest and stock-pool scan.
+  - [ ] Detect `request.selection_strategy`.
+  - [ ] Route `custom_factor_blend` and missing strategy config to legacy scoring.
+  - [ ] Route named strategies to strategy-aware scoring.
+  - [ ] Include `strategy_id` in scan diagnostics.
+  - [ ] Include factor diagnostics in candidate rankings.
+  - [ ] Include strategy warnings in result warnings.
+  - [ ] Preserve automatic `60/00` universe behavior.
+  - [ ] Test named strategy and legacy paths.
+  - [ ] Commit the backtest integration change.
+- [ ] Task 8: Integrate the strategy library with factor optimization.
+  - [ ] Allow optimization requests to omit raw `search_space` when a named strategy is selected.
+  - [ ] Resolve the selected strategy before generating trials.
+  - [ ] Generate trials from the strategy search space.
+  - [ ] Preserve `max_workers <= 8`.
+  - [ ] Preserve process/thread backend selection.
+  - [ ] Include strategy id/name in trial results.
+  - [ ] Include strategy warnings and risk flags in optimization output.
+  - [ ] Keep default ranking by validation smooth-uptrend objective.
+  - [ ] Test strategy-derived optimization and legacy raw optimization.
+  - [ ] Commit the optimizer integration change.
+
+**Workstream D: API And WebUI**
+
+- [ ] Task 9: Add strategy library API.
+  - [ ] Add `GET /portfolio-selection-strategies`.
+  - [ ] Return all five requested strategies.
+  - [ ] Return labels, descriptions, caveats, defaults, and factors.
+  - [ ] Keep existing portfolio endpoints unchanged.
+  - [ ] Add API tests.
+  - [ ] Commit the API change.
+- [ ] Task 10: Add strategy selector to the WebUI.
+  - [ ] Add selector above the raw factor controls.
+  - [ ] Default to `稳健低波动动量策略`.
+  - [ ] Provide `自定义因子组合` for legacy behavior.
+  - [ ] Render strategy description.
+  - [ ] Render caveats and data limitations.
+  - [ ] Render factor summary.
+  - [ ] Add an explicit apply-defaults button.
+  - [ ] Include `selection_strategy` in portfolio backtest requests.
+  - [ ] Ensure changing strategy does not silently erase user edits.
+  - [ ] Add template/JS tests.
+  - [ ] Commit the WebUI selector change.
+- [ ] Task 11: Add strategy-aware optimization UI.
+  - [ ] Include selected strategy in optimization requests.
+  - [ ] Allow strategy defaults to populate candidate lists.
+  - [ ] Display strategy name in optimization results.
+  - [ ] Display validation annual return, max drawdown, turnover, volatility, trend score, and overfitting risk.
+  - [ ] Display missing fundamentals warnings for value-quality.
+  - [ ] Preserve `应用参数` behavior.
+  - [ ] Avoid any wording that implies guaranteed returns.
+  - [ ] Add template/JS tests.
+  - [ ] Commit the optimization UI change.
+
+**Workstream E: Documentation, Verification, And Handoff**
+
+- [ ] Task 12: Documentation and E2E smoke.
+  - [ ] Update README with the strategy-library concept.
+  - [ ] Explain raw factors vs strategy templates vs factor optimization.
+  - [ ] Document all five initial strategies.
+  - [ ] Document value-quality free-data limitations.
+  - [ ] Document that outputs are virtual/paper-trading references, not automatic orders.
+  - [ ] Run focused backend tests.
+  - [ ] Run template tests.
+  - [ ] Run the full pytest suite.
+  - [ ] Run `git diff --check`.
+  - [ ] Start a local FastAPI server.
+  - [ ] Browser-smoke the five strategy options.
+  - [ ] Browser-smoke a tiny strategy-aware optimization.
+  - [ ] Browser-smoke applying one optimized result back into normal portfolio backtest.
+  - [ ] Confirm holdings, rebalance, candidates, trades, warnings, and diagnostics render.
+  - [ ] Commit the documentation and smoke-tested final state.
+
+**Definition of Done for Phase 3.2:**
+
+- [ ] Users can pick a strategy template before running portfolio selection backtests.
+- [ ] The five initial strategies have real factor definitions, defaults, caveats, and optimization ranges.
+- [ ] Named strategy backtests use strategy-aware scoring.
+- [ ] `custom_factor_blend` keeps the existing Phase 3.1 raw-factor behavior.
+- [ ] Optimization can run from strategy defaults without forcing users to hand-edit raw candidate lists.
+- [ ] Value-quality handles missing fundamentals honestly and visibly.
+- [ ] Frontend requests, backend API models, optimizer results, and rendered diagnostics all use the same strategy id/name.
+- [ ] Tests and browser smoke pass before declaring the prototype usable.
+
 ### Task 1: Add Strategy Models And Backward-Compatible Request Field
 
 **Files:**
