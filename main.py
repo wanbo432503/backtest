@@ -20,6 +20,7 @@ from portfolio_factor_optimization_models import PortfolioFactorOptimizationRequ
 from portfolio_factor_optimization_progress import PortfolioFactorOptimizationJobStore
 from portfolio_factor_optimizer import run_factor_optimization
 from portfolio_models import PortfolioBacktestRequest
+from portfolio_selection_strategy_library import list_selection_strategies
 from portfolio_progress import PortfolioBacktestJobStore
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
@@ -266,6 +267,17 @@ async def portfolio_universe_scan_endpoint(payload: dict):
     except Exception as e:
         print(f"股票池扫描详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"股票池扫描失败: {str(e)}")
+
+
+@app.get("/portfolio-selection-strategies")
+async def portfolio_selection_strategies_endpoint():
+    return {
+        "strategies": [
+            strategy.model_dump(mode="json")
+            for strategy in list_selection_strategies()
+        ]
+    }
+
 
 @app.get("/strategies")
 async def get_available_strategies():

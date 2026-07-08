@@ -194,6 +194,33 @@ def test_portfolio_universe_scan_api_returns_scan_diagnostics(monkeypatch):
     assert payload["warnings"] == ["fixture warning"]
 
 
+def test_portfolio_selection_strategies_api_returns_strategy_library():
+    client = TestClient(main.app)
+
+    response = client.get("/portfolio-selection-strategies")
+
+    assert response.status_code == 200
+    payload = response.json()
+    strategy_ids = {strategy["strategy_id"] for strategy in payload["strategies"]}
+    assert {
+        "steady_low_vol_momentum",
+        "strong_trend_breakout",
+        "high_liquidity_trend",
+        "drawdown_control_rotation",
+        "value_quality",
+    }.issubset(strategy_ids)
+    steady = next(
+        strategy
+        for strategy in payload["strategies"]
+        if strategy["strategy_id"] == "steady_low_vol_momentum"
+    )
+    assert steady["name"] == "稳健低波动动量策略"
+    assert steady["default_top_n"] <= 20
+    assert steady["factors"]
+    assert steady["factors"][0]["key"]
+    assert steady["caveats"]
+
+
 def test_portfolio_backtest_job_api_exposes_progress_status(monkeypatch):
     client = TestClient(main.app)
     snapshot = PortfolioJobSnapshot(

@@ -557,13 +557,13 @@ Task 1-3: Strategy contract and library
 
 **Workstream D: API And WebUI**
 
-- [ ] Task 9: Add strategy library API.
-  - [ ] Add `GET /portfolio-selection-strategies`.
-  - [ ] Return all five requested strategies.
-  - [ ] Return labels, descriptions, caveats, defaults, and factors.
-  - [ ] Keep existing portfolio endpoints unchanged.
-  - [ ] Add API tests.
-  - [ ] Commit the API change.
+- [x] Task 9: Add strategy library API.
+  - [x] Add `GET /portfolio-selection-strategies`.
+  - [x] Return all five requested strategies.
+  - [x] Return labels, descriptions, caveats, defaults, and factors.
+  - [x] Keep existing portfolio endpoints unchanged.
+  - [x] Add API tests.
+  - [x] Commit the API change.
 - [ ] Task 10: Add strategy selector to the WebUI.
   - [ ] Add selector above the raw factor controls.
   - [ ] Default to `稳健低波动动量策略`.
