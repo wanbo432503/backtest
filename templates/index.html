@@ -769,6 +769,36 @@ SZ002241</textarea>
                                 </div>
                             </div>
 
+                            <details class="config-panel border rounded p-2 mb-3" id="portfolioSelectionStrategyPanel" open>
+                                <summary><i class="fas fa-chess-knight"></i> 选股策略库</summary>
+                                <div class="portfolio-optimization-note mt-2 mb-2">
+                                    先选择策略模板，再用因子优化寻找参数候选；结果仅作虚拟盘参考，不会自动下单。
+                                </div>
+                                <div class="compact-row">
+                                    <div class="mb-3">
+                                        <label for="portfolioSelectionStrategy" class="form-label">选股策略</label>
+                                        <select class="form-select" id="portfolioSelectionStrategy">
+                                            <option value="steady_low_vol_momentum" selected>稳健低波动动量策略</option>
+                                            <option value="custom_factor_blend">自定义因子组合</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3 align-self-end">
+                                        <button type="button" class="btn btn-outline-primary w-100" id="portfolioApplyStrategyDefaultsButton">
+                                            <i class="fas fa-wand-magic-sparkles"></i> 应用策略默认
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="portfolio-status mb-2" id="portfolioSelectionStrategyDescription">
+                                    稳健低波动动量策略：偏好中期动量向上、波动更温和且流动性足够的股票。
+                                </div>
+                                <div id="portfolioSelectionStrategyCaveats" class="portfolio-optimization-note mb-2">
+                                    策略模板不保证收益；请结合验证集年化、波动、回撤和换手判断。
+                                </div>
+                                <div id="portfolioStrategyFactorSummary" class="portfolio-optimization-note mb-2">
+                                    因子摘要等待策略库加载。
+                                </div>
+                            </details>
+
                             <details class="config-panel border rounded p-2 mb-3">
                                 <summary><i class="fas fa-stopwatch"></i> 数据源节流</summary>
                                 <div class="portfolio-factor-grid mt-2">
@@ -1556,6 +1586,7 @@ SZ002241</textarea>
         let latestPortfolioResult = null;
         let latestPortfolioOptimizationJob = null;
         let latestPortfolioOptimizationResults = [];
+        let portfolioSelectionStrategies = [];
 
         function setSymbol(symbol) {
             document.getElementById('symbol').value = symbol;
@@ -1742,6 +1773,125 @@ SZ002241</textarea>
             return Number.isFinite(numberValue) ? numberValue : null;
         }
 
+        function getPortfolioSelectionStrategyId() {
+            const selector = document.getElementById('portfolioSelectionStrategy');
+            return selector ? selector.value : 'custom_factor_blend';
+        }
+
+        function getSelectedPortfolioStrategy() {
+            const strategyId = getPortfolioSelectionStrategyId();
+            return portfolioSelectionStrategies.find(strategy => strategy.strategy_id === strategyId) || null;
+        }
+
+        async function loadPortfolioSelectionStrategies() {
+            try {
+                const payload = await fetchJson('/portfolio-selection-strategies');
+                portfolioSelectionStrategies = payload.strategies || [];
+            } catch (error) {
+                portfolioSelectionStrategies = [{
+                    strategy_id: 'steady_low_vol_momentum',
+                    name: '稳健低波动动量策略',
+                    description: '偏好中期动量向上、波动更温和且流动性足够的股票。',
+                    suitable_for: '低换手组合选股。',
+                    caveats: ['策略库接口暂不可用，当前使用本地默认选项。'],
+                    default_rebalance_frequency: 'monthly',
+                    default_top_n: 5,
+                    top_n_candidates: [2, 3, 5, 10],
+                    factors: []
+                }, {
+                    strategy_id: 'custom_factor_blend',
+                    name: '自定义因子组合',
+                    description: '沿用原始因子配置。',
+                    suitable_for: '手动调参。',
+                    caveats: [],
+                    default_rebalance_frequency: 'monthly',
+                    default_top_n: 2,
+                    top_n_candidates: [2, 3, 5, 10, 20],
+                    factors: []
+                }];
+            }
+            renderPortfolioSelectionStrategyOptions();
+            renderPortfolioSelectionStrategyDetails();
+        }
+
+        function renderPortfolioSelectionStrategyOptions() {
+            const selector = document.getElementById('portfolioSelectionStrategy');
+            if (!selector || !portfolioSelectionStrategies.length) {
+                return;
+            }
+            const current = selector.value || 'steady_low_vol_momentum';
+            selector.innerHTML = portfolioSelectionStrategies
+                .map(strategy => `<option value="${escapeHtml(strategy.strategy_id)}">${escapeHtml(strategy.name)}</option>`)
+                .join('');
+            selector.value = portfolioSelectionStrategies.some(strategy => strategy.strategy_id === current)
+                ? current
+                : 'steady_low_vol_momentum';
+        }
+
+        function renderPortfolioSelectionStrategyDetails() {
+            const strategy = getSelectedPortfolioStrategy();
+            const description = document.getElementById('portfolioSelectionStrategyDescription');
+            const caveats = document.getElementById('portfolioSelectionStrategyCaveats');
+            const summary = document.getElementById('portfolioStrategyFactorSummary');
+            if (!strategy) {
+                description.textContent = '等待策略库加载';
+                caveats.textContent = '';
+                summary.textContent = '';
+                return;
+            }
+            description.textContent = `${strategy.name}: ${strategy.description}`;
+            caveats.innerHTML = (strategy.caveats || []).length
+                ? (strategy.caveats || []).map(item => `<span class="badge bg-warning text-dark me-1">${escapeHtml(item)}</span>`).join('')
+                : '<span class="badge bg-success">无额外注意事项</span>';
+            summary.innerHTML = (strategy.factors || []).length
+                ? (strategy.factors || [])
+                    .map(factor => `<span class="badge bg-light text-dark border me-1">${escapeHtml(factor.label)} ${escapeHtml(factor.direction === 'lower_better' ? '越低越好' : '越高越好')}</span>`)
+                    .join('')
+                : '<span class="badge bg-light text-dark border">使用当前原始因子设置</span>';
+        }
+
+        function applyPortfolioSelectionStrategyDefaults() {
+            const strategy = getSelectedPortfolioStrategy();
+            if (!strategy) {
+                return false;
+            }
+            document.getElementById('portfolioTopN').value = strategy.default_top_n || 2;
+            document.getElementById('portfolioRebalanceFrequency').value = strategy.default_rebalance_frequency || 'monthly';
+            const factorByKey = Object.fromEntries((strategy.factors || []).map(factor => [factor.key, factor]));
+            applyStrategyFactorDefault('momentum_return', 'portfolioMomentumLookback', 'portfolioMomentumWeight', factorByKey);
+            applyStrategyFactorDefault('realized_volatility', 'portfolioVolatilityLookback', 'portfolioVolatilityWeight', factorByKey);
+            applyStrategyFactorDefault('liquidity_turnover', 'portfolioLiquidityLookback', 'portfolioLiquidityWeight', factorByKey);
+            applyStrategyFactorDefault('ma_trend', null, 'portfolioTrendWeight', factorByKey);
+            syncPortfolioUniverseState();
+            renderPortfolioSelectionStrategyDetails();
+            return true;
+        }
+
+        function applyStrategyFactorDefault(factorKey, lookbackId, weightId, factorByKey) {
+            const factor = factorByKey[factorKey];
+            if (!factor) {
+                return;
+            }
+            if (lookbackId && factor.default_lookback) {
+                document.getElementById(lookbackId).value = factor.default_lookback;
+            }
+            if (weightId && Number.isFinite(Number(factor.default_weight))) {
+                const directionAdjustedWeight = factor.direction === 'lower_better'
+                    ? -Math.abs(Number(factor.default_weight))
+                    : Number(factor.default_weight);
+                document.getElementById(weightId).value = directionAdjustedWeight;
+            }
+        }
+
+        function collectPortfolioSelectionStrategyConfig() {
+            const strategyId = getPortfolioSelectionStrategyId();
+            return {
+                strategy_id: strategyId,
+                enabled: strategyId !== 'custom_factor_blend',
+                parameter_overrides: {}
+            };
+        }
+
         function collectPortfolioRequest() {
             const validation = validatePortfolioUniverse();
             if (!validation.ok) {
@@ -1801,6 +1951,7 @@ SZ002241</textarea>
                     stop_loss_pct: null,
                     max_drawdown_stop_pct: readNumber('portfolioMaxDrawdownStopPct', 30)
                 },
+                selection_strategy: collectPortfolioSelectionStrategyConfig(),
                 metadata: {
                     ui: 'phase3_portfolio_workbench'
                 }
@@ -3528,6 +3679,8 @@ SZ002241</textarea>
             document.getElementById('portfolioUniverseMode').addEventListener('change', syncPortfolioUniverseState);
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
+            document.getElementById('portfolioSelectionStrategy').addEventListener('change', renderPortfolioSelectionStrategyDetails);
+            document.getElementById('portfolioApplyStrategyDefaultsButton').addEventListener('click', applyPortfolioSelectionStrategyDefaults);
             document.getElementById('portfolioResultPanel').addEventListener('click', handlePortfolioResultClick);
             document.getElementById('portfolioSummaryButton').addEventListener('click', runPortfolioSummary);
             document.getElementById('startPortfolioFactorOptimizationButton').addEventListener('click', runPortfolioFactorOptimization);
@@ -3543,6 +3696,7 @@ SZ002241</textarea>
             
             // 加载策略列表
             loadStrategies();
+            loadPortfolioSelectionStrategies();
             loadOptimizationResultsFromStorage();
             renderOptimizationLibrary();
             document.getElementById('optimizationLibraryContainer').addEventListener('click', handleOptimizationLibraryClick);

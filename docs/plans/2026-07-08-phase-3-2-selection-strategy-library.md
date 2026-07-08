@@ -564,18 +564,18 @@ Task 1-3: Strategy contract and library
   - [x] Keep existing portfolio endpoints unchanged.
   - [x] Add API tests.
   - [x] Commit the API change.
-- [ ] Task 10: Add strategy selector to the WebUI.
-  - [ ] Add selector above the raw factor controls.
-  - [ ] Default to `稳健低波动动量策略`.
-  - [ ] Provide `自定义因子组合` for legacy behavior.
-  - [ ] Render strategy description.
-  - [ ] Render caveats and data limitations.
-  - [ ] Render factor summary.
-  - [ ] Add an explicit apply-defaults button.
-  - [ ] Include `selection_strategy` in portfolio backtest requests.
-  - [ ] Ensure changing strategy does not silently erase user edits.
-  - [ ] Add template/JS tests.
-  - [ ] Commit the WebUI selector change.
+- [x] Task 10: Add strategy selector to the WebUI.
+  - [x] Add selector above the raw factor controls.
+  - [x] Default to `稳健低波动动量策略`.
+  - [x] Provide `自定义因子组合` for legacy behavior.
+  - [x] Render strategy description.
+  - [x] Render caveats and data limitations.
+  - [x] Render factor summary.
+  - [x] Add an explicit apply-defaults button.
+  - [x] Include `selection_strategy` in portfolio backtest requests.
+  - [x] Ensure changing strategy does not silently erase user edits.
+  - [x] Add template/JS tests.
+  - [x] Commit the WebUI selector change.
 - [ ] Task 11: Add strategy-aware optimization UI.
   - [ ] Include selected strategy in optimization requests.
   - [ ] Allow strategy defaults to populate candidate lists.

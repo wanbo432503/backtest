@@ -147,6 +147,24 @@ def test_index_template_contains_portfolio_factor_optimization_controls():
     assert "portfolio-factor-optimization/jobs/${encodeURIComponent(jobId)}" in template
 
 
+def test_index_template_contains_portfolio_selection_strategy_controls():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="portfolioSelectionStrategy"' in template
+    assert 'id="portfolioSelectionStrategyDescription"' in template
+    assert 'id="portfolioSelectionStrategyCaveats"' in template
+    assert 'id="portfolioApplyStrategyDefaultsButton"' in template
+    assert 'id="portfolioStrategyFactorSummary"' in template
+    assert "loadPortfolioSelectionStrategies" in template
+    assert "renderPortfolioSelectionStrategyOptions" in template
+    assert "applyPortfolioSelectionStrategyDefaults" in template
+    assert "collectPortfolioSelectionStrategyConfig" in template
+    assert "selection_strategy: collectPortfolioSelectionStrategyConfig()" in template
+    assert "portfolio-selection-strategies" in template
+    assert "稳健低波动动量策略" in template
+    assert "自定义因子组合" in template
+
+
 def test_index_template_renders_portfolio_factor_optimization_results_and_apply_flow():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
