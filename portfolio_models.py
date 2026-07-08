@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from optimization_models import AShareTradingConfig
+from portfolio_selection_strategy_models import PortfolioSelectionStrategyConfig
 from tradable_universe import TradableUniversePolicy, validate_universe
 
 
@@ -213,6 +214,7 @@ class PortfolioBacktestRequest(BaseModel):
     rebalance: RebalanceConfig = Field(default_factory=RebalanceConfig)
     trading: AShareTradingConfig = Field(default_factory=AShareTradingConfig)
     risk: PortfolioRiskConfig = Field(default_factory=PortfolioRiskConfig)
+    selection_strategy: PortfolioSelectionStrategyConfig | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("initial_cash")

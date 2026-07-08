@@ -460,14 +460,14 @@ Task 1-3: Strategy contract and library
 
 **Workstream A: Strategy Contract And Library**
 
-- [ ] Task 1: Add strategy models and request compatibility.
-  - [ ] Define `StrategyFactorSpec`.
-  - [ ] Define `PortfolioSelectionStrategyDefinition`.
-  - [ ] Define request-side `PortfolioSelectionStrategyConfig`.
-  - [ ] Add optional `selection_strategy` to `PortfolioBacktestRequest`.
-  - [ ] Preserve old Phase 3.1 request payload compatibility.
-  - [ ] Add model tests for valid definitions, invalid directions, and old payloads.
-  - [ ] Commit the model-only change.
+- [x] Task 1: Add strategy models and request compatibility.
+  - [x] Define `StrategyFactorSpec`.
+  - [x] Define `PortfolioSelectionStrategyDefinition`.
+  - [x] Define request-side `PortfolioSelectionStrategyConfig`.
+  - [x] Add optional `selection_strategy` to `PortfolioBacktestRequest`.
+  - [x] Preserve old Phase 3.1 request payload compatibility.
+  - [x] Add model tests for valid definitions, invalid directions, and old payloads.
+  - [x] Commit the model-only change.
 - [ ] Task 2: Build the initial strategy library.
   - [ ] Add `steady_low_vol_momentum`.
   - [ ] Add `strong_trend_breakout`.

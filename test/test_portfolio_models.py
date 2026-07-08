@@ -24,6 +24,37 @@ def test_portfolio_backtest_request_defaults_are_prototype_ready():
     assert request.risk.max_position_pct == 0.50
     assert request.risk.target_gross_exposure == 0.95
     assert isinstance(request.trading, AShareTradingConfig)
+    assert request.selection_strategy is None
+
+
+def test_portfolio_backtest_request_accepts_selection_strategy_config():
+    request = PortfolioBacktestRequest(
+        start_date="2025-01-01",
+        end_date="2025-12-31",
+        selection_strategy={
+            "strategy_id": "steady_low_vol_momentum",
+            "enabled": True,
+            "parameter_overrides": {"momentum_return": {"lookback": 90}},
+        },
+    )
+
+    assert request.selection_strategy is not None
+    assert request.selection_strategy.strategy_id == "steady_low_vol_momentum"
+    assert request.selection_strategy.parameter_overrides["momentum_return"]["lookback"] == 90
+
+
+def test_portfolio_backtest_request_old_payload_without_selection_strategy_still_validates():
+    payload = {
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31",
+        "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+        "selection": {"top_n": 2, "min_history_bars": 60},
+    }
+
+    request = PortfolioBacktestRequest(**payload)
+
+    assert request.selection_strategy is None
+    assert request.selection.top_n == 2
 
 
 def test_selection_config_allows_phase31_top_n_up_to_twenty():
