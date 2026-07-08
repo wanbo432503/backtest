@@ -28,21 +28,50 @@ class Position:
     holding_bars: int = 0
 
 
-def run_portfolio_backtest(
+@dataclass(frozen=True)
+class PortfolioBacktestContext:
+    data_by_symbol: dict[str, pd.DataFrame]
+    providers: dict[str, str]
+    warnings: list[str]
+    diagnostics: dict[str, Any]
+
+
+def load_portfolio_backtest_context(
     request: PortfolioBacktestRequest,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
-) -> PortfolioBacktestResult:
+) -> PortfolioBacktestContext:
     scan_data = load_universe_scan_data(
         request,
         data_loader=load_portfolio_ohlcv,
         progress_callback=progress_callback,
     )
+    return PortfolioBacktestContext(
+        data_by_symbol=scan_data.data_by_symbol,
+        providers=scan_data.providers,
+        warnings=scan_data.warnings,
+        diagnostics=scan_data.diagnostics,
+    )
+
+
+def run_portfolio_backtest(
+    request: PortfolioBacktestRequest,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> PortfolioBacktestResult:
+    context = load_portfolio_backtest_context(request, progress_callback=progress_callback)
+    return run_portfolio_backtest_with_context(request, context, progress_callback=progress_callback)
+
+
+def run_portfolio_backtest_with_context(
+    request: PortfolioBacktestRequest,
+    context: PortfolioBacktestContext,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> PortfolioBacktestResult:
     if progress_callback is not None:
         progress_callback({
             "phase": "backtesting",
-            "screened_count": len(scan_data.data_by_symbol),
+            "screened_count": len(context.data_by_symbol),
         })
-    data_by_symbol = scan_data.data_by_symbol
+    data_by_symbol = context.data_by_symbol
     calendar = build_trading_calendar(data_by_symbol)
     rebalance_dates = set(
         build_rebalance_dates(calendar, request.start_date, request.end_date, request.rebalance)
@@ -54,8 +83,8 @@ def run_portfolio_backtest(
     trades: list[dict[str, Any]] = []
     rebalance_events: list[dict[str, Any]] = []
     candidate_rankings: list[dict[str, Any]] = []
-    warnings = list(scan_data.warnings)
-    scan_diagnostics = dict(scan_data.diagnostics)
+    warnings = list(context.warnings)
+    scan_diagnostics = dict(context.diagnostics)
 
     for date in calendar:
         if pd.Timestamp(date) < pd.Timestamp(request.start_date) or pd.Timestamp(date) > pd.Timestamp(request.end_date):

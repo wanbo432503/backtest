@@ -292,13 +292,13 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Introduce `PortfolioBacktestContext` with loaded OHLCV data, providers, warnings, and diagnostics.
-- [ ] Extract `load_portfolio_backtest_context(...)` from the current `run_portfolio_backtest(...)` loading path.
-- [ ] Add `run_portfolio_backtest_with_context(...)`.
-- [ ] Keep `run_portfolio_backtest(...)` as a compatibility wrapper.
-- [ ] Preserve progress events for normal one-off portfolio backtests.
-- [ ] Add tests proving two backtests can reuse one context without duplicate data loading.
-- [ ] Add tests proving the public API response shape is unchanged.
+- [x] Introduce `PortfolioBacktestContext` with loaded OHLCV data, providers, warnings, and diagnostics.
+- [x] Extract `load_portfolio_backtest_context(...)` from the current `run_portfolio_backtest(...)` loading path.
+- [x] Add `run_portfolio_backtest_with_context(...)`.
+- [x] Keep `run_portfolio_backtest(...)` as a compatibility wrapper.
+- [x] Preserve progress events for normal one-off portfolio backtests.
+- [x] Add tests proving two backtests can reuse one context without duplicate data loading.
+- [x] Add tests proving the public API response shape is unchanged.
 
 **Done when:** A factor optimizer can run many candidate backtests against the same prepared data bundle, and existing portfolio tests still pass.
 
@@ -678,6 +678,8 @@ git commit -m "feat: allow portfolio top n up to 20"
 ---
 
 ### Task 2: Extract Reusable Portfolio Backtest Context
+
+**Status:** Completed. Added `PortfolioBacktestContext`, `load_portfolio_backtest_context(...)`, and `run_portfolio_backtest_with_context(...)`; kept `run_portfolio_backtest(...)` as a compatibility wrapper and added context-reuse tests.
 
 **Files:**
 

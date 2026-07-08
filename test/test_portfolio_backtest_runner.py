@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+import portfolio_backtest_runner
 from portfolio_backtest_runner import run_portfolio_backtest
 from portfolio_data import PortfolioDataBundle
 from portfolio_models import PortfolioBacktestRequest
@@ -74,6 +75,40 @@ def test_portfolio_backtest_selection_changes_after_momentum_changes(monkeypatch
 
     assert ("SH603019",) in selected_sets
     assert ("SZ002241",) in selected_sets
+
+
+def test_portfolio_backtest_context_loads_once_and_can_be_reused(monkeypatch):
+    fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
+    loader_calls = []
+
+    def fake_loader(symbols, *args, **kwargs):
+        loader_calls.append(list(symbols))
+        return PortfolioDataBundle(
+            data_by_symbol=fixture,
+            warnings=[],
+            providers={symbol: "fixture" for symbol in fixture},
+        )
+
+    monkeypatch.setattr("portfolio_backtest_runner.load_portfolio_ohlcv", fake_loader)
+    request = _request()
+    alternate_request = _request(
+        factors={
+            "momentum_weight": 0.1,
+            "volatility_weight": -0.1,
+            "liquidity_weight": 0.6,
+            "trend_weight": 0.2,
+        }
+    )
+
+    context = portfolio_backtest_runner.load_portfolio_backtest_context(request)
+    first = portfolio_backtest_runner.run_portfolio_backtest_with_context(request, context)
+    second = portfolio_backtest_runner.run_portfolio_backtest_with_context(alternate_request, context)
+
+    assert len(loader_calls) == 1
+    assert context.providers == {symbol: "fixture" for symbol in fixture}
+    assert context.diagnostics["mode"] == "manual"
+    assert first.to_api_response().keys() == run_portfolio_backtest(request).to_api_response().keys()
+    assert second.equity_curve
 
 
 def test_portfolio_backtest_buys_lot_rounded_shares_and_reduces_cash(monkeypatch):
