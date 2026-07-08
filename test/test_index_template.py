@@ -174,7 +174,8 @@ def test_index_template_contains_portfolio_selection_strategy_controls():
     assert "selection_strategy: collectPortfolioSelectionStrategyConfig()" in template
     assert "portfolio-selection-strategies" in template
     assert "稳健低波动动量策略" in template
-    assert "自定义因子组合" in template
+    assert "自定义因子组合" not in template
+    assert "custom_factor_blend" not in template
 
 
 def test_index_template_renders_portfolio_factor_optimization_results_and_apply_flow():

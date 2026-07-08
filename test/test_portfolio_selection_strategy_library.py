@@ -14,8 +14,9 @@ EXPECTED_STRATEGY_IDS = {
     "strong_trend_breakout",
     "high_liquidity_trend",
     "drawdown_control_rotation",
-    "value_quality",
 }
+
+REMOVED_STRATEGY_IDS = {"value_quality", "custom_factor_blend"}
 
 
 def test_selection_strategy_library_contains_requested_strategies():
@@ -23,7 +24,7 @@ def test_selection_strategy_library_contains_requested_strategies():
     strategy_ids = {strategy.strategy_id for strategy in strategies}
 
     assert EXPECTED_STRATEGY_IDS.issubset(strategy_ids)
-    assert "custom_factor_blend" in strategy_ids
+    assert REMOVED_STRATEGY_IDS.isdisjoint(strategy_ids)
 
 
 def test_selection_strategy_ids_are_unique_and_deterministic():
@@ -57,15 +58,6 @@ def test_each_requested_strategy_has_complete_factor_definitions():
             assert factor.lookback_candidates or factor.weight_candidates
 
 
-def test_value_quality_strategy_declares_fundamental_and_technical_factors():
-    strategy = get_selection_strategy("value_quality")
-    factor_keys = {factor.key for factor in strategy.factors}
-
-    assert {"pe_inverse", "pb_inverse", "roe", "profit_growth"}.issubset(factor_keys)
-    assert {"ma_trend", "liquidity_turnover"}.issubset(factor_keys)
-    assert any("fundamental" in caveat.lower() or "基本面" in caveat for caveat in strategy.caveats)
-
-
 def test_get_selection_strategy_returns_requested_definition_and_rejects_unknown_id():
     strategy = get_selection_strategy("strong_trend_breakout")
 
@@ -74,6 +66,10 @@ def test_get_selection_strategy_returns_requested_definition_and_rejects_unknown
 
     with pytest.raises(ValueError, match="unknown portfolio selection strategy"):
         get_selection_strategy("missing_strategy")
+
+    for removed_strategy_id in REMOVED_STRATEGY_IDS:
+        with pytest.raises(ValueError, match="unknown portfolio selection strategy"):
+            get_selection_strategy(removed_strategy_id)
 
 
 def test_each_strategy_can_generate_valid_optimization_search_space():
@@ -103,11 +99,3 @@ def test_strategy_search_space_exposes_legacy_factor_space_for_compatible_factor
     assert search_space.legacy_factor_search_space.liquidity_lookback == [10, 20, 40]
     assert search_space.legacy_factor_search_space.top_n == [2, 3, 5, 10]
 
-
-def test_value_quality_search_space_includes_fundamental_and_confirmation_candidates():
-    search_space = build_factor_search_space_for_strategy("value_quality")
-
-    assert {"pe_inverse", "pb_inverse", "roe", "profit_growth"}.issubset(search_space.factor_weights)
-    assert {"ma_trend", "liquidity_turnover"}.issubset(search_space.factor_weights)
-    assert search_space.factor_lookbacks["ma_trend"] == [40, 60, 90]
-    assert search_space.legacy_factor_search_space is not None

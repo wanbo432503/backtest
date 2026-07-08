@@ -109,7 +109,7 @@ class PortfolioSelectionStrategyDefinition(BaseModel):
 
 
 class PortfolioSelectionStrategyConfig(BaseModel):
-    strategy_id: str = "custom_factor_blend"
+    strategy_id: str = "steady_low_vol_momentum"
     enabled: bool = True
     parameter_overrides: dict[str, Any] = Field(default_factory=dict)
 

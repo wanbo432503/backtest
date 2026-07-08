@@ -779,7 +779,6 @@ SZ002241</textarea>
                                         <label for="portfolioSelectionStrategy" class="form-label">选股策略</label>
                                         <select class="form-select" id="portfolioSelectionStrategy">
                                             <option value="steady_low_vol_momentum" selected>稳健低波动动量策略</option>
-                                            <option value="custom_factor_blend">自定义因子组合</option>
                                         </select>
                                     </div>
                                     <div class="mb-3 align-self-end">
@@ -1776,7 +1775,7 @@ SZ002241</textarea>
 
         function getPortfolioSelectionStrategyId() {
             const selector = document.getElementById('portfolioSelectionStrategy');
-            return selector ? selector.value : 'custom_factor_blend';
+            return selector ? selector.value : 'steady_low_vol_momentum';
         }
 
         function getSelectedPortfolioStrategy() {
@@ -1798,16 +1797,6 @@ SZ002241</textarea>
                     default_rebalance_frequency: 'monthly',
                     default_top_n: 5,
                     top_n_candidates: [2, 3, 5, 10],
-                    factors: []
-                }, {
-                    strategy_id: 'custom_factor_blend',
-                    name: '自定义因子组合',
-                    description: '沿用原始因子配置。',
-                    suitable_for: '手动调参。',
-                    caveats: [],
-                    default_rebalance_frequency: 'monthly',
-                    default_top_n: 2,
-                    top_n_candidates: [2, 3, 5, 10, 20],
                     factors: []
                 }];
             }
@@ -1889,10 +1878,8 @@ SZ002241</textarea>
             const strategyId = getPortfolioSelectionStrategyId();
             return {
                 strategy_id: strategyId,
-                enabled: strategyId !== 'custom_factor_blend',
-                parameter_overrides: strategyId === 'custom_factor_blend'
-                    ? {}
-                    : { ...portfolioSelectionStrategyOverrides }
+                enabled: true,
+                parameter_overrides: { ...portfolioSelectionStrategyOverrides }
             };
         }
 
@@ -2045,7 +2032,7 @@ SZ002241</textarea>
 
         function shouldUsePortfolioStrategyOptimizationDefaults() {
             const strategyId = getPortfolioSelectionStrategyId();
-            return strategyId && strategyId !== 'custom_factor_blend';
+            return Boolean(strategyId);
         }
 
         async function createPortfolioFactorOptimizationJob(requestBody) {
@@ -2168,7 +2155,7 @@ SZ002241</textarea>
             const warningBadges = warnings.length
                 ? warnings.map(warning => `<span class="badge bg-secondary">${escapeHtml(portfolioOptimizationWarningLabel(warning))}</span>`).join(' ')
                 : '';
-            const strategyName = candidate.selection_strategy_name || '自定义因子组合';
+            const strategyName = candidate.selection_strategy_name || '策略模板';
             return `
                 <tr class="${index === 0 ? 'table-primary' : ''}">
                     <td>${index + 1}</td>

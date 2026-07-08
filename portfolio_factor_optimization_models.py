@@ -222,7 +222,6 @@ class PortfolioFactorOptimizationRequest(BaseModel):
         has_named_strategy = (
             strategy_config is not None
             and strategy_config.enabled
-            and strategy_config.strategy_id != "custom_factor_blend"
         )
         if self.search_space is None and not has_named_strategy:
             raise ValueError("search_space can be null only when a named selection strategy is enabled")

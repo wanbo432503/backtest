@@ -207,8 +207,8 @@ def test_portfolio_selection_strategies_api_returns_strategy_library():
         "strong_trend_breakout",
         "high_liquidity_trend",
         "drawdown_control_rotation",
-        "value_quality",
     }.issubset(strategy_ids)
+    assert {"value_quality", "custom_factor_blend"}.isdisjoint(strategy_ids)
     steady = next(
         strategy
         for strategy in payload["strategies"]

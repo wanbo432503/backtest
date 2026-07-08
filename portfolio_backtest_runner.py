@@ -14,7 +14,6 @@ from a_share_rules import (
     round_lot_shares,
 )
 from factor_engine import score_candidates, score_candidates_with_strategy
-from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_data import load_portfolio_ohlcv
 from portfolio_models import PortfolioBacktestRequest, PortfolioBacktestResult
 from portfolio_selection_strategy_library import get_selection_strategy
@@ -95,14 +94,6 @@ def run_portfolio_backtest_with_context(
             "selection_strategy_id": selection_strategy.strategy_id,
             "selection_strategy_name": selection_strategy.name,
         })
-        if selection_strategy.strategy_id == "value_quality":
-            fundamentals = load_portfolio_fundamentals(
-                list(data_by_symbol),
-                data_provider=request.data_provider,
-            )
-            fundamentals_by_symbol = fundamentals.values_by_symbol
-            warnings.extend(fundamentals.warnings)
-            scan_diagnostics["fundamentals"] = fundamentals.to_diagnostics()
 
     for date in calendar:
         if pd.Timestamp(date) < pd.Timestamp(request.start_date) or pd.Timestamp(date) > pd.Timestamp(request.end_date):
@@ -203,7 +194,7 @@ def _named_selection_strategy(
     request: PortfolioBacktestRequest,
 ) -> PortfolioSelectionStrategyDefinition | None:
     config = request.selection_strategy
-    if config is None or not config.enabled or config.strategy_id == "custom_factor_blend":
+    if config is None or not config.enabled:
         return None
     return get_selection_strategy(config.strategy_id)
 

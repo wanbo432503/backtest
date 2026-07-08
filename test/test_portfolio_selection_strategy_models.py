@@ -62,10 +62,10 @@ def test_strategy_factor_rejects_invalid_direction_and_non_finite_weights():
         )
 
 
-def test_selection_strategy_config_defaults_to_custom_factor_blend():
+def test_selection_strategy_config_defaults_to_available_strategy_template():
     config = PortfolioSelectionStrategyConfig()
 
-    assert config.strategy_id == "custom_factor_blend"
+    assert config.strategy_id == "steady_low_vol_momentum"
     assert config.enabled is True
     assert config.parameter_overrides == {}
 

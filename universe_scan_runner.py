@@ -9,7 +9,6 @@ import pandas as pd
 
 from factor_engine import score_candidates, score_candidates_with_strategy
 from portfolio_data import load_portfolio_ohlcv
-from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_models import PortfolioBacktestRequest
 from portfolio_selection_strategy_library import get_selection_strategy
 from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
@@ -129,14 +128,6 @@ def run_universe_scan(
             "selection_strategy_id": selection_strategy.strategy_id,
             "selection_strategy_name": selection_strategy.name,
         })
-        if selection_strategy.strategy_id == "value_quality":
-            fundamentals = load_portfolio_fundamentals(
-                list(scan_data.data_by_symbol),
-                data_provider=request.data_provider,
-            )
-            fundamentals_by_symbol = fundamentals.values_by_symbol
-            warnings.extend(fundamentals.warnings)
-            diagnostics["fundamentals"] = fundamentals.to_diagnostics()
 
     ranking = _score_candidates_for_request(
         scan_data.data_by_symbol,
@@ -164,7 +155,7 @@ def _named_selection_strategy(
     request: PortfolioBacktestRequest,
 ) -> PortfolioSelectionStrategyDefinition | None:
     config = request.selection_strategy
-    if config is None or not config.enabled or config.strategy_id == "custom_factor_blend":
+    if config is None or not config.enabled:
         return None
     return get_selection_strategy(config.strategy_id)
 
