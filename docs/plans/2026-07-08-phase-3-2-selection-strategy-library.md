@@ -533,16 +533,16 @@ Task 1-3: Strategy contract and library
 
 **Workstream C: Portfolio Backtest And Optimization Integration**
 
-- [ ] Task 7: Integrate strategy scoring into portfolio backtest and stock-pool scan.
-  - [ ] Detect `request.selection_strategy`.
-  - [ ] Route `custom_factor_blend` and missing strategy config to legacy scoring.
-  - [ ] Route named strategies to strategy-aware scoring.
-  - [ ] Include `strategy_id` in scan diagnostics.
-  - [ ] Include factor diagnostics in candidate rankings.
-  - [ ] Include strategy warnings in result warnings.
-  - [ ] Preserve automatic `60/00` universe behavior.
-  - [ ] Test named strategy and legacy paths.
-  - [ ] Commit the backtest integration change.
+- [x] Task 7: Integrate strategy scoring into portfolio backtest and stock-pool scan.
+  - [x] Detect `request.selection_strategy`.
+  - [x] Route `custom_factor_blend` and missing strategy config to legacy scoring.
+  - [x] Route named strategies to strategy-aware scoring.
+  - [x] Include `strategy_id` in scan diagnostics.
+  - [x] Include factor diagnostics in candidate rankings.
+  - [x] Include strategy warnings in result warnings.
+  - [x] Preserve automatic `60/00` universe behavior.
+  - [x] Test named strategy and legacy paths.
+  - [x] Commit the backtest integration change.
 - [ ] Task 8: Integrate the strategy library with factor optimization.
   - [ ] Allow optimization requests to omit raw `search_space` when a named strategy is selected.
   - [ ] Resolve the selected strategy before generating trials.

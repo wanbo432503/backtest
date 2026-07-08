@@ -67,6 +67,43 @@ def test_universe_scan_selects_final_holdings_under_five(monkeypatch):
     assert result.diagnostics["selected_count"] == len(result.selected_symbols)
 
 
+def test_universe_scan_uses_named_selection_strategy(monkeypatch):
+    fixture = {
+        "SH600000": build_ohlcv_frame(base_price=10, daily_return=0.0001),
+        "SH603019": build_ohlcv_frame(base_price=20, daily_return=0.0012),
+        "SZ002241": build_ohlcv_frame(base_price=25, daily_return=0.0014),
+    }
+    monkeypatch.setattr(
+        "universe_scan_runner.get_default_stock_universe",
+        lambda **kwargs: StockUniverseResult(records=[_records()[0], _records()[1], _records()[4]], source="fixture"),
+    )
+    monkeypatch.setattr(
+        "universe_scan_runner.load_portfolio_ohlcv",
+        lambda symbols, *args, **kwargs: PortfolioDataBundle(
+            data_by_symbol={symbol: fixture[symbol] for symbol in symbols},
+            warnings=[],
+            providers={symbol: "fixture" for symbol in symbols},
+        ),
+    )
+
+    result = run_universe_scan(
+        _request(
+            universe={"mode": "auto", "symbols": [], "max_scan_symbols": 3},
+            selection={"top_n": 2, "min_history_bars": 60},
+            selection_strategy={
+                "strategy_id": "steady_low_vol_momentum",
+                "enabled": True,
+            },
+        )
+    )
+
+    assert result.diagnostics["selection_strategy_id"] == "steady_low_vol_momentum"
+    assert result.diagnostics["selection_strategy_name"] == "稳健低波动动量策略"
+    assert result.ranking[0]["strategy_id"] == "steady_low_vol_momentum"
+    assert "momentum_return" in result.ranking[0]["strategy_factor_values"]
+    assert "normalized_strategy_factors" in result.ranking[0]
+
+
 def test_universe_scan_handles_partial_data_failures(monkeypatch):
     fixture = {
         "SH600000": build_ohlcv_frame(base_price=10),

@@ -7,9 +7,12 @@ from typing import Any
 
 import pandas as pd
 
-from factor_engine import score_candidates
+from factor_engine import score_candidates, score_candidates_with_strategy
 from portfolio_data import load_portfolio_ohlcv
+from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_models import PortfolioBacktestRequest
+from portfolio_selection_strategy_library import get_selection_strategy
+from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
 from selection_engine import build_trading_calendar, select_top_candidates
 from stock_universe_provider import StockUniverseRecord, get_default_stock_universe
 from tradable_universe import TradableUniversePolicy, validate_universe
@@ -118,8 +121,32 @@ def run_universe_scan(
         "screened_count": len(scan_data.data_by_symbol),
         "as_of_date": _date_str(as_of_date),
     })
-    ranking = score_candidates(scan_data.data_by_symbol, as_of_date, request.factors, request.selection)
+    warnings = list(scan_data.warnings)
+    selection_strategy = _named_selection_strategy(request)
+    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None
+    if selection_strategy is not None:
+        diagnostics.update({
+            "selection_strategy_id": selection_strategy.strategy_id,
+            "selection_strategy_name": selection_strategy.name,
+        })
+        if selection_strategy.strategy_id == "value_quality":
+            fundamentals = load_portfolio_fundamentals(
+                list(scan_data.data_by_symbol),
+                data_provider=request.data_provider,
+            )
+            fundamentals_by_symbol = fundamentals.values_by_symbol
+            warnings.extend(fundamentals.warnings)
+            diagnostics["fundamentals"] = fundamentals.to_diagnostics()
+
+    ranking = _score_candidates_for_request(
+        scan_data.data_by_symbol,
+        as_of_date,
+        request,
+        selection_strategy=selection_strategy,
+        fundamentals_by_symbol=fundamentals_by_symbol,
+    )
     selection = select_top_candidates(ranking, request.selection)
+    candidate_warnings = _candidate_warnings(ranking)
     diagnostics.update({
         "as_of_date": _date_str(as_of_date),
         "scored_count": len([row for row in ranking if row.get("skip_reason") is None]),
@@ -129,8 +156,53 @@ def run_universe_scan(
         selected_symbols=[row["symbol"] for row in selection.selected],
         ranking=ranking,
         diagnostics=diagnostics,
-        warnings=[*scan_data.warnings, *selection.warnings],
+        warnings=[*warnings, *selection.warnings, *candidate_warnings],
     )
+
+
+def _named_selection_strategy(
+    request: PortfolioBacktestRequest,
+) -> PortfolioSelectionStrategyDefinition | None:
+    config = request.selection_strategy
+    if config is None or not config.enabled or config.strategy_id == "custom_factor_blend":
+        return None
+    return get_selection_strategy(config.strategy_id)
+
+
+def _score_candidates_for_request(
+    data_by_symbol: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp,
+    request: PortfolioBacktestRequest,
+    *,
+    selection_strategy: PortfolioSelectionStrategyDefinition | None,
+    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if selection_strategy is None:
+        return score_candidates(data_by_symbol, as_of_date, request.factors, request.selection)
+    parameter_overrides = (
+        request.selection_strategy.parameter_overrides
+        if request.selection_strategy is not None
+        else {}
+    )
+    return score_candidates_with_strategy(
+        data_by_symbol,
+        as_of_date,
+        request.selection,
+        selection_strategy,
+        parameter_overrides=parameter_overrides,
+        fundamentals_by_symbol=fundamentals_by_symbol,
+    )
+
+
+def _candidate_warnings(ranking: list[dict[str, Any]]) -> list[str]:
+    seen = set()
+    warnings = []
+    for row in ranking:
+        for warning in row.get("warnings", []):
+            if warning not in seen:
+                warnings.append(str(warning))
+                seen.add(warning)
+    return warnings
 
 
 def _resolve_universe_records(

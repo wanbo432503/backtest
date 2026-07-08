@@ -13,9 +13,12 @@ from a_share_rules import (
     can_sell,
     round_lot_shares,
 )
-from factor_engine import score_candidates
+from factor_engine import score_candidates, score_candidates_with_strategy
+from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_data import load_portfolio_ohlcv
 from portfolio_models import PortfolioBacktestRequest, PortfolioBacktestResult
+from portfolio_selection_strategy_library import get_selection_strategy
+from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
 from selection_engine import build_rebalance_dates, build_trading_calendar, select_top_candidates
 from universe_scan_runner import load_universe_scan_data
 
@@ -85,6 +88,21 @@ def run_portfolio_backtest_with_context(
     candidate_rankings: list[dict[str, Any]] = []
     warnings = list(context.warnings)
     scan_diagnostics = dict(context.diagnostics)
+    selection_strategy = _named_selection_strategy(request)
+    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None
+    if selection_strategy is not None:
+        scan_diagnostics.update({
+            "selection_strategy_id": selection_strategy.strategy_id,
+            "selection_strategy_name": selection_strategy.name,
+        })
+        if selection_strategy.strategy_id == "value_quality":
+            fundamentals = load_portfolio_fundamentals(
+                list(data_by_symbol),
+                data_provider=request.data_provider,
+            )
+            fundamentals_by_symbol = fundamentals.values_by_symbol
+            warnings.extend(fundamentals.warnings)
+            scan_diagnostics["fundamentals"] = fundamentals.to_diagnostics()
 
     for date in calendar:
         if pd.Timestamp(date) < pd.Timestamp(request.start_date) or pd.Timestamp(date) > pd.Timestamp(request.end_date):
@@ -94,9 +112,16 @@ def run_portfolio_backtest_with_context(
         skipped_trades: list[dict[str, Any]] = []
 
         if date in rebalance_dates:
-            ranking = score_candidates(data_by_symbol, date, request.factors, request.selection)
+            ranking = _score_candidates_for_request(
+                data_by_symbol,
+                date,
+                request,
+                selection_strategy=selection_strategy,
+                fundamentals_by_symbol=fundamentals_by_symbol,
+            )
             selection = select_top_candidates(ranking, request.selection)
-            warnings.extend(selection.warnings)
+            candidate_warnings = _candidate_warnings(ranking)
+            warnings.extend([*selection.warnings, *candidate_warnings])
             candidate_rankings.extend(_ranking_rows(date, selection.ranking))
             selected_symbols = [row["symbol"] for row in selection.selected]
             equity_before = _portfolio_value(date, cash, positions, data_by_symbol)
@@ -131,7 +156,7 @@ def run_portfolio_backtest_with_context(
                 "selected_symbols": selected_symbols,
                 "trades": day_trades,
                 "skipped_trades": skipped_trades,
-                "warnings": selection.warnings,
+                "warnings": [*selection.warnings, *candidate_warnings],
             })
 
         equity = _portfolio_value(date, cash, positions, data_by_symbol)
@@ -172,6 +197,51 @@ def run_portfolio_backtest_with_context(
         scan_diagnostics=scan_diagnostics,
         config=request.model_dump(mode="json"),
     )
+
+
+def _named_selection_strategy(
+    request: PortfolioBacktestRequest,
+) -> PortfolioSelectionStrategyDefinition | None:
+    config = request.selection_strategy
+    if config is None or not config.enabled or config.strategy_id == "custom_factor_blend":
+        return None
+    return get_selection_strategy(config.strategy_id)
+
+
+def _score_candidates_for_request(
+    data_by_symbol: dict[str, pd.DataFrame],
+    date: pd.Timestamp,
+    request: PortfolioBacktestRequest,
+    *,
+    selection_strategy: PortfolioSelectionStrategyDefinition | None,
+    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if selection_strategy is None:
+        return score_candidates(data_by_symbol, date, request.factors, request.selection)
+    parameter_overrides = (
+        request.selection_strategy.parameter_overrides
+        if request.selection_strategy is not None
+        else {}
+    )
+    return score_candidates_with_strategy(
+        data_by_symbol,
+        date,
+        request.selection,
+        selection_strategy,
+        parameter_overrides=parameter_overrides,
+        fundamentals_by_symbol=fundamentals_by_symbol,
+    )
+
+
+def _candidate_warnings(ranking: list[dict[str, Any]]) -> list[str]:
+    seen = set()
+    warnings = []
+    for row in ranking:
+        for warning in row.get("warnings", []):
+            if warning not in seen:
+                warnings.append(str(warning))
+                seen.add(warning)
+    return warnings
 
 
 def _target_values(

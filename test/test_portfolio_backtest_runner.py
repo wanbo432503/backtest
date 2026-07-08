@@ -77,6 +77,32 @@ def test_portfolio_backtest_selection_changes_after_momentum_changes(monkeypatch
     assert ("SZ002241",) in selected_sets
 
 
+def test_portfolio_backtest_uses_named_selection_strategy(monkeypatch):
+    fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
+    monkeypatch.setattr(
+        "portfolio_backtest_runner.load_portfolio_ohlcv",
+        lambda *args, **kwargs: PortfolioDataBundle(data_by_symbol=fixture, warnings=[], providers={}),
+    )
+
+    result = run_portfolio_backtest(
+        _request(
+            selection_strategy={
+                "strategy_id": "steady_low_vol_momentum",
+                "enabled": True,
+            },
+        )
+    )
+
+    assert result.scan_diagnostics["selection_strategy_id"] == "steady_low_vol_momentum"
+    assert result.scan_diagnostics["selection_strategy_name"] == "稳健低波动动量策略"
+    assert result.candidate_rankings
+    first_ranked = next(row for row in result.candidate_rankings if row["skip_reason"] is None)
+    assert first_ranked["strategy_id"] == "steady_low_vol_momentum"
+    assert "momentum_return" in first_ranked["strategy_factor_values"]
+    assert "normalized_strategy_factors" in first_ranked
+    assert result.config["selection_strategy"]["strategy_id"] == "steady_low_vol_momentum"
+
+
 def test_portfolio_backtest_context_loads_once_and_can_be_reused(monkeypatch):
     fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
     loader_calls = []
