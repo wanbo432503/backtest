@@ -468,17 +468,17 @@ Task 1-3: Strategy contract and library
   - [x] Preserve old Phase 3.1 request payload compatibility.
   - [x] Add model tests for valid definitions, invalid directions, and old payloads.
   - [x] Commit the model-only change.
-- [ ] Task 2: Build the initial strategy library.
-  - [ ] Add `steady_low_vol_momentum`.
-  - [ ] Add `strong_trend_breakout`.
-  - [ ] Add `high_liquidity_trend`.
-  - [ ] Add `drawdown_control_rotation`.
-  - [ ] Add `value_quality`.
-  - [ ] Add `custom_factor_blend` as the backward-compatible escape hatch.
-  - [ ] Add `list_selection_strategies()`.
-  - [ ] Add `get_selection_strategy(strategy_id)`.
-  - [ ] Test uniqueness, required fields, factor definitions, and missing strategy errors.
-  - [ ] Commit the library definition change.
+- [x] Task 2: Build the initial strategy library.
+  - [x] Add `steady_low_vol_momentum`.
+  - [x] Add `strong_trend_breakout`.
+  - [x] Add `high_liquidity_trend`.
+  - [x] Add `drawdown_control_rotation`.
+  - [x] Add `value_quality`.
+  - [x] Add `custom_factor_blend` as the backward-compatible escape hatch.
+  - [x] Add `list_selection_strategies()`.
+  - [x] Add `get_selection_strategy(strategy_id)`.
+  - [x] Test uniqueness, required fields, factor definitions, and missing strategy errors.
+  - [x] Commit the library definition change.
 - [ ] Task 3: Generate optimization search spaces from strategy templates.
   - [ ] Convert factor lookback candidates into optimizer candidates.
   - [ ] Convert factor weight candidates into optimizer candidates.
