@@ -505,18 +505,18 @@ Task 1-3: Strategy contract and library
   - [x] Add synthetic-data tests for each new factor.
   - [x] Add lookahead-safety tests.
   - [x] Commit the factor-engine change.
-- [ ] Task 5: Add strategy-aware candidate scoring.
-  - [ ] Normalize each factor cross-sectionally per rebalance date.
-  - [ ] Apply `higher_better` and `lower_better` directions correctly.
-  - [ ] Apply strategy default weights.
-  - [ ] Apply request-level parameter overrides.
-  - [ ] Return strategy factor values in candidate diagnostics.
-  - [ ] Return normalized factor values in candidate diagnostics.
-  - [ ] Keep legacy `FactorConfig` scoring unchanged.
-  - [ ] Test steady low-vol momentum ranks smooth uptrends above jagged names.
-  - [ ] Test strong trend breakout requires breakout plus volume confirmation.
-  - [ ] Test drawdown-control rotation penalizes recent deep drawdowns.
-  - [ ] Commit the strategy-scoring change.
+- [x] Task 5: Add strategy-aware candidate scoring.
+  - [x] Normalize each factor cross-sectionally per rebalance date.
+  - [x] Apply `higher_better` and `lower_better` directions correctly.
+  - [x] Apply strategy default weights.
+  - [x] Apply request-level parameter overrides.
+  - [x] Return strategy factor values in candidate diagnostics.
+  - [x] Return normalized factor values in candidate diagnostics.
+  - [x] Keep legacy `FactorConfig` scoring unchanged.
+  - [x] Test steady low-vol momentum ranks smooth uptrends above jagged names.
+  - [x] Test strong trend breakout requires breakout plus volume confirmation.
+  - [x] Test drawdown-control rotation penalizes recent deep drawdowns.
+  - [x] Commit the strategy-scoring change.
 - [ ] Task 6: Add optional fundamentals support for value-quality.
   - [ ] Add a `FundamentalsBundle` model.
   - [ ] Add a yfinance-backed loader with no mandatory network dependency in tests.

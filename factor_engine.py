@@ -163,6 +163,67 @@ def score_candidates(
     return rows
 
 
+def score_candidates_with_strategy(
+    data_by_symbol: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp | str,
+    selection_config: SelectionConfig,
+    strategy: PortfolioSelectionStrategyDefinition,
+    parameter_overrides: dict[str, Any] | None = None,
+    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    overrides = parameter_overrides or {}
+    rows = []
+    for symbol, data in data_by_symbol.items():
+        factor_row = calculate_strategy_factor_values(
+            data,
+            as_of_date,
+            strategy,
+            min_history_bars=selection_config.min_history_bars,
+            lookahead_safe=True,
+            parameter_overrides=overrides,
+            fundamentals=(fundamentals_by_symbol or {}).get(symbol),
+        )
+        rows.append({
+            "symbol": symbol,
+            "strategy_id": strategy.strategy_id,
+            "strategy_factor_values": factor_row["factor_values"],
+            "factor_values": factor_row["factor_values"],
+            "skip_reason": factor_row["skip_reason"],
+            "score": None,
+            "rank": None,
+        })
+
+    scored_rows = [row for row in rows if row["skip_reason"] is None]
+    normalized = _normalize_strategy_factors(scored_rows, strategy)
+    weights = _strategy_weights(strategy, overrides)
+
+    for row in scored_rows:
+        row["normalized_strategy_factors"] = normalized[row["symbol"]]
+        row["normalized_factors"] = normalized[row["symbol"]]
+        row["score"] = float(
+            sum(
+                row["normalized_strategy_factors"].get(key, 0.0) * weight
+                for key, weight in weights.items()
+            )
+        )
+
+    rows.sort(
+        key=lambda row: (
+            row["skip_reason"] is not None,
+            -(row["score"] if row["score"] is not None else float("-inf")),
+            row["symbol"],
+        )
+    )
+
+    rank = 1
+    for row in rows:
+        if row["skip_reason"] is None:
+            row["rank"] = rank
+            rank += 1
+
+    return rows
+
+
 def _strategy_lookbacks(
     strategy: PortfolioSelectionStrategyDefinition,
     parameter_overrides: dict[str, Any],
@@ -176,6 +237,22 @@ def _strategy_lookbacks(
         elif factor.default_lookback is not None:
             lookbacks[factor.key] = factor.default_lookback
     return lookbacks
+
+
+def _strategy_weights(
+    strategy: PortfolioSelectionStrategyDefinition,
+    parameter_overrides: dict[str, Any],
+) -> dict[str, float]:
+    weights: dict[str, float] = {}
+    for factor in strategy.factors:
+        override = parameter_overrides.get(factor.key, {})
+        override_weight = override.get("weight") if isinstance(override, dict) else None
+        weights[factor.key] = (
+            float(override_weight)
+            if override_weight is not None
+            else float(factor.default_weight)
+        )
+    return weights
 
 
 def _history_until(
@@ -262,6 +339,28 @@ def _safe_float(value: Any) -> float:
     if pd.isna(value):
         return 0.0
     return float(value)
+
+
+def _normalize_strategy_factors(
+    rows: list[dict[str, Any]],
+    strategy: PortfolioSelectionStrategyDefinition,
+) -> dict[str, dict[str, float]]:
+    normalized: dict[str, dict[str, float]] = {row["symbol"]: {} for row in rows}
+    for factor in strategy.factors:
+        key = factor.key
+        values = [float(row["strategy_factor_values"].get(key, 0.0)) for row in rows]
+        if not values:
+            continue
+        min_value = min(values)
+        max_value = max(values)
+        for row, value in zip(rows, values):
+            if max_value == min_value:
+                normalized[row["symbol"]][key] = 0.0
+            elif factor.direction == "lower_better":
+                normalized[row["symbol"]][key] = (max_value - value) / (max_value - min_value)
+            else:
+                normalized[row["symbol"]][key] = (value - min_value) / (max_value - min_value)
+    return normalized
 
 
 def _normalize_factors(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
