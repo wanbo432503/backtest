@@ -23,6 +23,12 @@
       "display_name": "放量突破风控策略",
       "description": "价格突破近期高点且成交量显著放大时买入，跌破突破线或触发风控时卖出。",
       "class_name": "VolumeBreakoutRiskControlStrategy"
+    },
+    "ma_breakout_atr_risk_control": {
+      "name": "ma_breakout_atr_risk_control",
+      "display_name": "均线突破ATR风控策略",
+      "description": "MA120 多头过滤、MA20/MA60 趋势确认、40日高点放量突破买入，并使用 ATR 移动止损和波动率仓位控制。",
+      "class_name": "MABreakoutATRRiskControlStrategy"
     }
   }
 }

@@ -200,11 +200,13 @@ def test_strategy_backtest(results: TestResults, verbose: bool = False):
     from strategies.ma_trend_risk_control import MATrendRiskControlStrategy
     from strategies.rsi_risk_control import RSIRiskControlStrategy
     from strategies.volume_breakout_risk_control import VolumeBreakoutRiskControlStrategy
+    from strategies.ma_breakout_atr_risk_control import MABreakoutATRRiskControlStrategy
     
     test_strategies = [
         ("均线趋势风控策略", MATrendRiskControlStrategy),
         ("RSI风控策略", RSIRiskControlStrategy),
         ("放量突破风控策略", VolumeBreakoutRiskControlStrategy),
+        ("均线突破ATR风控策略", MABreakoutATRRiskControlStrategy),
     ]
     
     # 获取测试数据
@@ -380,6 +382,7 @@ def test_data_integrity(results: TestResults, verbose: bool = False):
         "strategies/rsi_risk_control.py",
         "strategies/ma_trend_risk_control.py",
         "strategies/volume_breakout_risk_control.py",
+        "strategies/ma_breakout_atr_risk_control.py",
     ]
     
     for strategy_file in strategy_files:
