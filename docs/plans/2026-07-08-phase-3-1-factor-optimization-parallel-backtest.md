@@ -267,7 +267,239 @@ Final result includes:
 
 ---
 
-## 6. Task List
+## 6. Detailed Transformation Subtasks And Todolist
+
+This section is the engineering-level checklist for the Phase 3.1 transformation. The later Task List expands these into TDD implementation steps and commits.
+
+### 6.1 Portfolio Size And User Contract
+
+**Purpose:** Turn Phase 3.0 from a tiny “less than 5 holdings” prototype into a configurable portfolio selector while keeping the workflow understandable.
+
+**Todo:**
+
+- [ ] Raise backend `SelectionConfig.top_n` cap from 4 to 20.
+- [ ] Raise frontend `portfolioTopN` max from 4 to 20.
+- [ ] Update all visible copy that still says “最终持仓少于 5 只”.
+- [ ] Keep manual diagnostic candidate pools bounded by their actual symbol count.
+- [ ] Update TradingAgents portfolio summary validation to accept up to 20 selected symbols.
+- [ ] Add regression tests proving `top_n=20` works and `top_n=21` fails.
+
+**Done when:** Normal portfolio backtest accepts Top N 1-20 in both API and UI, and old single-stock/TradingAgents behavior remains unchanged.
+
+### 6.2 Backtest Engine Refactor For Reusable Data
+
+**Purpose:** Make optimization practical by loading the 60/00 universe once per optimization job instead of once per candidate factor configuration.
+
+**Todo:**
+
+- [ ] Introduce `PortfolioBacktestContext` with loaded OHLCV data, providers, warnings, and diagnostics.
+- [ ] Extract `load_portfolio_backtest_context(...)` from the current `run_portfolio_backtest(...)` loading path.
+- [ ] Add `run_portfolio_backtest_with_context(...)`.
+- [ ] Keep `run_portfolio_backtest(...)` as a compatibility wrapper.
+- [ ] Preserve progress events for normal one-off portfolio backtests.
+- [ ] Add tests proving two backtests can reuse one context without duplicate data loading.
+- [ ] Add tests proving the public API response shape is unchanged.
+
+**Done when:** A factor optimizer can run many candidate backtests against the same prepared data bundle, and existing portfolio tests still pass.
+
+### 6.3 Optimization Request And Result Contracts
+
+**Purpose:** Define stable API models before implementing the optimizer, so backend, tests, and frontend speak the same language.
+
+**Todo:**
+
+- [ ] Create `portfolio_factor_optimization_models.py`.
+- [ ] Add `OptimizationSplitConfig`.
+- [ ] Add `FactorSearchSpace`.
+- [ ] Add `PortfolioFactorOptimizationRequest`.
+- [ ] Add candidate/result DTOs for factor values, train metrics, validation metrics, risk flags, and objective score.
+- [ ] Validate `max_trials > 0`.
+- [ ] Validate `1 <= max_workers <= 8`.
+- [ ] Validate split ratio and explicit validation date.
+- [ ] Validate search-space Top N values do not exceed 20.
+- [ ] Set default objective to `validation_smooth_uptrend`.
+
+**Done when:** Invalid optimization payloads fail at model validation, and a valid default request can be serialized to JSON without custom encoders.
+
+### 6.4 Candidate Search Space Generation
+
+**Purpose:** Generate deterministic factor configurations for optimization without introducing random or irreproducible behavior.
+
+**Todo:**
+
+- [ ] Implement `generate_factor_candidates(...)`.
+- [ ] Use deterministic Cartesian product over configured windows, weights, Top N, and score threshold.
+- [ ] Deduplicate equivalent candidates.
+- [ ] Sort candidates deterministically.
+- [ ] Respect `max_trials`.
+- [ ] Include the candidate id/index in each generated candidate.
+- [ ] Add tests for determinism, uniqueness, and max-trial truncation.
+
+**Done when:** Running candidate generation twice with the same request returns the same ordered candidates.
+
+### 6.5 Train/Validation Split
+
+**Purpose:** Prevent lookahead and overfitting by forcing chronological train and validation windows.
+
+**Todo:**
+
+- [ ] Implement `resolve_optimization_split(...)`.
+- [ ] Support ratio split, default `train_ratio=0.7`.
+- [ ] Support explicit `validation_start`.
+- [ ] Ensure train period ends before validation period starts.
+- [ ] Ensure validation period ends at the base request `end_date`.
+- [ ] Reject splits that leave too little train or validation data.
+- [ ] Require enough calendar span for at least two rebalance cycles in both windows.
+- [ ] Add tests for ratio split, explicit split, and invalid date order.
+
+**Done when:** Every candidate is evaluated on the same resolved train/validation windows, with no overlapping dates.
+
+### 6.6 Smooth-Uptrend Objective Metrics
+
+**Purpose:** Encode the user's preference for slower but steadier equity growth instead of unstable high-return curves.
+
+**Todo:**
+
+- [ ] Implement `calculate_equity_curve_quality(...)`.
+- [ ] Compute annualized validation return volatility.
+- [ ] Compute annualized validation downside volatility.
+- [ ] Compute validation log-equity trend R-squared.
+- [ ] Compute validation positive-return day ratio.
+- [ ] Compute validation equity trend score.
+- [ ] Implement `validation_smooth_uptrend` objective score.
+- [ ] Add risk flags for high volatility and low trend quality.
+- [ ] Add tests where a smoother rising curve beats a higher-return jagged curve.
+
+**Done when:** Optimizer ranking prefers a stable upward validation equity curve over a high-return but violently fluctuating one, all else reasonably comparable.
+
+### 6.7 Candidate Evaluation With Real Trading Logic
+
+**Purpose:** Ensure optimization is optimizing the actual rolling rebalance portfolio behavior, not a simplified factor-only proxy.
+
+**Todo:**
+
+- [ ] Implement `evaluate_factor_candidate(...)`.
+- [ ] Build a train `PortfolioBacktestRequest` from the base request and candidate factors.
+- [ ] Build a validation `PortfolioBacktestRequest` from the same candidate factors.
+- [ ] Run both through `run_portfolio_backtest_with_context(...)`.
+- [ ] Extract train metrics from the train backtest summary.
+- [ ] Extract validation metrics and smooth-uptrend quality from validation equity curve.
+- [ ] Include candidate factor windows, weights, Top N, and score threshold in the result.
+- [ ] Include compact train/validation risk flags.
+- [ ] Avoid returning full equity curves for every candidate by default.
+
+**Done when:** One candidate result explains exactly which parameters were tested and why it ranked where it did.
+
+### 6.8 Parallel Optimization Engine
+
+**Purpose:** Use available CPU cores to evaluate many candidate factor sets quickly while keeping resource use bounded.
+
+**Todo:**
+
+- [ ] Implement `run_factor_optimization(...)`.
+- [ ] Load portfolio context once for the full base date range.
+- [ ] Generate and resolve candidates before launching workers.
+- [ ] Support `ProcessPoolExecutor` by default.
+- [ ] Support `ThreadPoolExecutor` fallback.
+- [ ] Enforce `max_workers <= 8`.
+- [ ] Emit progress after each completed trial.
+- [ ] Keep failed candidate errors without failing the whole job if other candidates succeed.
+- [ ] Sort top results by objective score descending.
+- [ ] Limit returned result count to a compact top-N list.
+
+**Done when:** A bounded 8-worker optimization run returns ranked candidates with progress updates and does not refetch OHLCV per trial.
+
+### 6.9 Optimization Job API
+
+**Purpose:** Make long-running optimization usable from the browser without blocking the FastAPI request thread.
+
+**Todo:**
+
+- [ ] Create `portfolio_factor_optimization_progress.py`.
+- [ ] Add `PortfolioFactorOptimizationJobSnapshot`.
+- [ ] Add `PortfolioFactorOptimizationJobStore`.
+- [ ] Add queued/running/succeeded/failed states.
+- [ ] Add progress fields for total, completed, failed, best score, trend quality, and volatility.
+- [ ] Add `POST /portfolio-factor-optimization/jobs`.
+- [ ] Add `GET /portfolio-factor-optimization/jobs/{job_id}`.
+- [ ] Return 400 for invalid optimization requests.
+- [ ] Return 404 for unknown jobs.
+- [ ] Add API and job-store tests.
+
+**Done when:** The frontend can start an optimization job and poll progress until final ranked results are available.
+
+### 6.10 Frontend Optimization Controls
+
+**Purpose:** Let the user configure optimization without leaving the portfolio workbench.
+
+**Todo:**
+
+- [ ] Add an expandable `因子优化` panel.
+- [ ] Add max trials input.
+- [ ] Add max workers input, default 8.
+- [ ] Add train ratio input.
+- [ ] Add executor backend selector.
+- [ ] Add search-space controls for factor windows.
+- [ ] Add search-space controls for factor weights.
+- [ ] Add optional Top N optimization controls.
+- [ ] Add validation for worker count and trial count.
+- [ ] Add `collectPortfolioFactorOptimizationRequest(...)`.
+- [ ] Add `createPortfolioFactorOptimizationJob(...)`.
+- [ ] Add `pollPortfolioFactorOptimizationJob(...)`.
+- [ ] Add template tests for all required DOM ids and functions.
+
+**Done when:** The user can start a small optimization from the UI using current portfolio workbench settings.
+
+### 6.11 Frontend Results And Apply Flow
+
+**Purpose:** Present optimized factors in a way that supports paper-trading review, not blind live execution.
+
+**Todo:**
+
+- [ ] Add optimization progress panel.
+- [ ] Add optimization result table.
+- [ ] Show objective score.
+- [ ] Show train annual return.
+- [ ] Show validation annual return.
+- [ ] Show validation volatility.
+- [ ] Show validation downside volatility.
+- [ ] Show validation trend R-squared.
+- [ ] Show validation max drawdown.
+- [ ] Show turnover.
+- [ ] Show Top N and factor parameters.
+- [ ] Show risk flags.
+- [ ] Add `应用参数` button per result row.
+- [ ] Implement `applyPortfolioFactorOptimizationResult(...)`.
+- [ ] Ensure applying parameters does not auto-run a backtest.
+- [ ] Add UI tests for render and apply functions.
+
+**Done when:** A user can choose an optimized row, copy its parameters into the normal portfolio form, and manually rerun portfolio backtest.
+
+### 6.12 End-To-End Verification
+
+**Purpose:** Prove the prototype is usable from browser and resilient enough for iterative research.
+
+**Todo:**
+
+- [ ] Run focused model tests.
+- [ ] Run focused optimizer tests.
+- [ ] Run focused API/job-store tests.
+- [ ] Run focused template tests.
+- [ ] Run full `python -m pytest -q`.
+- [ ] Run `git diff --check`.
+- [ ] Start local server.
+- [ ] Browser-smoke Top N 20.
+- [ ] Browser-smoke a tiny optimization with 4 trials and 2 workers.
+- [ ] Apply one optimized result.
+- [ ] Run normal portfolio backtest with applied parameters.
+- [ ] Confirm holdings, rebalance, candidates, trades, warnings, and optimization results render.
+- [ ] Update README with user-facing workflow and caveats.
+
+**Done when:** Phase 3.1 can be demonstrated end-to-end without hand-editing requests or relying on hidden backend-only behavior.
+
+---
+
+## 7. Task List
 
 ### Task 1: Raise Top N Limit To 20
 
@@ -997,7 +1229,7 @@ git commit -m "docs: document phase 3.1 factor optimization"
 
 ---
 
-## 7. Acceptance Criteria
+## 8. Acceptance Criteria
 
 - Top N accepts values from 1 to 20 in backend and frontend.
 - Normal portfolio backtest still works without using optimization.
@@ -1014,7 +1246,7 @@ git commit -m "docs: document phase 3.1 factor optimization"
 
 ---
 
-## 8. Risks And Mitigations
+## 9. Risks And Mitigations
 
 - **Overfitting:** Always show train and validation metrics side by side. Rank by validation smooth-uptrend quality, not return alone; slower but steadier equity growth should beat sharp, unstable gains.
 - **Data source slowness:** Load OHLCV once per optimization job and reuse context. Keep `max_trials` bounded.
