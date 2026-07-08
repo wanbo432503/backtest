@@ -343,14 +343,16 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Implement `resolve_optimization_split(...)`.
-- [ ] Support ratio split, default `train_ratio=0.7`.
-- [ ] Support explicit `validation_start`.
-- [ ] Ensure train period ends before validation period starts.
-- [ ] Ensure validation period ends at the base request `end_date`.
-- [ ] Reject splits that leave too little train or validation data.
-- [ ] Require enough calendar span for at least two rebalance cycles in both windows.
-- [ ] Add tests for ratio split, explicit split, and invalid date order.
+- [x] Implement `resolve_optimization_split(...)`.
+- [x] Support ratio split, default `train_ratio=0.7`.
+- [x] Support explicit `validation_start`.
+- [x] Ensure train period ends before validation period starts.
+- [x] Ensure validation period ends at the base request `end_date`.
+- [x] Reject splits that leave too little train or validation data.
+- [x] Require enough calendar span for at least two rebalance cycles in both windows.
+- [x] Add tests for ratio split, explicit split, and invalid date order.
+
+**Status:** Completed. Added deterministic chronological train/validation splitting with non-overlapping request copies, ratio/date modes, minimum window validation, and result payload metadata for later optimizer summaries.
 
 **Done when:** Every candidate is evaluated on the same resolved train/validation windows, with no overlapping dates.
 

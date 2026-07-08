@@ -1,12 +1,52 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from itertools import product
+from typing import Any
 
 from portfolio_factor_optimization_models import (
     PortfolioFactorCandidate,
     PortfolioFactorOptimizationRequest,
 )
-from portfolio_models import FactorConfig, SelectionConfig
+from portfolio_models import FactorConfig, PortfolioBacktestRequest, SelectionConfig
+
+
+_REBALANCE_CYCLE_DAYS = {
+    "weekly": 7,
+    "biweekly": 14,
+    "monthly": 31,
+}
+
+
+@dataclass(frozen=True)
+class ResolvedOptimizationSplit:
+    train_start: str
+    train_end: str
+    validation_start: str
+    validation_end: str
+    train_request: PortfolioBacktestRequest
+    validation_request: PortfolioBacktestRequest
+    train_calendar_days: int
+    validation_calendar_days: int
+    rebalance_frequency: str
+    minimum_window_days: int
+    method: str
+    train_ratio: float | None
+
+    def to_result_payload(self) -> dict[str, Any]:
+        return {
+            "method": self.method,
+            "train_ratio": self.train_ratio,
+            "train_start": self.train_start,
+            "train_end": self.train_end,
+            "validation_start": self.validation_start,
+            "validation_end": self.validation_end,
+            "train_calendar_days": self.train_calendar_days,
+            "validation_calendar_days": self.validation_calendar_days,
+            "rebalance_frequency": self.rebalance_frequency,
+            "minimum_window_days": self.minimum_window_days,
+        }
 
 
 def generate_factor_candidates(
@@ -71,6 +111,65 @@ def generate_factor_candidates(
     return candidates
 
 
+def resolve_optimization_split(
+    request: PortfolioFactorOptimizationRequest,
+) -> ResolvedOptimizationSplit:
+    base_request = request.base_request
+    split_config = request.split
+    start = _parse_date(base_request.start_date, "start_date")
+    end = _parse_date(base_request.end_date, "end_date")
+    total_days = (end - start).days
+    if split_config.method == "date":
+        validation_start = _parse_date(split_config.validation_start or "", "validation_start")
+    else:
+        validation_start = start + timedelta(days=int(total_days * split_config.train_ratio))
+
+    if validation_start <= start:
+        raise ValueError("validation_start must be after start_date")
+    if validation_start >= end:
+        raise ValueError("validation_start must be before end_date")
+
+    train_end = validation_start - timedelta(days=1)
+    train_days = (train_end - start).days
+    validation_days = (end - validation_start).days
+    minimum_window_days = _minimum_window_days(base_request.rebalance.frequency)
+    if train_days < minimum_window_days:
+        raise ValueError(
+            "train period is too short for at least two rebalance cycles"
+        )
+    if validation_days < minimum_window_days:
+        raise ValueError(
+            "validation period is too short for at least two rebalance cycles"
+        )
+
+    train_request = _copy_request_with_dates(
+        base_request,
+        start,
+        train_end,
+        optimization_split="train",
+    )
+    validation_request = _copy_request_with_dates(
+        base_request,
+        validation_start,
+        end,
+        optimization_split="validation",
+    )
+    return ResolvedOptimizationSplit(
+        train_start=_format_date(start),
+        train_end=_format_date(train_end),
+        validation_start=_format_date(validation_start),
+        validation_end=_format_date(end),
+        train_request=train_request,
+        validation_request=validation_request,
+        train_calendar_days=train_days,
+        validation_calendar_days=validation_days,
+        rebalance_frequency=base_request.rebalance.frequency,
+        minimum_window_days=minimum_window_days,
+        method=split_config.method,
+        train_ratio=split_config.train_ratio if split_config.method == "ratio" else None,
+    )
+
+
 def _candidate_key(values: tuple) -> tuple:
     (
         momentum_lookback,
@@ -96,3 +195,36 @@ def _candidate_key(values: tuple) -> tuple:
         score_sort,
         None if score_threshold is None else float(score_threshold),
     )
+
+
+def _copy_request_with_dates(
+    base_request: PortfolioBacktestRequest,
+    start: date,
+    end: date,
+    *,
+    optimization_split: str,
+) -> PortfolioBacktestRequest:
+    payload = base_request.model_dump(mode="json")
+    metadata = dict(payload.get("metadata") or {})
+    metadata["optimization_split"] = optimization_split
+    payload.update({
+        "start_date": _format_date(start),
+        "end_date": _format_date(end),
+        "metadata": metadata,
+    })
+    return base_request.__class__.model_validate(payload)
+
+
+def _minimum_window_days(frequency: str) -> int:
+    return max(_REBALANCE_CYCLE_DAYS[frequency] * 2, 30)
+
+
+def _parse_date(value: str, field_name: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must use YYYY-MM-DD format") from exc
+
+
+def _format_date(value: date) -> str:
+    return value.isoformat()
