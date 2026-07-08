@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 import main
 from portfolio_data import PortfolioDataBundle
+from portfolio_factor_optimization_progress import PortfolioFactorOptimizationJobSnapshot
 from portfolio_models import PortfolioBacktestResult
 from portfolio_progress import PortfolioJobSnapshot
 from test.fixtures.portfolio_ohlcv import build_demo_portfolio_request, build_portfolio_ohlcv_fixture
@@ -237,6 +238,80 @@ def test_portfolio_backtest_job_api_returns_404_for_missing_job(monkeypatch):
     monkeypatch.setattr(main.portfolio_job_store, "get", lambda job_id: None)
 
     response = client.get("/portfolio-backtest/jobs/missing")
+
+    assert response.status_code == 404
+
+
+def test_portfolio_factor_optimization_job_api_exposes_progress_status(monkeypatch):
+    client = TestClient(main.app)
+    snapshot = PortfolioFactorOptimizationJobSnapshot(
+        job_id="opt-job-1",
+        status="running",
+        phase="optimizing",
+        message="正在并行回测候选因子",
+        progress={
+            "total_trials": 8,
+            "completed_trials": 3,
+            "failed_trials": 1,
+            "max_workers": 2,
+            "best_objective_score": 6.8,
+        },
+    )
+
+    monkeypatch.setattr(main.portfolio_factor_optimization_job_store, "submit", lambda request: snapshot)
+    monkeypatch.setattr(main.portfolio_factor_optimization_job_store, "get", lambda job_id: snapshot)
+
+    create_response = client.post(
+        "/portfolio-factor-optimization/jobs",
+        json={
+            "base_request": {
+                "start_date": "2024-01-01",
+                "end_date": "2026-01-01",
+                "universe": {"mode": "auto", "symbols": [], "max_scan_symbols": 20},
+                "selection": {"top_n": 2, "min_history_bars": 60},
+            },
+            "max_trials": 8,
+            "max_workers": 2,
+            "executor_backend": "thread",
+        },
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.json()["job_id"] == "opt-job-1"
+
+    status_response = client.get("/portfolio-factor-optimization/jobs/opt-job-1")
+    assert status_response.status_code == 200
+    payload = status_response.json()
+    assert payload["status"] == "running"
+    assert payload["phase"] == "optimizing"
+    assert payload["progress"]["completed_trials"] == 3
+    assert payload["progress"]["best_objective_score"] == 6.8
+
+
+def test_portfolio_factor_optimization_job_api_returns_400_for_invalid_request():
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/portfolio-factor-optimization/jobs",
+        json={
+            "base_request": {
+                "start_date": "2024-01-01",
+                "end_date": "2026-01-01",
+            },
+            "max_workers": 9,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "max_workers" in response.json()["detail"]
+
+
+def test_portfolio_factor_optimization_job_api_returns_404_for_missing_job(monkeypatch):
+    client = TestClient(main.app)
+
+    monkeypatch.setattr(main.portfolio_factor_optimization_job_store, "get", lambda job_id: None)
+
+    response = client.get("/portfolio-factor-optimization/jobs/missing")
 
     assert response.status_code == 404
 

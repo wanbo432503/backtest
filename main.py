@@ -16,6 +16,9 @@ from stock_search import search_stocks
 from market_data import normalize_symbol
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
 from portfolio_backtest_runner import run_portfolio_backtest
+from portfolio_factor_optimization_models import PortfolioFactorOptimizationRequest
+from portfolio_factor_optimization_progress import PortfolioFactorOptimizationJobStore
+from portfolio_factor_optimizer import run_factor_optimization
 from portfolio_models import PortfolioBacktestRequest
 from portfolio_progress import PortfolioBacktestJobStore
 from strategy_metadata import get_strategy_parameters
@@ -50,6 +53,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # 设置模板目录
 templates = Jinja2Templates(directory="templates")
 portfolio_job_store = PortfolioBacktestJobStore(run_portfolio_backtest)
+portfolio_factor_optimization_job_store = PortfolioFactorOptimizationJobStore(run_factor_optimization)
 
 # 定义请求模型
 class BacktestRequest(BaseModel):
@@ -225,6 +229,25 @@ async def get_portfolio_backtest_job(job_id: str):
     snapshot = portfolio_job_store.get(job_id)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="portfolio backtest job not found")
+    return snapshot.to_api_response()
+
+
+@app.post("/portfolio-factor-optimization/jobs")
+async def create_portfolio_factor_optimization_job(payload: dict):
+    try:
+        request = PortfolioFactorOptimizationRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    snapshot = portfolio_factor_optimization_job_store.submit(request)
+    return snapshot.to_api_response()
+
+
+@app.get("/portfolio-factor-optimization/jobs/{job_id}")
+async def get_portfolio_factor_optimization_job(job_id: str):
+    snapshot = portfolio_factor_optimization_job_store.get(job_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="portfolio factor optimization job not found")
     return snapshot.to_api_response()
 
 

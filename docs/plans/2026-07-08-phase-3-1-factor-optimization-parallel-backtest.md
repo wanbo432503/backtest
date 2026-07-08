@@ -423,16 +423,18 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Create `portfolio_factor_optimization_progress.py`.
-- [ ] Add `PortfolioFactorOptimizationJobSnapshot`.
-- [ ] Add `PortfolioFactorOptimizationJobStore`.
-- [ ] Add queued/running/succeeded/failed states.
-- [ ] Add progress fields for total, completed, failed, best score, trend quality, and volatility.
-- [ ] Add `POST /portfolio-factor-optimization/jobs`.
-- [ ] Add `GET /portfolio-factor-optimization/jobs/{job_id}`.
-- [ ] Return 400 for invalid optimization requests.
-- [ ] Return 404 for unknown jobs.
-- [ ] Add API and job-store tests.
+- [x] Create `portfolio_factor_optimization_progress.py`.
+- [x] Add `PortfolioFactorOptimizationJobSnapshot`.
+- [x] Add `PortfolioFactorOptimizationJobStore`.
+- [x] Add queued/running/succeeded/failed states.
+- [x] Add progress fields for total, completed, failed, best score, trend quality, and volatility.
+- [x] Add `POST /portfolio-factor-optimization/jobs`.
+- [x] Add `GET /portfolio-factor-optimization/jobs/{job_id}`.
+- [x] Return 400 for invalid optimization requests.
+- [x] Return 404 for unknown jobs.
+- [x] Add API and job-store tests.
+
+**Status:** Completed. Added an independent factor-optimization job store with progress snapshots plus FastAPI create/poll endpoints, request validation errors, missing-job handling, and focused API/job-store regression tests.
 
 **Done when:** The frontend can start an optimization job and poll progress until final ranked results are available.
 
