@@ -78,6 +78,23 @@
             font-weight: bold;
             font-size: 1rem;
         }
+        .portfolio-backtest-shell > summary.card-header {
+            cursor: pointer;
+            list-style: none;
+        }
+        .portfolio-backtest-shell > summary.card-header::-webkit-details-marker {
+            display: none;
+        }
+        .portfolio-backtest-shell > summary.card-header::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            float: right;
+            transition: transform 0.15s ease;
+        }
+        .portfolio-backtest-shell[open] > summary.card-header::after {
+            transform: rotate(180deg);
+        }
         .card-body {
             padding: 1rem;
         }
@@ -691,15 +708,12 @@
         <div class="row g-3 app-layout">
             <div class="col-xl-3 col-lg-4 pane-column">
                 <div class="card settings-card">
-                    <div class="card-header">
-                        <i class="fas fa-layer-group"></i> 组合选股回测
-                    </div>
-                    <div class="card-body">
-                        <form id="portfolioBacktestForm" class="portfolio-workbench">
-                            <div class="portfolio-workbench-title">
-                                <strong><i class="fas fa-filter"></i> 股票池与调仓</strong>
-                                <span class="badge bg-success">Phase 3.0</span>
-                            </div>
+                    <details class="portfolio-backtest-shell" id="portfolioBacktestPanel" open>
+                        <summary class="card-header portfolio-backtest-summary">
+                            <i class="fas fa-layer-group"></i> 组合回测
+                        </summary>
+                        <div class="card-body">
+                            <form id="portfolioBacktestForm" class="portfolio-workbench">
                             <div class="compact-row">
                                 <div class="mb-3">
                                     <label for="portfolioUniverseMode" class="form-label">股票池模式</label>
@@ -727,47 +741,6 @@ SZ002241</textarea>
                                     </div>
                                 </div>
                             </details>
-                            <div class="portfolio-status mb-2" id="portfolioUniverseStatus">
-                                自动扫描 60/00 股票池，最终持仓最多 20 只
-                            </div>
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="portfolioInitialCash" class="form-label">初始资金</label>
-                                    <input type="number" class="form-control" id="portfolioInitialCash" min="10000" step="1000" value="100000" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="portfolioTopN" class="form-label">Top N</label>
-                                    <input type="number" class="form-control" id="portfolioTopN" min="1" max="20" step="1" value="2" required>
-                                </div>
-                            </div>
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="portfolioStartDate" class="form-label">开始日期</label>
-                                    <input type="date" class="form-control" id="portfolioStartDate" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="portfolioEndDate" class="form-label">结束日期</label>
-                                    <input type="date" class="form-control" id="portfolioEndDate" required>
-                                </div>
-                            </div>
-                            <div class="compact-row">
-                                <div class="mb-3">
-                                    <label for="portfolioDataProvider" class="form-label">数据源</label>
-                                    <select class="form-select" id="portfolioDataProvider" required>
-                                        <option value="auto" selected>自动（优先 mootdx）</option>
-                                        <option value="mootdx">通达信 mootdx（A股）</option>
-                                        <option value="yfinance">Yahoo Finance</option>
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="portfolioRebalanceFrequency" class="form-label">调仓周期</label>
-                                    <select class="form-select" id="portfolioRebalanceFrequency" required>
-                                        <option value="monthly" selected>月度</option>
-                                        <option value="biweekly">双周</option>
-                                        <option value="weekly">每周</option>
-                                    </select>
-                                </div>
-                            </div>
 
                             <details class="config-panel border rounded p-2 mb-3" id="portfolioSelectionStrategyPanel" open>
                                 <summary><i class="fas fa-chess-knight"></i> 选股策略库</summary>
@@ -795,6 +768,53 @@ SZ002241</textarea>
                                 </div>
                                 <div id="portfolioStrategyFactorSummary" class="portfolio-optimization-note mb-2">
                                     因子摘要等待策略库加载。
+                                </div>
+                            </details>
+
+                            <details class="config-panel border rounded p-2 mb-3" id="portfolioTradeSettingsPanel" open>
+                                <summary><i class="fas fa-briefcase"></i> 交易设置</summary>
+                                <div class="mt-2">
+                                    <div class="portfolio-status mb-2" id="portfolioUniverseStatus">
+                                        自动扫描 60/00 股票池，最终持仓最多 20 只
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="mb-3">
+                                            <label for="portfolioInitialCash" class="form-label">初始资金</label>
+                                            <input type="number" class="form-control" id="portfolioInitialCash" min="10000" step="1000" value="100000" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="portfolioTopN" class="form-label">Top N</label>
+                                            <input type="number" class="form-control" id="portfolioTopN" min="1" max="20" step="1" value="2" required>
+                                        </div>
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="mb-3">
+                                            <label for="portfolioStartDate" class="form-label">开始日期</label>
+                                            <input type="date" class="form-control" id="portfolioStartDate" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="portfolioEndDate" class="form-label">结束日期</label>
+                                            <input type="date" class="form-control" id="portfolioEndDate" required>
+                                        </div>
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="mb-3">
+                                            <label for="portfolioDataProvider" class="form-label">数据源</label>
+                                            <select class="form-select" id="portfolioDataProvider" required>
+                                                <option value="auto" selected>自动（优先 mootdx）</option>
+                                                <option value="mootdx">通达信 mootdx（A股）</option>
+                                                <option value="yfinance">Yahoo Finance</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="portfolioRebalanceFrequency" class="form-label">调仓周期</label>
+                                            <select class="form-select" id="portfolioRebalanceFrequency" required>
+                                                <option value="monthly" selected>月度</option>
+                                                <option value="biweekly">双周</option>
+                                                <option value="weekly">每周</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </details>
 
@@ -971,7 +991,10 @@ SZ002241</textarea>
                                 <i class="fas fa-rotate"></i> 开始组合回测
                             </button>
                         </form>
+                        </div>
+                    </details>
 
+                    <div class="card-body pt-0">
                         <details class="config-panel border rounded p-2 mt-3" id="singleStockDiagnosticPanel">
                             <summary><i class="fas fa-stethoscope"></i> 单股诊断</summary>
                         <form id="backtestForm" class="mt-2">

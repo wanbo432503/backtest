@@ -40,8 +40,10 @@ def test_index_template_contains_optimization_controls():
 def test_index_template_contains_phase3_portfolio_workbench_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
-    assert "组合选股回测" in template
-    assert '<i class="fas fa-layer-group"></i> 组合选股回测' in template
+    assert "组合选股回测" not in template
+    assert '<summary class="card-header portfolio-backtest-summary">' in template
+    assert '<i class="fas fa-layer-group"></i> 组合回测' in template
+    assert 'id="portfolioBacktestPanel"' in template
     assert 'id="portfolioBacktestForm"' in template
     assert "自动扫描 60/00 股票池" in template
     assert 'id="portfolioUniverseMode"' in template
@@ -76,6 +78,36 @@ def test_index_template_contains_phase3_portfolio_workbench_controls():
     assert "function addSymbolToPortfolio" in template
     assert "function isPortfolioManualMode" in template
     assert "function collectPortfolioSymbols()" in template
+
+
+def test_index_template_groups_portfolio_trade_settings_under_nested_panel():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="portfolioTradeSettingsPanel"' in template
+    assert '<summary><i class="fas fa-briefcase"></i> 交易设置</summary>' in template
+
+    trade_panel_start = template.index('id="portfolioTradeSettingsPanel"')
+    trade_panel_end = template.index('<details class="config-panel border rounded p-2 mb-3" id="portfolioFactorOptimizationPanel"')
+    trade_panel = template[trade_panel_start:trade_panel_end]
+
+    assert 'id="portfolioUniverseStatus"' in trade_panel
+    assert 'id="portfolioInitialCash"' in trade_panel
+    assert 'id="portfolioTopN"' in trade_panel
+    assert 'id="portfolioStartDate"' in trade_panel
+    assert 'id="portfolioEndDate"' in trade_panel
+    assert 'id="portfolioDataProvider"' in trade_panel
+    assert 'id="portfolioRebalanceFrequency"' in trade_panel
+
+
+def test_index_template_places_selection_strategy_after_manual_diagnostics():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    manual_index = template.index('id="portfolioManualUniversePanel"')
+    strategy_index = template.index('id="portfolioSelectionStrategyPanel"')
+    trade_settings_index = template.index('id="portfolioTradeSettingsPanel"')
+    factor_index = template.index('id="portfolioFactorOptimizationPanel"')
+
+    assert manual_index < strategy_index < trade_settings_index < factor_index
     assert "function validatePortfolioUniverse" in template
     assert "function collectPortfolioRequest()" in template
     assert "mode: getPortfolioUniverseMode()" in template
