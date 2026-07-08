@@ -9,6 +9,13 @@ from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefini
 
 
 FACTOR_KEYS = ("momentum", "volatility", "liquidity", "trend")
+FUNDAMENTAL_FACTOR_KEYS = {
+    "pe_inverse",
+    "pb_inverse",
+    "roe",
+    "revenue_growth",
+    "profit_growth",
+}
 
 
 def calculate_symbol_factors(
@@ -75,6 +82,8 @@ def calculate_strategy_factor_values(
     volume = history["Volume"].astype(float)
     returns = close.pct_change().dropna()
     factor_values: dict[str, float] = {}
+    warnings: list[str] = []
+    missing_fundamental_keys: list[str] = []
 
     for factor in strategy.factors:
         key = factor.key
@@ -101,10 +110,17 @@ def calculate_strategy_factor_values(
             factor_values[key] = _recovery_strength(close, lookback)
         elif fundamentals and key in fundamentals:
             factor_values[key] = _safe_float(fundamentals.get(key))
+        elif key in FUNDAMENTAL_FACTOR_KEYS:
+            missing_fundamental_keys.append(key)
+
+    if missing_fundamental_keys:
+        warnings.append("missing_fundamentals")
 
     return {
         "factor_values": factor_values,
         "skip_reason": None,
+        "warnings": warnings,
+        "missing_fundamental_keys": missing_fundamental_keys,
     }
 
 
@@ -189,6 +205,8 @@ def score_candidates_with_strategy(
             "strategy_factor_values": factor_row["factor_values"],
             "factor_values": factor_row["factor_values"],
             "skip_reason": factor_row["skip_reason"],
+            "warnings": list(factor_row.get("warnings", [])),
+            "missing_fundamental_keys": list(factor_row.get("missing_fundamental_keys", [])),
             "score": None,
             "rank": None,
         })

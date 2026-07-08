@@ -517,19 +517,19 @@ Task 1-3: Strategy contract and library
   - [x] Test strong trend breakout requires breakout plus volume confirmation.
   - [x] Test drawdown-control rotation penalizes recent deep drawdowns.
   - [x] Commit the strategy-scoring change.
-- [ ] Task 6: Add optional fundamentals support for value-quality.
-  - [ ] Add a `FundamentalsBundle` model.
-  - [ ] Add a yfinance-backed loader with no mandatory network dependency in tests.
-  - [ ] Add dependency injection or mock hooks for unit tests.
-  - [ ] Calculate `pe_inverse`.
-  - [ ] Calculate `pb_inverse`.
-  - [ ] Read or derive `roe` when available.
-  - [ ] Read or derive revenue growth when available.
-  - [ ] Read or derive profit growth when available.
-  - [ ] Add coverage diagnostics for loaded/missing fundamentals.
-  - [ ] Warn clearly when value-quality coverage is too low.
-  - [ ] Ensure missing fundamentals never crash a backtest.
-  - [ ] Commit the fundamentals change.
+- [x] Task 6: Add optional fundamentals support for value-quality.
+  - [x] Add a `FundamentalsBundle` model.
+  - [x] Add a yfinance-backed loader with no mandatory network dependency in tests.
+  - [x] Add dependency injection or mock hooks for unit tests.
+  - [x] Calculate `pe_inverse`.
+  - [x] Calculate `pb_inverse`.
+  - [x] Read or derive `roe` when available.
+  - [x] Read or derive revenue growth when available.
+  - [x] Read or derive profit growth when available.
+  - [x] Add coverage diagnostics for loaded/missing fundamentals.
+  - [x] Warn clearly when value-quality coverage is too low.
+  - [x] Ensure missing fundamentals never crash a backtest.
+  - [x] Commit the fundamentals change.
 
 **Workstream C: Portfolio Backtest And Optimization Integration**
 
