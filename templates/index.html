@@ -1280,6 +1280,18 @@ SZ002241</textarea>
             </div>
             
             <div class="col-xl-6 col-lg-8 pane-column center-pane" id="centerPaneColumn">
+                <div id="optimizationProgressPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-sliders"></i> 参数优化进度
+                    </div>
+                    <div class="card-body">
+                        <div class="portfolio-status mb-2" id="optimizationProgressText">等待参数优化</div>
+                        <div class="progress" role="progressbar" aria-label="参数优化进度">
+                            <div class="progress-bar bg-success" id="optimizationProgressBar" style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="optimizationLibraryContainer" class="card stats-panel optimization-library-card" style="display: none;">
                     <div class="card-header">
                         <i class="fas fa-list-check"></i> 参数优化结果
@@ -2058,6 +2070,60 @@ SZ002241</textarea>
         function shouldUsePortfolioStrategyOptimizationDefaults() {
             const strategyId = getPortfolioSelectionStrategyId();
             return Boolean(strategyId);
+        }
+
+        async function createOptimizationJob(requestBody) {
+            return fetchJson('/optimization/jobs', {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+        }
+
+        async function pollOptimizationJob(jobId) {
+            while (true) {
+                const job = await fetchJson(`/optimization/jobs/${encodeURIComponent(jobId)}`);
+                renderOptimizationProgress(job);
+                if (job.status === 'succeeded') {
+                    return job.result;
+                }
+                if (job.status === 'failed') {
+                    throw new Error(job.error || '参数优化失败');
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        function optimizationProgressPercent(job) {
+            const progress = job.progress || {};
+            if (job.status === 'succeeded') {
+                return 100;
+            }
+            if (progress.total_trials) {
+                const completed = Number(progress.completed_trials || 0);
+                return Math.max(5, Math.min(95, Math.round(completed / Number(progress.total_trials) * 100)));
+            }
+            return job.status === 'running' ? 10 : 3;
+        }
+
+        function renderOptimizationProgress(job) {
+            const panel = document.getElementById('optimizationProgressPanel');
+            const text = document.getElementById('optimizationProgressText');
+            const bar = document.getElementById('optimizationProgressBar');
+            const progress = job.progress || {};
+            const percent = optimizationProgressPercent(job);
+            const trialText = progress.total_trials
+                ? ` | ${Number(progress.completed_trials || 0)}/${progress.total_trials}`
+                : '';
+            const symbolText = progress.current_symbol ? ` | ${progress.current_symbol}` : '';
+            const strategyText = progress.current_strategy ? ` | ${progress.current_strategy}` : '';
+            const bestText = progress.best_validate_score !== null && progress.best_validate_score !== undefined
+                ? ` | best ${formatMetric(progress.best_validate_score)}`
+                : '';
+            panel.style.display = 'block';
+            text.className = `portfolio-status ${job.status === 'failed' ? 'failed' : 'succeeded'} mb-2`;
+            text.textContent = `${job.message || job.phase || '运行中'}${trialText}${symbolText}${strategyText}${bestText}`;
+            bar.style.width = `${percent}%`;
+            bar.textContent = `${percent}%`;
         }
 
         async function createPortfolioFactorOptimizationJob(requestBody) {
@@ -3905,10 +3971,25 @@ SZ002241</textarea>
             document.getElementById('plotContainer').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
+            document.getElementById('optimizationProgressPanel').style.display = optimizationEnabled ? 'block' : 'none';
             
             try {
                 const requestBody = optimizationEnabled ? collectOptimizationRequest() : formData;
-                const endpoint = optimizationEnabled ? '/optimize' : '/backtest';
+                if (optimizationEnabled) {
+                    renderOptimizationProgress({
+                        status: 'queued',
+                        phase: 'queued',
+                        message: '正在创建参数优化任务',
+                        progress: {}
+                    });
+                    scrollPortfolioPanelIntoView('optimizationProgressPanel');
+                    const job = await createOptimizationJob(requestBody);
+                    renderOptimizationProgress(job);
+                    const result = await pollOptimizationJob(job.job_id);
+                    renderOptimizationSummary(result || {});
+                    return;
+                }
+                const endpoint = '/backtest';
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
@@ -3919,15 +4000,10 @@ SZ002241</textarea>
                 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.detail || (optimizationEnabled ? '优化失败' : '回测失败'));
+                    throw new Error(errorData.detail || '回测失败');
                 }
                 
                 const result = await response.json();
-
-                if (optimizationEnabled) {
-                    renderOptimizationSummary(result);
-                    return;
-                }
                 
                 renderBacktestStats(result);
                 
@@ -3940,6 +4016,14 @@ SZ002241</textarea>
                 document.getElementById('plotContainer').appendChild(iframe);
                 
             } catch (error) {
+                if (optimizationEnabled) {
+                    renderOptimizationProgress({
+                        status: 'failed',
+                        phase: 'failed',
+                        message: `参数优化失败: ${error.message}`,
+                        progress: {}
+                    });
+                }
                 document.getElementById('plotContainer').innerHTML = `
                     <div class="alert alert-danger" role="alert">
                         <i class="fas fa-exclamation-triangle"></i> 

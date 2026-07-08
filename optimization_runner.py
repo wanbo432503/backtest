@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Any
+from typing import Any, Callable
 
 from backtesting import Strategy
 
@@ -50,12 +50,14 @@ def score_backtest_result(result: BacktestResult) -> float:
 def run_optimization(
     request: OptimizationRequest,
     strategy_registry: dict[str, type[Strategy]] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> OptimizationResult:
     config = request.optimization_config
     strategies = config.strategies or request.strategies
     warnings = []
     progress_log = []
     rows = []
+    trial_groups = []
 
     if not strategies:
         warnings.append("未配置优化策略")
@@ -66,24 +68,61 @@ def run_optimization(
                 strategy_config.search_space,
                 max_combinations=config.max_combinations,
             )
+            trial_groups.append((symbol, strategy_config, combinations))
             progress_log.append(
                 f"{symbol} {strategy_config.strategy_name}: {len(combinations)} combinations"
             )
-            for combination in combinations:
-                params = {**strategy_config.fixed_params, **combination}
-                row = run_train_validate(
-                    symbol=symbol,
-                    strategy_config=strategy_config,
-                    params=params,
-                    request=request,
-                    strategy_registry=strategy_registry,
-                )
-                rows.append(_decorate_result(row, min_trades=config.min_trades))
+
+    total_trials = sum(len(combinations) for _, _, combinations in trial_groups)
+    _emit_progress(
+        progress_callback,
+        phase="optimizing",
+        message="正在回测参数候选",
+        total_trials=total_trials,
+        completed_trials=0,
+        current_symbol=config.symbols[0] if config.symbols else None,
+        current_strategy=strategies[0].strategy_name if strategies else None,
+        best_validate_score=None,
+    )
+    completed_trials = 0
+
+    for symbol, strategy_config, combinations in trial_groups:
+        for combination in combinations:
+            params = {**strategy_config.fixed_params, **combination}
+            row = run_train_validate(
+                symbol=symbol,
+                strategy_config=strategy_config,
+                params=params,
+                request=request,
+                strategy_registry=strategy_registry,
+            )
+            rows.append(_decorate_result(row, min_trades=config.min_trades))
+            completed_trials += 1
+            best_row = max(rows, key=lambda item: item["validate_score"]) if rows else None
+            _emit_progress(
+                progress_callback,
+                phase="optimizing",
+                message="正在回测参数候选",
+                total_trials=total_trials,
+                completed_trials=completed_trials,
+                current_symbol=symbol,
+                current_strategy=strategy_config.strategy_name,
+                best_validate_score=best_row["validate_score"] if best_row else None,
+            )
 
     rows.sort(key=lambda item: item["validate_score"], reverse=True)
     top_results = rows[: config.top_n]
     for index, row in enumerate(top_results, start=1):
         row["rank"] = index
+
+    _emit_progress(
+        progress_callback,
+        phase="completed",
+        message="参数优化完成",
+        total_trials=total_trials,
+        completed_trials=completed_trials,
+        best_validate_score=top_results[0]["validate_score"] if top_results else None,
+    )
 
     return OptimizationResult(
         objective=config.objective,
@@ -139,6 +178,14 @@ def run_train_validate(
         "data_provider": validate_result.data_provider,
         "data_warnings": validate_result.data_warnings,
     }
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    **event: Any,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(event)
 
 
 def _decorate_result(row: dict[str, Any], min_trades: int) -> dict[str, Any]:

@@ -39,6 +39,21 @@ def test_index_template_contains_optimization_controls():
     assert "开始优化" in template
 
 
+def test_index_template_renders_single_stock_optimization_progress():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="optimizationProgressPanel"' in template
+    assert 'id="optimizationProgressText"' in template
+    assert 'id="optimizationProgressBar"' in template
+    assert "参数优化进度" in template
+    assert "function createOptimizationJob" in template
+    assert "function pollOptimizationJob" in template
+    assert "function renderOptimizationProgress" in template
+    assert "function optimizationProgressPercent" in template
+    assert "fetchJson('/optimization/jobs'" in template
+    assert "optimization/jobs/${encodeURIComponent(jobId)}" in template
+
+
 def test_index_template_contains_phase3_portfolio_workbench_controls():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

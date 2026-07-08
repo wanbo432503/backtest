@@ -99,6 +99,44 @@ def test_run_optimization_sorts_by_validate_score(monkeypatch):
     assert result.top_results[1]["params"] == {"rsi_period": 6}
 
 
+def test_run_optimization_emits_trial_progress(monkeypatch):
+    def fake_run_single_backtest(**kwargs):
+        return _fake_result(kwargs["symbol"], score=3, trades=8)
+
+    monkeypatch.setattr("optimization_runner.run_single_backtest", fake_run_single_backtest)
+    events = []
+    request = OptimizationRequest(
+        start_date="2025-07-03",
+        end_date="2026-07-04",
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[
+                StrategyParamConfig(
+                    strategy_name="rsi_risk_control",
+                    search_space={"rsi_period": [6, 14]},
+                )
+            ],
+            top_n=2,
+            min_trades=5,
+        ),
+    )
+
+    run_optimization(
+        request,
+        strategy_registry={"rsi_risk_control": object},
+        progress_callback=events.append,
+    )
+
+    optimizing_events = [event for event in events if event["phase"] == "optimizing"]
+    assert optimizing_events[0]["total_trials"] == 2
+    assert optimizing_events[0]["completed_trials"] == 0
+    assert optimizing_events[-1]["completed_trials"] == 2
+    assert optimizing_events[-1]["current_symbol"] == "SH603019"
+    assert optimizing_events[-1]["current_strategy"] == "rsi_risk_control"
+    assert events[-1]["phase"] == "completed"
+    assert events[-1]["total_trials"] == 2
+
+
 def test_run_optimization_flags_negative_validation_score(monkeypatch):
     def fake_run_single_backtest(**kwargs):
         is_validate = kwargs["start_date"] == "2026-01-01"

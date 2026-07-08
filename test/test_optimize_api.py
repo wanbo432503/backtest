@@ -103,3 +103,50 @@ def test_optimize_api_rejects_too_many_combinations_with_400():
 
     assert response.status_code == 400
     assert "max_combinations" in response.json()["detail"]
+
+
+def test_optimization_job_api_creates_and_reads_job(monkeypatch):
+    client = TestClient(main.app)
+
+    class FakeSnapshot:
+        job_id = "job-1"
+
+        def to_api_response(self):
+            return {
+                "job_id": self.job_id,
+                "status": "running",
+                "phase": "optimizing",
+                "message": "正在回测参数候选",
+                "progress": {"total_trials": 3, "completed_trials": 1},
+                "result": None,
+                "error": None,
+            }
+
+    class FakeStore:
+        snapshot = FakeSnapshot()
+
+        def submit(self, request):
+            assert request.optimization_config.symbols == ["SH603019"]
+            return self.snapshot
+
+        def get(self, job_id):
+            assert job_id == "job-1"
+            return self.snapshot
+
+    monkeypatch.setattr(main, "optimization_job_store", FakeStore())
+
+    request_payload = {
+        "start_date": "2025-07-03",
+        "end_date": "2026-07-04",
+        "optimization_config": {
+            "symbols": ["SH603019"],
+            "strategies": [{"strategy_name": "rsi_risk_control"}],
+        },
+    }
+    created = client.post("/optimization/jobs", json=request_payload)
+    fetched = client.get("/optimization/jobs/job-1")
+
+    assert created.status_code == 200
+    assert created.json()["progress"]["total_trials"] == 3
+    assert fetched.status_code == 200
+    assert fetched.json()["job_id"] == "job-1"

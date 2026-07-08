@@ -15,6 +15,7 @@ import inspect
 from stock_search import search_stocks
 from market_data import normalize_symbol
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
+from optimization_progress import OptimizationJobStore
 from portfolio_backtest_runner import run_portfolio_backtest
 from portfolio_factor_optimization_models import PortfolioFactorOptimizationRequest
 from portfolio_factor_optimization_progress import PortfolioFactorOptimizationJobStore
@@ -77,6 +78,7 @@ class UniverseValidationRequest(BaseModel):
 # 策略注册表 - 存储所有可用的策略
 STRATEGY_REGISTRY = {}
 STRATEGY_CONFIG = {}
+optimization_job_store = OptimizationJobStore(run_optimization, strategy_registry=STRATEGY_REGISTRY)
 
 # 加载策略配置
 def load_strategy_config():
@@ -160,14 +162,7 @@ async def run_backtest(request: BacktestRequest):
 @app.post("/optimize")
 async def optimize_endpoint(payload: dict):
     """运行单只 A 股标的的参数优化。"""
-    try:
-        request = OptimizationRequest.model_validate(payload)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    for symbol in request.optimization_config.symbols:
-        if normalize_symbol(symbol).market != "CN":
-            raise HTTPException(status_code=400, detail=f"仅支持 A 股代码: {symbol}")
+    request = _validate_optimization_request(payload)
 
     try:
         result = run_optimization(request, strategy_registry=STRATEGY_REGISTRY)
@@ -177,6 +172,33 @@ async def optimize_endpoint(payload: dict):
     except Exception as e:
         print(f"优化详细错误信息: {str(e)}")
         raise HTTPException(status_code=500, detail=f"优化执行失败: {str(e)}")
+
+
+@app.post("/optimization/jobs")
+async def create_optimization_job(payload: dict):
+    request = _validate_optimization_request(payload)
+    snapshot = optimization_job_store.submit(request)
+    return snapshot.to_api_response()
+
+
+@app.get("/optimization/jobs/{job_id}")
+async def get_optimization_job(job_id: str):
+    snapshot = optimization_job_store.get(job_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="optimization job not found")
+    return snapshot.to_api_response()
+
+
+def _validate_optimization_request(payload: dict) -> OptimizationRequest:
+    try:
+        request = OptimizationRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    for symbol in request.optimization_config.symbols:
+        if normalize_symbol(symbol).market != "CN":
+            raise HTTPException(status_code=400, detail=f"仅支持 A 股代码: {symbol}")
+    return request
 
 
 @app.post("/portfolio/validate-universe")
