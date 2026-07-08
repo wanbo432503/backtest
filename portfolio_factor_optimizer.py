@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -10,8 +11,15 @@ from portfolio_factor_optimization_models import (
     PortfolioFactorCandidate,
     PortfolioFactorMetrics,
     PortfolioFactorOptimizationRequest,
+    PortfolioFactorOptimizationTrialResult,
 )
-from portfolio_models import FactorConfig, PortfolioBacktestRequest, SelectionConfig
+from portfolio_backtest_runner import PortfolioBacktestContext, run_portfolio_backtest_with_context
+from portfolio_models import (
+    FactorConfig,
+    PortfolioBacktestRequest,
+    PortfolioBacktestResult,
+    SelectionConfig,
+)
 
 
 _REBALANCE_CYCLE_DAYS = {
@@ -19,6 +27,10 @@ _REBALANCE_CYCLE_DAYS = {
     "biweekly": 14,
     "monthly": 31,
 }
+BacktestRunner = Callable[
+    [PortfolioBacktestRequest, PortfolioBacktestContext],
+    PortfolioBacktestResult,
+]
 
 
 @dataclass(frozen=True)
@@ -250,6 +262,50 @@ def build_optimization_risk_flags(
     return flags
 
 
+def evaluate_factor_candidate(
+    candidate: PortfolioFactorCandidate,
+    split: ResolvedOptimizationSplit,
+    context: PortfolioBacktestContext,
+    *,
+    backtest_runner: BacktestRunner = run_portfolio_backtest_with_context,
+) -> PortfolioFactorOptimizationTrialResult:
+    train_request = _apply_candidate_to_request(split.train_request, candidate)
+    validation_request = _apply_candidate_to_request(split.validation_request, candidate)
+    train_result = backtest_runner(train_request, context)
+    validation_result = backtest_runner(validation_request, context)
+    train_metrics = calculate_equity_curve_quality(
+        train_result.summary,
+        train_result.equity_curve,
+    )
+    validation_metrics = calculate_equity_curve_quality(
+        validation_result.summary,
+        validation_result.equity_curve,
+    )
+    selected_symbols = validation_result.scan_diagnostics.get("selected_symbols")
+    selected_symbols_count = len(selected_symbols) if isinstance(selected_symbols, list) else None
+    risk_flags = build_optimization_risk_flags(
+        train_metrics,
+        validation_metrics,
+        selected_symbols_count=selected_symbols_count,
+    )
+    objective_score = calculate_validation_smooth_uptrend_score(
+        train_metrics,
+        validation_metrics,
+    )
+    warnings = _dedupe_text([
+        *train_result.data_warnings,
+        *validation_result.data_warnings,
+    ])
+    return PortfolioFactorOptimizationTrialResult(
+        candidate=candidate,
+        objective_score=objective_score,
+        train_metrics=train_metrics,
+        validation_metrics=validation_metrics,
+        risk_flags=risk_flags,
+        warnings=warnings,
+    )
+
+
 def _candidate_key(values: tuple) -> tuple:
     (
         momentum_lookback,
@@ -351,6 +407,32 @@ def _copy_request_with_dates(
         "metadata": metadata,
     })
     return base_request.__class__.model_validate(payload)
+
+
+def _apply_candidate_to_request(
+    base_request: PortfolioBacktestRequest,
+    candidate: PortfolioFactorCandidate,
+) -> PortfolioBacktestRequest:
+    payload = base_request.model_dump(mode="json")
+    metadata = dict(payload.get("metadata") or {})
+    metadata["optimization_candidate_id"] = candidate.candidate_id
+    payload.update({
+        "factors": candidate.factor_config.model_dump(mode="json"),
+        "selection": candidate.selection_config.model_dump(mode="json"),
+        "metadata": metadata,
+    })
+    return base_request.__class__.model_validate(payload)
+
+
+def _dedupe_text(values: list[str]) -> list[str]:
+    result = []
+    seen = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def _minimum_window_days(frequency: str) -> int:

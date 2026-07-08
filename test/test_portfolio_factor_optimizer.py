@@ -5,10 +5,12 @@ from portfolio_factor_optimizer import (
     build_optimization_risk_flags,
     calculate_equity_curve_quality,
     calculate_validation_smooth_uptrend_score,
+    evaluate_factor_candidate,
     generate_factor_candidates,
     resolve_optimization_split,
 )
-from portfolio_models import PortfolioBacktestRequest
+from portfolio_backtest_runner import PortfolioBacktestContext
+from portfolio_models import PortfolioBacktestRequest, PortfolioBacktestResult
 
 
 def _base_request() -> PortfolioBacktestRequest:
@@ -70,6 +72,33 @@ def _summary(
         "rebalances": rebalances,
         "trades": trades,
     }
+
+
+def _portfolio_result(
+    *,
+    final_equity: float,
+    annual_return_pct: float,
+    values: list[float],
+    warnings: list[str] | None = None,
+    selected_symbols: list[str] | None = None,
+    max_drawdown_pct: float = 0.0,
+    turnover: float = 1.0,
+    rebalances: int = 6,
+    trades: int = 12,
+) -> PortfolioBacktestResult:
+    return PortfolioBacktestResult(
+        summary=_summary(
+            final_equity=final_equity,
+            annual_return_pct=annual_return_pct,
+            max_drawdown_pct=max_drawdown_pct,
+            turnover=turnover,
+            rebalances=rebalances,
+            trades=trades,
+        ),
+        equity_curve=_curve(values),
+        data_warnings=warnings or [],
+        scan_diagnostics={"selected_symbols": selected_symbols or ["SH600000"]},
+    )
 
 
 def test_generate_factor_candidates_is_deterministic_and_capped():
@@ -298,3 +327,76 @@ def test_build_optimization_risk_flags_marks_volatility_and_low_trend_quality():
     assert "high_validation_drawdown" in flags
     assert "high_turnover" in flags
     assert "too_few_rebalances" in flags
+
+
+def test_evaluate_factor_candidate_runs_train_and_validation_with_candidate_config():
+    request = PortfolioFactorOptimizationRequest(
+        base_request=_base_request(),
+        search_space=_small_search_space(
+            momentum_lookback=[90],
+            volatility_lookback=[40],
+            liquidity_lookback=[20],
+            momentum_weight=[0.65],
+            volatility_weight=[-0.5],
+            liquidity_weight=[0.15],
+            trend_weight=[0.2],
+            top_n=[5],
+        ),
+    )
+    split = resolve_optimization_split(request)
+    [candidate] = generate_factor_candidates(request)
+    context = PortfolioBacktestContext(
+        data_by_symbol={},
+        providers={},
+        warnings=[],
+        diagnostics={},
+    )
+    calls = []
+
+    def fake_runner(backtest_request, backtest_context, progress_callback=None):
+        calls.append(backtest_request)
+        assert backtest_context is context
+        if backtest_request.metadata["optimization_split"] == "train":
+            return _portfolio_result(
+                final_equity=118000,
+                annual_return_pct=18.0,
+                values=[100000 * (1.0007 ** index) for index in range(120)],
+                warnings=["shared warning", "train warning"],
+            )
+        return _portfolio_result(
+            final_equity=111000,
+            annual_return_pct=11.0,
+            values=[100000 * (1.0004 ** index) for index in range(120)],
+            warnings=["shared warning", "validation warning"],
+        )
+
+    result = evaluate_factor_candidate(
+        candidate,
+        split,
+        context,
+        backtest_runner=fake_runner,
+    )
+
+    assert [call.metadata["optimization_split"] for call in calls] == [
+        "train",
+        "validation",
+    ]
+    assert calls[0].metadata["optimization_candidate_id"] == candidate.candidate_id
+    assert calls[1].metadata["optimization_candidate_id"] == candidate.candidate_id
+    assert calls[0].factors == candidate.factor_config
+    assert calls[1].selection == candidate.selection_config
+    assert calls[0].start_date == split.train_start
+    assert calls[1].start_date == split.validation_start
+    assert result.candidate == candidate
+    assert result.train_metrics.annual_return_pct == 18.0
+    assert result.validation_metrics.annual_return_pct == 11.0
+    assert result.objective_score == calculate_validation_smooth_uptrend_score(
+        result.train_metrics,
+        result.validation_metrics,
+    )
+    assert result.warnings == [
+        "shared warning",
+        "train warning",
+        "validation warning",
+    ]
+    assert "equity_curve" not in result.model_dump(mode="json")

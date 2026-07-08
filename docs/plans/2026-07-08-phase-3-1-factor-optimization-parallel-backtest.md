@@ -382,15 +382,17 @@ This section is the engineering-level checklist for the Phase 3.1 transformation
 
 **Todo:**
 
-- [ ] Implement `evaluate_factor_candidate(...)`.
-- [ ] Build a train `PortfolioBacktestRequest` from the base request and candidate factors.
-- [ ] Build a validation `PortfolioBacktestRequest` from the same candidate factors.
-- [ ] Run both through `run_portfolio_backtest_with_context(...)`.
-- [ ] Extract train metrics from the train backtest summary.
-- [ ] Extract validation metrics and smooth-uptrend quality from validation equity curve.
-- [ ] Include candidate factor windows, weights, Top N, and score threshold in the result.
-- [ ] Include compact train/validation risk flags.
-- [ ] Avoid returning full equity curves for every candidate by default.
+- [x] Implement `evaluate_factor_candidate(...)`.
+- [x] Build a train `PortfolioBacktestRequest` from the base request and candidate factors.
+- [x] Build a validation `PortfolioBacktestRequest` from the same candidate factors.
+- [x] Run both through `run_portfolio_backtest_with_context(...)`.
+- [x] Extract train metrics from the train backtest summary.
+- [x] Extract validation metrics and smooth-uptrend quality from validation equity curve.
+- [x] Include candidate factor windows, weights, Top N, and score threshold in the result.
+- [x] Include compact train/validation risk flags.
+- [x] Avoid returning full equity curves for every candidate by default.
+
+**Status:** Completed. Added candidate evaluation that applies each parameter set to train and validation request copies, runs both through the reusable portfolio context, extracts compact metrics, de-duplicates warnings, and returns ranked-trial payloads without full equity curves.
 
 **Done when:** One candidate result explains exactly which parameters were tested and why it ranked where it did.
 
