@@ -27,6 +27,28 @@ def test_expand_search_space_truncates_at_max_combinations():
     assert len(combos) == 4
 
 
+def test_expand_search_space_samples_across_all_parameters_when_truncated():
+    combos = expand_search_space(
+        {
+            "short_ma": [10, 20, 30],
+            "medium_ma": [40, 60, 90],
+            "long_ma": [90, 120, 200],
+            "breakout_lookback": [20, 40, 60],
+            "volume_lookback": [10, 20, 30],
+            "volume_multiplier": [1.2, 1.5, 2.0],
+            "atr_period": [10, 14, 20],
+            "atr_stop_multiplier": [2.0, 2.5, 3.0],
+        },
+        max_combinations=30,
+    )
+
+    assert len(combos) == 30
+    assert {combo["short_ma"] for combo in combos} == {10, 20, 30}
+    assert {combo["medium_ma"] for combo in combos} == {40, 60, 90}
+    assert {combo["long_ma"] for combo in combos} == {90, 120, 200}
+    assert {combo["breakout_lookback"] for combo in combos} == {20, 40, 60}
+
+
 def test_score_backtest_result_reads_core_score():
     result = BacktestResult(
         plot_html="",
@@ -100,6 +122,43 @@ def test_run_optimization_sorts_by_validate_score(monkeypatch):
     assert result.top_results[0]["params"] == {"rsi_period": 14}
     assert result.top_results[0]["validate_score"] == 5
     assert result.top_results[1]["params"] == {"rsi_period": 6}
+
+
+def test_run_optimization_ranks_tradeable_results_before_no_trade_results(monkeypatch):
+    scores = {
+        6: (0, 0),
+        14: (-1, 8),
+    }
+
+    def fake_run_single_backtest(**kwargs):
+        period = kwargs["strategy_params"]["rsi_period"]
+        score, trades = scores[period]
+        return _fake_result(kwargs["symbol"], score=score, trades=trades)
+
+    monkeypatch.setattr("optimization_runner.run_single_backtest", fake_run_single_backtest)
+
+    request = OptimizationRequest(
+        start_date="2025-07-03",
+        end_date="2026-07-04",
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[
+                StrategyParamConfig(
+                    strategy_name="rsi_risk_control",
+                    search_space={"rsi_period": [6, 14]},
+                )
+            ],
+            top_n=2,
+            min_trades=5,
+        ),
+    )
+
+    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+
+    assert result.top_results[0]["params"] == {"rsi_period": 14}
+    assert result.top_results[0]["validate_score"] == -1
+    assert result.top_results[1]["params"] == {"rsi_period": 6}
+    assert "too_few_trades" in result.top_results[1]["risk_flags"]
 
 
 def test_run_optimization_runs_trials_in_parallel_batches_and_sorts_top_results(monkeypatch):

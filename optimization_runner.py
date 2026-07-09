@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from itertools import product
+from math import prod
 from typing import Any, Callable, Iterable
 
 from backtesting import Strategy
@@ -36,12 +37,45 @@ def expand_search_space(search_space: dict[str, list[Any]], max_combinations: in
 
     keys = list(search_space.keys())
     values = [search_space[key] for key in keys]
-    combinations = []
-    for items in product(*values):
-        combinations.append(dict(zip(keys, items)))
-        if len(combinations) >= max_combinations:
-            break
-    return combinations
+    total_combinations = prod(len(items) for items in values)
+    if total_combinations <= max_combinations:
+        return [dict(zip(keys, items)) for items in product(*values)]
+
+    return [
+        _combination_at_index(keys, values, index)
+        for index in _evenly_spaced_indices(total_combinations, max_combinations)
+    ]
+
+
+def _evenly_spaced_indices(total_count: int, sample_count: int) -> list[int]:
+    if sample_count <= 1:
+        return [0]
+
+    step = (total_count - 1) / (sample_count - 1)
+    indices = []
+    seen = set()
+    for position in range(sample_count):
+        index = round(position * step)
+        while index in seen and index < total_count - 1:
+            index += 1
+        while index in seen and index > 0:
+            index -= 1
+        seen.add(index)
+        indices.append(index)
+    return indices
+
+
+def _combination_at_index(
+    keys: list[str],
+    values: list[list[Any]],
+    index: int,
+) -> dict[str, Any]:
+    selected = {}
+    remaining = index
+    for key, options in reversed(list(zip(keys, values))):
+        selected[key] = options[remaining % len(options)]
+        remaining //= len(options)
+    return {key: selected[key] for key in keys}
 
 
 def score_backtest_result(result: BacktestResult) -> float:
@@ -111,7 +145,7 @@ def run_optimization(
                 row = future.result()
                 rows.append(_decorate_result(row, min_trades=config.min_trades))
                 completed_trials += 1
-                best_row = max(rows, key=lambda item: item["validate_score"]) if rows else None
+                best_row = max(rows, key=_optimization_sort_key) if rows else None
                 _emit_progress(
                     progress_callback,
                     phase="optimizing",
@@ -124,7 +158,7 @@ def run_optimization(
                     best_validate_score=best_row["validate_score"] if best_row else None,
                 )
 
-    rows.sort(key=lambda item: item["validate_score"], reverse=True)
+    rows.sort(key=_optimization_sort_key, reverse=True)
     top_results = rows[: config.top_n]
     for index, row in enumerate(top_results, start=1):
         row["rank"] = index
@@ -215,6 +249,12 @@ def _batched(items: Iterable[Any], batch_size: int) -> list[list[Any]]:
     if batch:
         batches.append(batch)
     return batches
+
+
+def _optimization_sort_key(item: dict[str, Any]) -> tuple[int, float]:
+    validate_metrics = item.get("validate_metrics", {})
+    is_rankable = bool(validate_metrics.get("is_rankable"))
+    return (1 if is_rankable else 0, float(item.get("validate_score", 0)))
 
 
 def _decorate_result(row: dict[str, Any], min_trades: int) -> dict[str, Any]:
