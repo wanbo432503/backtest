@@ -130,6 +130,7 @@ def test_index_template_places_selection_strategy_after_manual_diagnostics():
     assert "fetch('/portfolio-backtest/jobs'" in template
     assert "function pollPortfolioBacktestJob" in template
     assert "function renderPortfolioProgress" in template
+    assert "后端服务连接中断" in template
 
 
 def test_index_template_promotes_single_stock_backtest_to_primary_panel():

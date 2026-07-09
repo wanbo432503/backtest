@@ -18,9 +18,9 @@ from stock_universe_provider import StockUniverseRecord, get_default_stock_unive
 from tradable_universe import TradableUniversePolicy, validate_universe
 
 
-FUNDAMENTAL_PREFETCH_MIN = 40
-FUNDAMENTAL_PREFETCH_MAX = 120
-FUNDAMENTAL_PREFETCH_PER_POSITION = 5
+FUNDAMENTAL_PREFETCH_MIN = 10
+FUNDAMENTAL_PREFETCH_MAX = 20
+FUNDAMENTAL_PREFETCH_PER_POSITION = 1
 
 
 @dataclass

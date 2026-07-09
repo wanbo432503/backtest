@@ -377,7 +377,7 @@ _STRATEGIES: tuple[PortfolioSelectionStrategyDefinition, ...] = (
             "低估值和低波动可能在强题材行情中阶段性跑输。",
         ],
         default_rebalance_frequency="monthly",
-        default_top_n=10,
+        default_top_n=5,
         top_n_candidates=[5, 10, 20],
         factors=[
             _factor(

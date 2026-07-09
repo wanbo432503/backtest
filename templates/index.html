@@ -1664,7 +1664,12 @@ SZ002241</textarea>
             }
             requestOptions.headers = headers;
 
-            const response = await fetch(url, requestOptions);
+            let response;
+            try {
+                response = await fetch(url, requestOptions);
+            } catch (error) {
+                throw formatNetworkFetchError(error, url);
+            }
             const contentType = response.headers.get('content-type') || '';
             const data = contentType.includes('application/json') ? await response.json() : null;
             if (!response.ok) {
@@ -1674,6 +1679,13 @@ SZ002241</textarea>
                 throw error;
             }
             return data;
+        }
+
+        function formatNetworkFetchError(error, url) {
+            const message = error && error.message ? error.message : '请求未完成';
+            const networkError = new Error(`后端服务连接中断，请确认 backtest 服务仍在运行后重试（${message}）`);
+            networkError.url = url;
+            return networkError;
         }
 
         function getSearchResultBadge(type) {
@@ -3435,13 +3447,18 @@ SZ002241</textarea>
         }
 
         async function createPortfolioBacktestJob(requestBody) {
-            const response = await fetch('/portfolio-backtest/jobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody)
-            });
+            let response;
+            try {
+                response = await fetch('/portfolio-backtest/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+            } catch (error) {
+                throw formatNetworkFetchError(error, '/portfolio-backtest/jobs');
+            }
             const data = await response.json();
             if (!response.ok) {
                 throw new Error(data.detail || '组合回测任务创建失败');

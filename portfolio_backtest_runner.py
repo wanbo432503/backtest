@@ -23,9 +23,9 @@ from selection_engine import build_rebalance_dates, build_trading_calendar, sele
 from universe_scan_runner import load_universe_scan_data
 
 
-FUNDAMENTAL_PREFETCH_MIN = 40
-FUNDAMENTAL_PREFETCH_MAX = 120
-FUNDAMENTAL_PREFETCH_PER_POSITION = 5
+FUNDAMENTAL_PREFETCH_MIN = 10
+FUNDAMENTAL_PREFETCH_MAX = 20
+FUNDAMENTAL_PREFETCH_PER_POSITION = 1
 
 
 @dataclass

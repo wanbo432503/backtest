@@ -216,15 +216,15 @@ def test_default_fundamental_prefetch_limit_is_bounded_for_interactive_backtests
     assert portfolio_backtest_runner._fundamental_prefetch_limit(
         _request(universe={"mode": "auto"}, selection={"top_n": 20, "min_history_bars": 60}),
         3179,
-    ) == 100
+    ) == 20
     assert portfolio_backtest_runner._fundamental_prefetch_limit(
         _request(selection={"top_n": 2, "min_history_bars": 60}),
         3179,
-    ) == 40
+    ) == 10
     assert portfolio_backtest_runner._fundamental_prefetch_limit(
         _request(universe={"mode": "auto"}, selection={"top_n": 20, "min_history_bars": 60}),
         30,
-    ) == 30
+    ) == 20
 
 
 def test_portfolio_backtest_context_loads_once_and_can_be_reused(monkeypatch):

@@ -107,6 +107,7 @@ def test_full_financial_strategy_exposes_required_fundamental_and_risk_factors()
 
     assert strategy.name == "A股完整财务多因子策略"
     assert strategy.default_rebalance_frequency == "monthly"
+    assert strategy.default_top_n == 5
     assert {
         "pe_inverse",
         "pb_inverse",
