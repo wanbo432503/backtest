@@ -124,6 +124,52 @@ def test_run_optimization_sorts_by_validate_score(monkeypatch):
     assert result.top_results[1]["params"] == {"rsi_period": 6}
 
 
+def test_run_optimization_uses_train_score_as_validate_tiebreaker(monkeypatch):
+    scores = {
+        6: (2, 10),
+        14: (2, 20),
+    }
+
+    def fake_run_single_backtest(**kwargs):
+        period = kwargs["strategy_params"]["rsi_period"]
+        is_validate = kwargs["start_date"] == "2026-01-01"
+        validate_score, train_score = scores[period]
+        return _fake_result(
+            kwargs["symbol"],
+            score=validate_score if is_validate else train_score,
+            trades=8,
+        )
+
+    monkeypatch.setattr("optimization_runner.run_single_backtest", fake_run_single_backtest)
+
+    request = OptimizationRequest(
+        start_date="2025-07-03",
+        end_date="2026-07-04",
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[
+                StrategyParamConfig(
+                    strategy_name="rsi_risk_control",
+                    search_space={"rsi_period": [6, 14]},
+                )
+            ],
+            top_n=2,
+            min_trades=5,
+            train_start_date="2025-07-03",
+            train_end_date="2025-12-31",
+            validate_start_date="2026-01-01",
+            validate_end_date="2026-07-04",
+        ),
+    )
+
+    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+
+    assert result.top_results[0]["params"] == {"rsi_period": 14}
+    assert result.top_results[0]["validate_score"] == 2
+    assert result.top_results[0]["train_score"] == 20
+    assert result.top_results[1]["params"] == {"rsi_period": 6}
+
+
 def test_run_optimization_ranks_tradeable_results_before_no_trade_results(monkeypatch):
     scores = {
         6: (0, 0),

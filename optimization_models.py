@@ -72,8 +72,6 @@ class OptimizationConfig(BaseModel):
     @field_validator("max_combinations")
     @classmethod
     def validate_max_combinations(cls, value: int) -> int:
-        if value > 1000:
-            raise ValueError("max_combinations must not exceed 1000")
         if value <= 0:
             raise ValueError("max_combinations must be greater than 0")
         return value

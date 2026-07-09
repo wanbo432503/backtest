@@ -85,8 +85,19 @@ def test_optimize_api_rejects_multiple_symbols():
     assert "symbols" in response.json()["detail"]
 
 
-def test_optimize_api_rejects_too_many_combinations_with_400():
+def test_optimize_api_accepts_user_defined_combinations_above_1000(monkeypatch):
     client = TestClient(main.app)
+
+    monkeypatch.setattr(
+        main,
+        "run_optimization",
+        lambda request, strategy_registry=None: OptimizationResult(
+            objective="score",
+            symbols=request.optimization_config.symbols,
+            top_results=[],
+            progress_log=[f"max_combinations={request.optimization_config.max_combinations}"],
+        ),
+    )
 
     response = client.post(
         "/optimize",
@@ -101,8 +112,8 @@ def test_optimize_api_rejects_too_many_combinations_with_400():
         },
     )
 
-    assert response.status_code == 400
-    assert "max_combinations" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["progress_log"] == ["max_combinations=1001"]
 
 
 def test_optimization_job_api_creates_and_reads_job(monkeypatch):

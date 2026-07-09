@@ -37,6 +37,7 @@ def test_index_template_contains_optimization_controls():
     assert "collectOptimizationRequest" in template
     assert "collectOptimizationSymbol" in template
     assert "开始优化" in template
+    assert 'id="maxCombinations" min="1" max="1000"' not in template
 
 
 def test_index_template_renders_single_stock_optimization_progress():

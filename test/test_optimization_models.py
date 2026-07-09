@@ -88,9 +88,15 @@ def test_a_share_trading_config_rejects_invalid_lot_size():
         AShareTradingConfig(lot_size=0)
 
 
-def test_optimization_config_rejects_too_many_combinations():
+def test_optimization_config_allows_user_defined_combination_count_above_1000():
+    config = OptimizationConfig(max_combinations=5000)
+
+    assert config.max_combinations == 5000
+
+
+def test_optimization_config_rejects_non_positive_combination_count():
     with pytest.raises(ValidationError):
-        OptimizationConfig(max_combinations=1001)
+        OptimizationConfig(max_combinations=0)
 
 
 def test_optimization_config_rejects_invalid_max_workers():

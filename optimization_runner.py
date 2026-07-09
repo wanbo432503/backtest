@@ -251,10 +251,14 @@ def _batched(items: Iterable[Any], batch_size: int) -> list[list[Any]]:
     return batches
 
 
-def _optimization_sort_key(item: dict[str, Any]) -> tuple[int, float]:
+def _optimization_sort_key(item: dict[str, Any]) -> tuple[int, float, float]:
     validate_metrics = item.get("validate_metrics", {})
     is_rankable = bool(validate_metrics.get("is_rankable"))
-    return (1 if is_rankable else 0, float(item.get("validate_score", 0)))
+    return (
+        1 if is_rankable else 0,
+        float(item.get("validate_score", 0)),
+        float(item.get("train_score", 0)),
+    )
 
 
 def _decorate_result(row: dict[str, Any], min_trades: int) -> dict[str, Any]:
