@@ -18,6 +18,11 @@ from stock_universe_provider import StockUniverseRecord, get_default_stock_unive
 from tradable_universe import TradableUniversePolicy, validate_universe
 
 
+FUNDAMENTAL_PREFETCH_MIN = 40
+FUNDAMENTAL_PREFETCH_MAX = 120
+FUNDAMENTAL_PREFETCH_PER_POSITION = 5
+
+
 @dataclass
 class UniverseScanData:
     data_by_symbol: dict[str, pd.DataFrame] = field(default_factory=dict)
@@ -131,6 +136,7 @@ def run_universe_scan(
     fundamentals_by_symbol = _fundamentals_for_scan(
         scan_data.data_by_symbol,
         as_of_date,
+        request,
         selection_strategy=selection_strategy,
         warnings=warnings,
         diagnostics=diagnostics,
@@ -171,6 +177,7 @@ def _named_selection_strategy(
 def _fundamentals_for_scan(
     data_by_symbol: dict[str, pd.DataFrame],
     as_of_date: pd.Timestamp,
+    request: PortfolioBacktestRequest,
     *,
     selection_strategy: PortfolioSelectionStrategyDefinition | None,
     warnings: list[str],
@@ -179,21 +186,95 @@ def _fundamentals_for_scan(
 ) -> dict[str, dict[str, Any]] | None:
     if selection_strategy is None or not _strategy_needs_fundamentals(selection_strategy):
         return None
-    symbols = list(data_by_symbol)
+    symbols = _prefilter_fundamental_symbols(data_by_symbol, as_of_date, request)
+    prefetch_limit = _fundamental_prefetch_limit(request, len(data_by_symbol))
     as_of_text = _date_str(as_of_date)
     _emit_progress(progress_callback, {
         "phase": "loading_fundamentals",
         "screened_count": len(symbols),
+        "total_screened_count": len(data_by_symbol),
+        "prefiltered_count": len(symbols),
+        "prefetch_limit": prefetch_limit,
         "as_of_date": as_of_text,
     })
     bundle = load_portfolio_fundamentals(
         symbols,
         data_provider="akshare",
         as_of_date=as_of_text,
+        progress_callback=_fundamental_progress_forwarder(
+            progress_callback,
+            screened_count=len(data_by_symbol),
+            prefiltered_count=len(symbols),
+            prefetch_limit=prefetch_limit,
+            as_of_date=as_of_text,
+        ),
     )
     diagnostics.update(bundle.to_diagnostics())
+    diagnostics.update({
+        "fundamental_prefetch_limit": prefetch_limit,
+        "fundamental_prefiltered_count": len(symbols),
+        "fundamental_total_screened_count": len(data_by_symbol),
+    })
     warnings.extend(_new_warnings(warnings, bundle.warnings))
     return bundle.values_by_symbol
+
+
+def _prefilter_fundamental_symbols(
+    data_by_symbol: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp,
+    request: PortfolioBacktestRequest,
+) -> list[str]:
+    limit = _fundamental_prefetch_limit(request, len(data_by_symbol))
+    symbols = list(data_by_symbol)
+    if len(symbols) <= limit:
+        return symbols
+    ranking = score_candidates(data_by_symbol, as_of_date, request.factors, request.selection)
+    ranked_symbols = [
+        row["symbol"]
+        for row in ranking
+        if row.get("skip_reason") is None
+    ]
+    return ranked_symbols[:limit]
+
+
+def _fundamental_prefetch_limit(request: PortfolioBacktestRequest, screened_count: int) -> int:
+    configured = request.metadata.get("fundamental_prefetch_limit")
+    if configured is not None:
+        try:
+            limit = int(configured)
+        except (TypeError, ValueError):
+            limit = FUNDAMENTAL_PREFETCH_MAX
+    else:
+        limit = max(
+            request.selection.top_n * FUNDAMENTAL_PREFETCH_PER_POSITION,
+            FUNDAMENTAL_PREFETCH_MIN,
+        )
+        limit = min(limit, FUNDAMENTAL_PREFETCH_MAX)
+    return max(1, min(limit, screened_count))
+
+
+def _fundamental_progress_forwarder(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    screened_count: int,
+    prefiltered_count: int,
+    prefetch_limit: int,
+    as_of_date: str,
+) -> Callable[[dict[str, Any]], None] | None:
+    if progress_callback is None:
+        return None
+
+    def forward(event: dict[str, Any]) -> None:
+        _emit_progress(progress_callback, {
+            **event,
+            "screened_count": prefiltered_count,
+            "total_screened_count": screened_count,
+            "prefiltered_count": prefiltered_count,
+            "prefetch_limit": prefetch_limit,
+            "as_of_date": as_of_date,
+        })
+
+    return forward
 
 
 def _strategy_needs_fundamentals(strategy: PortfolioSelectionStrategyDefinition) -> bool:

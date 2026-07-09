@@ -159,6 +159,74 @@ def test_portfolio_backtest_loads_fundamentals_for_full_financial_strategy(monke
     assert "pe_inverse" in ranked["strategy_factor_values"]
 
 
+def test_full_financial_strategy_prefilters_large_universe_before_loading_fundamentals(monkeypatch):
+    symbols = [f"SH60{index:04d}" for index in range(120)]
+    fixture = {
+        symbol: build_ohlcv_frame(periods=180, daily_return=0.0005 + index / 1_000_000)
+        for index, symbol in enumerate(symbols)
+    }
+    captured_symbol_batches = []
+
+    def fake_fundamentals(symbols, **kwargs):
+        captured_symbol_batches.append(list(symbols))
+        return FundamentalsBundle(
+            values_by_symbol={
+                symbol: {
+                    "pe_inverse": 0.1,
+                    "pb_inverse": 0.2,
+                    "roe": 0.1,
+                    "gross_margin": 0.3,
+                    "operating_cashflow_to_profit": 1.0,
+                    "dividend_yield": 0.02,
+                }
+                for symbol in symbols
+            },
+            requested_symbols=list(symbols),
+            loaded_symbols=list(symbols),
+            coverage_pct=100.0,
+        )
+
+    monkeypatch.setattr("portfolio_backtest_runner.load_portfolio_fundamentals", fake_fundamentals)
+
+    context = portfolio_backtest_runner.PortfolioBacktestContext(
+        data_by_symbol=fixture,
+        providers={symbol: "fixture" for symbol in fixture},
+        warnings=[],
+        diagnostics={"mode": "manual", "screened_count": len(fixture)},
+    )
+    request = _request(
+        universe={"symbols": symbols[:4]},
+        selection={"top_n": 2, "min_history_bars": 60},
+        selection_strategy={
+            "strategy_id": "a_share_full_financial_multifactor",
+            "enabled": True,
+        },
+        metadata={"fundamental_prefetch_limit": 30},
+    )
+
+    result = portfolio_backtest_runner.run_portfolio_backtest_with_context(request, context)
+
+    assert captured_symbol_batches
+    assert all(len(batch) <= 30 for batch in captured_symbol_batches)
+    assert result.scan_diagnostics["fundamental_prefetch_limit"] == 30
+    assert result.scan_diagnostics["fundamental_prefiltered_count"] == 30
+
+
+def test_default_fundamental_prefetch_limit_is_bounded_for_interactive_backtests():
+    assert portfolio_backtest_runner._fundamental_prefetch_limit(
+        _request(universe={"mode": "auto"}, selection={"top_n": 20, "min_history_bars": 60}),
+        3179,
+    ) == 100
+    assert portfolio_backtest_runner._fundamental_prefetch_limit(
+        _request(selection={"top_n": 2, "min_history_bars": 60}),
+        3179,
+    ) == 40
+    assert portfolio_backtest_runner._fundamental_prefetch_limit(
+        _request(universe={"mode": "auto"}, selection={"top_n": 20, "min_history_bars": 60}),
+        30,
+    ) == 30
+
+
 def test_portfolio_backtest_context_loads_once_and_can_be_reused(monkeypatch):
     fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
     loader_calls = []

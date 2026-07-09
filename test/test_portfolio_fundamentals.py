@@ -66,6 +66,29 @@ def test_fundamentals_bundle_defaults_are_safe_for_empty_symbol_lists():
     assert bundle.to_diagnostics()["requested_symbols"] == 0
 
 
+def test_load_portfolio_fundamentals_reports_per_symbol_progress():
+    events = []
+
+    def info_loader(yfinance_symbol: str) -> dict:
+        return {"trailingPE": 10 if yfinance_symbol == "600000.SS" else 12}
+
+    bundle = load_portfolio_fundamentals(
+        ["SH600000", "SZ002241"],
+        info_loader=info_loader,
+        progress_callback=events.append,
+    )
+
+    assert bundle.coverage_pct == pytest.approx(100.0)
+    assert [event["loaded_count"] for event in events] == [1, 2]
+    assert events[-1] == {
+        "phase": "loading_fundamentals",
+        "total_symbols": 2,
+        "loaded_count": 2,
+        "failed_count": 0,
+        "current_symbol": "SZ002241",
+    }
+
+
 def test_load_portfolio_fundamentals_extracts_akshare_valuation_quality_cashflow_snapshot():
     def akshare_loader(symbol: str) -> dict[str, pd.DataFrame]:
         assert symbol == "SH600000"

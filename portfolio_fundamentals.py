@@ -45,6 +45,7 @@ def load_portfolio_fundamentals(
     info_loader: InfoLoader | None = None,
     akshare_loader: AkshareLoader | None = None,
     min_coverage_pct: float = 50.0,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> FundamentalsBundle:
     requested_symbols = list(dict.fromkeys(symbols))
     if not requested_symbols:
@@ -54,6 +55,7 @@ def load_portfolio_fundamentals(
     loaded_symbols: list[str] = []
     missing_symbols: list[str] = []
     errors_by_symbol: dict[str, str] = {}
+    failed_count = 0
 
     for symbol in requested_symbols:
         try:
@@ -70,7 +72,15 @@ def load_portfolio_fundamentals(
             values_by_symbol[symbol] = values
             loaded_symbols.append(symbol)
         else:
+            failed_count += 1
             missing_symbols.append(symbol)
+        _emit_progress(
+            progress_callback,
+            total_symbols=len(requested_symbols),
+            loaded_count=len(loaded_symbols),
+            failed_count=failed_count,
+            current_symbol=symbol,
+        )
 
     coverage_pct = len(loaded_symbols) / len(requested_symbols) * 100
     warnings = []
@@ -91,6 +101,25 @@ def load_portfolio_fundamentals(
         warnings=warnings,
         errors_by_symbol=errors_by_symbol,
     )
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    total_symbols: int,
+    loaded_count: int,
+    failed_count: int,
+    current_symbol: str,
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback({
+        "phase": "loading_fundamentals",
+        "total_symbols": total_symbols,
+        "loaded_count": loaded_count,
+        "failed_count": failed_count,
+        "current_symbol": current_symbol,
+    })
 
 
 def _load_legacy_info_values(

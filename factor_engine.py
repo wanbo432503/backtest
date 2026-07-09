@@ -204,8 +204,23 @@ def score_candidates_with_strategy(
     fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     overrides = parameter_overrides or {}
+    requires_fundamentals = _strategy_requires_fundamentals(strategy)
     rows = []
     for symbol, data in data_by_symbol.items():
+        fundamentals = (fundamentals_by_symbol or {}).get(symbol)
+        if requires_fundamentals and fundamentals_by_symbol is not None and fundamentals is None:
+            rows.append({
+                "symbol": symbol,
+                "strategy_id": strategy.strategy_id,
+                "strategy_factor_values": {},
+                "factor_values": {},
+                "skip_reason": "missing_fundamentals",
+                "warnings": ["missing_fundamentals"],
+                "missing_fundamental_keys": _strategy_fundamental_keys(strategy),
+                "score": None,
+                "rank": None,
+            })
+            continue
         factor_row = calculate_strategy_factor_values(
             data,
             as_of_date,
@@ -213,7 +228,7 @@ def score_candidates_with_strategy(
             min_history_bars=selection_config.min_history_bars,
             lookahead_safe=True,
             parameter_overrides=overrides,
-            fundamentals=(fundamentals_by_symbol or {}).get(symbol),
+            fundamentals=fundamentals,
         )
         rows.append({
             "symbol": symbol,
@@ -256,6 +271,18 @@ def score_candidates_with_strategy(
             rank += 1
 
     return rows
+
+
+def _strategy_requires_fundamentals(strategy: PortfolioSelectionStrategyDefinition) -> bool:
+    return bool(_strategy_fundamental_keys(strategy))
+
+
+def _strategy_fundamental_keys(strategy: PortfolioSelectionStrategyDefinition) -> list[str]:
+    return [
+        factor.key
+        for factor in strategy.factors
+        if factor.key in FUNDAMENTAL_FACTOR_KEYS
+    ]
 
 
 def _strategy_lookbacks(
