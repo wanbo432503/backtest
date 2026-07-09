@@ -13,8 +13,9 @@ from a_share_rules import (
     can_sell,
     round_lot_shares,
 )
-from factor_engine import score_candidates, score_candidates_with_strategy
+from factor_engine import FUNDAMENTAL_FACTOR_KEYS, score_candidates, score_candidates_with_strategy
 from portfolio_data import load_portfolio_ohlcv
+from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_models import PortfolioBacktestRequest, PortfolioBacktestResult
 from portfolio_selection_strategy_library import get_selection_strategy
 from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
@@ -88,7 +89,6 @@ def run_portfolio_backtest_with_context(
     warnings = list(context.warnings)
     scan_diagnostics = dict(context.diagnostics)
     selection_strategy = _named_selection_strategy(request)
-    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None
     if selection_strategy is not None:
         scan_diagnostics.update({
             "selection_strategy_id": selection_strategy.strategy_id,
@@ -103,6 +103,15 @@ def run_portfolio_backtest_with_context(
         skipped_trades: list[dict[str, Any]] = []
 
         if date in rebalance_dates:
+            fundamentals_by_symbol = _fundamentals_for_rebalance(
+                data_by_symbol,
+                date,
+                request,
+                selection_strategy=selection_strategy,
+                warnings=warnings,
+                diagnostics=scan_diagnostics,
+                progress_callback=progress_callback,
+            )
             ranking = _score_candidates_for_request(
                 data_by_symbol,
                 date,
@@ -197,6 +206,46 @@ def _named_selection_strategy(
     if config is None or not config.enabled:
         return None
     return get_selection_strategy(config.strategy_id)
+
+
+def _fundamentals_for_rebalance(
+    data_by_symbol: dict[str, pd.DataFrame],
+    date: pd.Timestamp,
+    request: PortfolioBacktestRequest,
+    *,
+    selection_strategy: PortfolioSelectionStrategyDefinition | None,
+    warnings: list[str],
+    diagnostics: dict[str, Any],
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, dict[str, Any]] | None:
+    if selection_strategy is None or not _strategy_needs_fundamentals(selection_strategy):
+        return None
+
+    symbols = list(data_by_symbol)
+    as_of_date = _date_str(date)
+    if progress_callback is not None:
+        progress_callback({
+            "phase": "loading_fundamentals",
+            "screened_count": len(symbols),
+            "as_of_date": as_of_date,
+        })
+    bundle = load_portfolio_fundamentals(
+        symbols,
+        data_provider="akshare",
+        as_of_date=as_of_date,
+    )
+    diagnostics.update(bundle.to_diagnostics())
+    warnings.extend(_new_warnings(warnings, bundle.warnings))
+    return bundle.values_by_symbol
+
+
+def _strategy_needs_fundamentals(strategy: PortfolioSelectionStrategyDefinition) -> bool:
+    return any(factor.key in FUNDAMENTAL_FACTOR_KEYS for factor in strategy.factors)
+
+
+def _new_warnings(existing: list[str], incoming: list[str]) -> list[str]:
+    seen = set(existing)
+    return [warning for warning in incoming if warning not in seen]
 
 
 def _score_candidates_for_request(

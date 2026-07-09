@@ -7,8 +7,9 @@ from typing import Any
 
 import pandas as pd
 
-from factor_engine import score_candidates, score_candidates_with_strategy
+from factor_engine import FUNDAMENTAL_FACTOR_KEYS, score_candidates, score_candidates_with_strategy
 from portfolio_data import load_portfolio_ohlcv
+from portfolio_fundamentals import load_portfolio_fundamentals
 from portfolio_models import PortfolioBacktestRequest
 from portfolio_selection_strategy_library import get_selection_strategy
 from portfolio_selection_strategy_models import PortfolioSelectionStrategyDefinition
@@ -122,12 +123,19 @@ def run_universe_scan(
     })
     warnings = list(scan_data.warnings)
     selection_strategy = _named_selection_strategy(request)
-    fundamentals_by_symbol: dict[str, dict[str, Any]] | None = None
     if selection_strategy is not None:
         diagnostics.update({
             "selection_strategy_id": selection_strategy.strategy_id,
             "selection_strategy_name": selection_strategy.name,
         })
+    fundamentals_by_symbol = _fundamentals_for_scan(
+        scan_data.data_by_symbol,
+        as_of_date,
+        selection_strategy=selection_strategy,
+        warnings=warnings,
+        diagnostics=diagnostics,
+        progress_callback=progress_callback,
+    )
 
     ranking = _score_candidates_for_request(
         scan_data.data_by_symbol,
@@ -158,6 +166,43 @@ def _named_selection_strategy(
     if config is None or not config.enabled:
         return None
     return get_selection_strategy(config.strategy_id)
+
+
+def _fundamentals_for_scan(
+    data_by_symbol: dict[str, pd.DataFrame],
+    as_of_date: pd.Timestamp,
+    *,
+    selection_strategy: PortfolioSelectionStrategyDefinition | None,
+    warnings: list[str],
+    diagnostics: dict[str, Any],
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, dict[str, Any]] | None:
+    if selection_strategy is None or not _strategy_needs_fundamentals(selection_strategy):
+        return None
+    symbols = list(data_by_symbol)
+    as_of_text = _date_str(as_of_date)
+    _emit_progress(progress_callback, {
+        "phase": "loading_fundamentals",
+        "screened_count": len(symbols),
+        "as_of_date": as_of_text,
+    })
+    bundle = load_portfolio_fundamentals(
+        symbols,
+        data_provider="akshare",
+        as_of_date=as_of_text,
+    )
+    diagnostics.update(bundle.to_diagnostics())
+    warnings.extend(_new_warnings(warnings, bundle.warnings))
+    return bundle.values_by_symbol
+
+
+def _strategy_needs_fundamentals(strategy: PortfolioSelectionStrategyDefinition) -> bool:
+    return any(factor.key in FUNDAMENTAL_FACTOR_KEYS for factor in strategy.factors)
+
+
+def _new_warnings(existing: list[str], incoming: list[str]) -> list[str]:
+    seen = set(existing)
+    return [warning for warning in incoming if warning not in seen]
 
 
 def _score_candidates_for_request(

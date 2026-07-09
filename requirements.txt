@@ -9,3 +9,4 @@ fuzzywuzzy
 python-Levenshtein
 pytest
 mootdx==0.11.7
+akshare==1.18.64

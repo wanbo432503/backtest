@@ -12,7 +12,19 @@ FACTOR_KEYS = ("momentum", "volatility", "liquidity", "trend")
 FUNDAMENTAL_FACTOR_KEYS = {
     "pe_inverse",
     "pb_inverse",
+    "ps_inverse",
+    "pcf_inverse",
     "roe",
+    "roa",
+    "gross_margin",
+    "net_margin",
+    "debt_to_assets",
+    "operating_cashflow_to_profit",
+    "cashflow_yield",
+    "fcf_yield",
+    "dividend_yield",
+    "dividend_stability",
+    "dividend_coverage",
     "revenue_growth",
     "profit_growth",
 }
@@ -108,6 +120,10 @@ def calculate_strategy_factor_values(
             factor_values[key] = _max_drawdown_window(close, lookback)
         elif key == "recovery_strength" and lookback is not None:
             factor_values[key] = _recovery_strength(close, lookback)
+        elif key == "seasoned_momentum" and lookback is not None:
+            factor_values[key] = _seasoned_momentum(close, lookback)
+        elif key == "recent_overheat_return" and lookback is not None:
+            factor_values[key] = _recent_return(close, lookback)
         elif fundamentals and key in fundamentals:
             factor_values[key] = _safe_float(fundamentals.get(key))
         elif key in FUNDAMENTAL_FACTOR_KEYS:
@@ -351,6 +367,25 @@ def _recovery_strength(close: pd.Series, lookback: int) -> float:
     if not trough:
         return 0.0
     return _safe_float(close.iloc[-1] / trough - 1)
+
+
+def _seasoned_momentum(close: pd.Series, lookback: int, skip_recent_bars: int = 20) -> float:
+    if len(close) <= lookback + skip_recent_bars:
+        return 0.0
+    recent_anchor = close.iloc[-skip_recent_bars - 1]
+    past_anchor = close.iloc[-lookback - skip_recent_bars - 1]
+    if not past_anchor:
+        return 0.0
+    return _safe_float(recent_anchor / past_anchor - 1)
+
+
+def _recent_return(close: pd.Series, lookback: int) -> float:
+    if len(close) <= lookback:
+        return 0.0
+    past = close.iloc[-lookback - 1]
+    if not past:
+        return 0.0
+    return _safe_float(close.iloc[-1] / past - 1)
 
 
 def _safe_float(value: Any) -> float:

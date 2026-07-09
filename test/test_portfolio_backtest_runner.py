@@ -3,6 +3,7 @@ import math
 import pytest
 
 import portfolio_backtest_runner
+from portfolio_fundamentals import FundamentalsBundle
 from portfolio_backtest_runner import run_portfolio_backtest
 from portfolio_data import PortfolioDataBundle
 from portfolio_models import PortfolioBacktestRequest
@@ -101,6 +102,61 @@ def test_portfolio_backtest_uses_named_selection_strategy(monkeypatch):
     assert "momentum_return" in first_ranked["strategy_factor_values"]
     assert "normalized_strategy_factors" in first_ranked
     assert result.config["selection_strategy"]["strategy_id"] == "steady_low_vol_momentum"
+
+
+def test_portfolio_backtest_loads_fundamentals_for_full_financial_strategy(monkeypatch):
+    fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
+    monkeypatch.setattr(
+        "portfolio_backtest_runner.load_portfolio_ohlcv",
+        lambda *args, **kwargs: PortfolioDataBundle(data_by_symbol=fixture, warnings=[], providers={}),
+    )
+
+    snapshot_dates = []
+
+    def fake_fundamentals(symbols, **kwargs):
+        assert symbols == ["SH603019", "SZ002241"]
+        snapshot_dates.append(kwargs["as_of_date"])
+        return FundamentalsBundle(
+            values_by_symbol={
+                "SH603019": {
+                    "pe_inverse": 0.12,
+                    "pb_inverse": 0.4,
+                    "roe": 0.2,
+                    "gross_margin": 0.4,
+                    "operating_cashflow_to_profit": 1.5,
+                    "dividend_yield": 0.03,
+                },
+                "SZ002241": {
+                    "pe_inverse": 0.04,
+                    "pb_inverse": 0.1,
+                    "roe": 0.04,
+                    "gross_margin": 0.1,
+                    "operating_cashflow_to_profit": 0.3,
+                    "dividend_yield": 0.0,
+                },
+            },
+            requested_symbols=["SH603019", "SZ002241"],
+            loaded_symbols=["SH603019", "SZ002241"],
+            coverage_pct=100.0,
+        )
+
+    monkeypatch.setattr("portfolio_backtest_runner.load_portfolio_fundamentals", fake_fundamentals)
+
+    result = run_portfolio_backtest(
+        _request(
+            selection_strategy={
+                "strategy_id": "a_share_full_financial_multifactor",
+                "enabled": True,
+            },
+        )
+    )
+
+    assert result.scan_diagnostics["selection_strategy_id"] == "a_share_full_financial_multifactor"
+    assert result.scan_diagnostics["loaded_fundamentals"] == 2
+    assert snapshot_dates
+    assert all(str(date) <= "2025-12-31" for date in snapshot_dates)
+    ranked = next(row for row in result.candidate_rankings if row["skip_reason"] is None)
+    assert "pe_inverse" in ranked["strategy_factor_values"]
 
 
 def test_portfolio_backtest_context_loads_once_and_can_be_reused(monkeypatch):

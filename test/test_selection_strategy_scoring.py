@@ -111,3 +111,56 @@ def test_legacy_score_candidates_output_is_unchanged_for_factor_config_path():
     assert rows[0]["factor_values"].keys() == {"momentum", "volatility", "liquidity", "trend"}
     assert "strategy_id" not in rows[0]
 
+
+def test_full_financial_strategy_ranks_cheap_quality_cashflow_stock_above_expensive_peer():
+    strategy = get_selection_strategy("a_share_full_financial_multifactor")
+    data_by_symbol = {
+        "SH600000": build_ohlcv_frame(periods=220, daily_return=0.001, base_volume=1_000_000),
+        "SZ002241": build_ohlcv_frame(periods=220, daily_return=0.001, base_volume=1_000_000),
+    }
+    fundamentals_by_symbol = {
+        "SH600000": {
+            "pe_inverse": 0.12,
+            "pb_inverse": 0.5,
+            "ps_inverse": 0.25,
+            "pcf_inverse": 0.2,
+            "roe": 0.18,
+            "roa": 0.08,
+            "gross_margin": 0.42,
+            "net_margin": 0.16,
+            "debt_to_assets": 0.35,
+            "operating_cashflow_to_profit": 1.4,
+            "fcf_yield": 0.08,
+            "dividend_yield": 0.035,
+            "dividend_stability": 0.8,
+            "dividend_coverage": 2.5,
+        },
+        "SZ002241": {
+            "pe_inverse": 0.03,
+            "pb_inverse": 0.12,
+            "ps_inverse": 0.06,
+            "pcf_inverse": 0.04,
+            "roe": 0.04,
+            "roa": 0.01,
+            "gross_margin": 0.18,
+            "net_margin": 0.03,
+            "debt_to_assets": 0.72,
+            "operating_cashflow_to_profit": 0.4,
+            "fcf_yield": -0.02,
+            "dividend_yield": 0.0,
+            "dividend_stability": 0.0,
+            "dividend_coverage": 0.0,
+        },
+    }
+
+    rows = score_candidates_with_strategy(
+        data_by_symbol,
+        pd.Timestamp("2025-10-01"),
+        SelectionConfig(top_n=1, min_history_bars=120),
+        strategy,
+        fundamentals_by_symbol=fundamentals_by_symbol,
+    )
+
+    assert rows[0]["symbol"] == "SH600000"
+    assert rows[0]["normalized_strategy_factors"]["debt_to_assets"] > rows[1]["normalized_strategy_factors"]["debt_to_assets"]
+    assert rows[0]["strategy_factor_values"]["fcf_yield"] == 0.08

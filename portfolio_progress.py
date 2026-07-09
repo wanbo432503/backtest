@@ -114,6 +114,7 @@ def _message_for_phase(phase: str) -> str:
     labels = {
         "discovering_universe": "正在发现 60/00 股票池",
         "loading_ohlcv": "正在加载行情数据",
+        "loading_fundamentals": "正在加载财务因子",
         "scoring": "正在计算候选评分",
         "backtesting": "正在执行组合调仓回测",
         "completed": "组合回测完成",

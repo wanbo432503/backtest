@@ -14,6 +14,7 @@ EXPECTED_STRATEGY_IDS = {
     "strong_trend_breakout",
     "high_liquidity_trend",
     "drawdown_control_rotation",
+    "a_share_full_financial_multifactor",
 }
 
 REMOVED_STRATEGY_IDS = {"value_quality", "custom_factor_blend"}
@@ -99,3 +100,26 @@ def test_strategy_search_space_exposes_legacy_factor_space_for_compatible_factor
     assert search_space.legacy_factor_search_space.liquidity_lookback == [10, 20, 40]
     assert search_space.legacy_factor_search_space.top_n == [2, 3, 5, 10]
 
+
+def test_full_financial_strategy_exposes_required_fundamental_and_risk_factors():
+    strategy = get_selection_strategy("a_share_full_financial_multifactor")
+    factor_keys = {factor.key for factor in strategy.factors}
+
+    assert strategy.name == "A股完整财务多因子策略"
+    assert strategy.default_rebalance_frequency == "monthly"
+    assert {
+        "pe_inverse",
+        "pb_inverse",
+        "ps_inverse",
+        "roe",
+        "gross_margin",
+        "debt_to_assets",
+        "operating_cashflow_to_profit",
+        "fcf_yield",
+        "dividend_yield",
+        "dividend_stability",
+        "realized_volatility",
+        "max_drawdown_window",
+        "seasoned_momentum",
+        "recent_overheat_return",
+    }.issubset(factor_keys)
