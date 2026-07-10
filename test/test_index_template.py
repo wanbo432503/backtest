@@ -329,6 +329,22 @@ def test_index_template_contains_risk_and_a_share_rule_controls():
     assert "strategy_params" in template
 
 
+def test_strategy_parameters_remain_source_of_truth_for_risk_values():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+    collect_match = re.search(
+        r"function collectStrategyParams\(\) \{(.*?)\n        \}",
+        template,
+        flags=re.S,
+    )
+
+    assert collect_match is not None
+    assert "collectRiskConfig" not in collect_match.group(1)
+    assert "const STRATEGY_RISK_CONTROL_IDS" in template
+    assert "syncRiskControlsFromStrategyParams();" in template
+    assert "syncStrategyParamFromRiskControl" in template
+    assert "riskInput.disabled = !paramInput;" in template
+
+
 def test_index_template_aligns_a_share_rule_number_inputs_in_three_rows():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

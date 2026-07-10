@@ -2849,12 +2849,64 @@ SZ002241</textarea>
             return value;
         }
 
+        const STRATEGY_RISK_CONTROL_IDS = Object.freeze({
+            position_pct: 'positionPct',
+            stop_loss_pct: 'stopLossPct',
+            take_profit_pct: 'takeProfitPct',
+            max_holding_bars: 'maxHoldingBars',
+            cooldown_bars: 'cooldownBars'
+        });
+
+        function syncRiskControlsFromStrategyParams() {
+            Object.entries(STRATEGY_RISK_CONTROL_IDS).forEach(([paramName, controlId]) => {
+                const paramInput = document.getElementById(`strategyParam_${paramName}`);
+                const riskInput = document.getElementById(controlId);
+                if (!riskInput) {
+                    return;
+                }
+                riskInput.disabled = !paramInput;
+                if (!paramInput) {
+                    return;
+                }
+                riskInput.value = paramInput.value;
+                ['min', 'max', 'step'].forEach(attribute => {
+                    if (paramInput.hasAttribute(attribute)) {
+                        riskInput.setAttribute(attribute, paramInput.getAttribute(attribute));
+                    }
+                });
+            });
+        }
+
+        function syncStrategyParamFromRiskControl(event) {
+            const match = Object.entries(STRATEGY_RISK_CONTROL_IDS)
+                .find(([, controlId]) => controlId === event.target.id);
+            if (!match) {
+                return;
+            }
+            const paramInput = document.getElementById(`strategyParam_${match[0]}`);
+            if (paramInput) {
+                paramInput.value = event.target.value;
+            }
+        }
+
+        function syncRiskControlFromStrategyParam(event) {
+            if (!event.target.classList.contains('strategy-param-input')) {
+                return;
+            }
+            const controlId = STRATEGY_RISK_CONTROL_IDS[event.target.dataset.paramName];
+            const riskInput = controlId ? document.getElementById(controlId) : null;
+            if (riskInput) {
+                riskInput.value = event.target.value;
+            }
+        }
+
         function renderStrategyParamControls() {
             const strategyName = document.getElementById('strategy').value;
             const params = window.strategyMetadata[strategyName] || [];
             const container = document.getElementById('strategyParamContainer');
             if (!params.length) {
                 container.innerHTML = '<div class="form-text">该策略暂无可配置参数。</div>';
+                syncRiskControlsFromStrategyParams();
                 return;
             }
             container.innerHTML = params.map(param => `
@@ -2882,6 +2934,7 @@ SZ002241</textarea>
                     </div>
                 </div>
             `).join('');
+            syncRiskControlsFromStrategyParams();
         }
 
         function collectRiskConfig() {
@@ -2919,12 +2972,6 @@ SZ002241</textarea>
             const params = {};
             document.querySelectorAll('.strategy-param-input').forEach(input => {
                 params[input.dataset.paramName] = parseParamValue(input.value, input.dataset.paramType);
-            });
-            const risk = collectRiskConfig();
-            ['position_pct', 'stop_loss_pct', 'take_profit_pct', 'max_holding_bars', 'cooldown_bars'].forEach(key => {
-                if (Object.prototype.hasOwnProperty.call(params, key)) {
-                    params[key] = risk[key];
-                }
             });
             return params;
         }
@@ -3299,6 +3346,7 @@ SZ002241</textarea>
                     input.value = value;
                 }
             });
+            syncRiskControlsFromStrategyParams();
             renderOptimizationLibrary();
             return true;
         }
@@ -3867,6 +3915,10 @@ SZ002241</textarea>
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
             document.getElementById('strategy').addEventListener('change', renderStrategyParamControls);
             document.getElementById('strategy').addEventListener('change', renderOptimizationLibrary);
+            Object.values(STRATEGY_RISK_CONTROL_IDS).forEach(controlId => {
+                document.getElementById(controlId).addEventListener('input', syncStrategyParamFromRiskControl);
+            });
+            document.getElementById('strategyParamContainer').addEventListener('input', syncRiskControlFromStrategyParam);
             document.getElementById('initialCash').addEventListener('input', updateStrategyDescription);
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
             document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);

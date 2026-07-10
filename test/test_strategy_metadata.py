@@ -5,12 +5,24 @@ from strategy_metadata import get_strategy_metadata
 
 
 RETAINED_STRATEGIES = {
+    "boll_macd_breakout",
     "macd_volume_divergence_risk_control",
     "ma_breakout_atr_risk_control",
     "rsi_risk_control",
     "ma_trend_risk_control",
     "volume_breakout_risk_control",
 }
+
+
+def test_boll_macd_breakout_metadata_exposes_optimizable_risk_parameters():
+    metadata = get_strategy_metadata("boll_macd_breakout")
+    params = {param.name: param for param in metadata.parameters}
+
+    assert metadata.label == "BOLL+MACD上轨突破策略"
+    assert params["stop_loss_pct"].default == 1
+    assert params["stop_loss_pct"].search_values == [0.5, 1.0, 1.5, 2.0, 3.0]
+    assert params["take_profit_pct"].default == 1
+    assert params["take_profit_pct"].search_values == [0.5, 1.0, 1.5, 2.0, 3.0]
 
 
 def test_reserved_rsi_risk_control_metadata_exists_before_strategy_file():
