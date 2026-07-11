@@ -51,10 +51,14 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert "自动扫描模式：忽略下方固定股票池" in template
     assert "股票池来源" in template
     assert "计划扫描" in template
-    assert "严格同日共振" in template
-    assert "三个条件同时满足才开单" in template
+    assert "连续2天确认" in template
+    assert "固定止损 3%" in template
+    assert "不设固定止盈线" in template
     assert 'id="signalConfirmationBars"' not in template
     assert "readNumber('signalConfirmationBars'" not in template
+    assert 'id="signalTakeProfitPct"' not in template
+    assert 'id="signalStopLossPct"' not in template
+    assert "strategy_name: 'boll_middle_recovery'" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

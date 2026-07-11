@@ -9,13 +9,7 @@ import pandas as pd
 from a_share_rules import apply_slippage, calculate_trade_cost, can_buy, can_sell, round_lot_shares
 from selection_engine import build_trading_calendar
 from signal_portfolio_models import SignalPortfolioBacktestRequest, SignalPortfolioBacktestResult
-from strategies.boll_macd_breakout import (
-    bollinger_middle,
-    bollinger_upper,
-    get_boll_macd_risk_prices,
-    should_enter_boll_macd_breakout,
-)
-from strategies.macd_volume_divergence_risk_control import macd_dea, macd_dif
+from strategies.boll_macd_breakout import bollinger_middle, bollinger_upper
 from universe_scan_runner import load_universe_scan_data
 
 
@@ -27,8 +21,8 @@ class SignalPosition:
     entry_price: float
     entry_cost: float
     stop_price: float
-    take_price: float
     holding_bars: int = 0
+    exit_next_open_reason: str | None = None
 
 
 def run_signal_portfolio_backtest(
@@ -62,7 +56,7 @@ def run_signal_portfolio_with_data(
         symbol: _build_signal_frame(data, request)
         for symbol, data in data_by_symbol.items()
     }
-    calendar = build_trading_calendar(data_by_symbol)
+    calendar = build_trading_calendar(signal_frames)
     calendar = [
         date for date in calendar
         if pd.Timestamp(request.start_date) <= pd.Timestamp(date) <= pd.Timestamp(request.end_date)
@@ -89,11 +83,11 @@ def run_signal_portfolio_with_data(
             current_date=_date_str(date),
         )
         for symbol, position in positions.items():
-            if date in data_by_symbol[symbol].index and _date_str(date) != position.entry_date:
+            if date in signal_frames[symbol].index and _date_str(date) != position.entry_date:
                 position.holding_bars += 1
 
-        cash = _execute_exits(date, cash, positions, data_by_symbol, request, trades, contributions)
-        equity_before_entries = _portfolio_value(date, cash, positions, data_by_symbol)
+        cash = _execute_exits(date, cash, positions, signal_frames, request, trades, contributions)
+        equity_before_entries = _portfolio_value(date, cash, positions, signal_frames)
         peak_equity = max(peak_equity, equity_before_entries)
         drawdown_pct = (equity_before_entries / peak_equity - 1) * 100 if peak_equity else 0.0
         if request.risk.max_drawdown_stop_pct is not None and abs(drawdown_pct) >= request.risk.max_drawdown_stop_pct:
@@ -104,7 +98,7 @@ def run_signal_portfolio_with_data(
             cash,
             positions,
             pending_entries,
-            data_by_symbol,
+            signal_frames,
             request,
             trades,
             contributions,
@@ -124,9 +118,9 @@ def run_signal_portfolio_with_data(
                 pending_entries[symbol] = event
                 signal_events.append(event)
 
-        equity = _portfolio_value(date, cash, positions, data_by_symbol)
+        equity = _portfolio_value(date, cash, positions, signal_frames)
         peak_equity = max(peak_equity, equity)
-        gross = _gross_exposure(date, positions, data_by_symbol)
+        gross = _gross_exposure(date, positions, signal_frames)
         equity_curve.append({
             "date": _date_str(date),
             "equity": round(equity, 6),
@@ -146,9 +140,9 @@ def run_signal_portfolio_with_data(
     return SignalPortfolioBacktestResult(
         summary=summary,
         equity_curve=equity_curve,
-        positions=_position_rows(calendar[-1], positions, data_by_symbol),
+        positions=_position_rows(calendar[-1], positions, signal_frames),
         trades=trades,
-        symbol_contributions=_contribution_rows(contributions, positions, calendar[-1], data_by_symbol),
+        symbol_contributions=_contribution_rows(contributions, positions, calendar[-1], signal_frames),
         signal_events=signal_events,
         data_warnings=list(warnings or []),
         risk_flags=_risk_flags(summary, warnings or [], entry_blocked),
@@ -163,49 +157,77 @@ def _build_signal_frame(data: pd.DataFrame, request: SignalPortfolioBacktestRequ
     close = frame["Close"].astype(float)
     frame["middle"] = bollinger_middle(close, config.boll_period)
     frame["upper"] = bollinger_upper(close, config.boll_period, config.boll_stddev)
-    frame["dif"] = macd_dif(close, config.fast_period, config.slow_period, config.signal_period)
-    frame["dea"] = macd_dea(close, config.fast_period, config.slow_period, config.signal_period)
+    frame["lower"] = _bollinger_lower(close, config.boll_period, config.boll_stddev)
     signals = []
     strengths = []
-    min_bars = max(config.boll_period, config.slow_period + config.signal_period) + 2
+    min_bars = config.boll_period + config.confirmation_days
     for index in range(len(frame)):
-        if index < 1 or index + 1 < min_bars:
+        if index < 2 or index + 1 < min_bars:
             signals.append(False)
             strengths.append(0.0)
             continue
-        current = frame.iloc[index]
-        previous = frame.iloc[index - 1]
-        signal = _is_synchronous_boll_macd_entry(previous, current)
+        before_cross = frame.iloc[index - 2]
+        cross_day = frame.iloc[index - 1]
+        confirmation_day = frame.iloc[index]
+        signal = _is_two_day_middle_recovery_entry(
+            before_cross,
+            cross_day,
+            confirmation_day,
+        )
         signals.append(signal)
-        upper = float(current["upper"])
-        strengths.append(float(current["Close"]) / upper - 1 if signal and upper else 0.0)
+        close_price = float(confirmation_day["Close"])
+        upper = float(confirmation_day["upper"])
+        upside_room = (upper - close_price) / close_price if close_price > 0 else 0.0
+        strengths.append(upside_room if signal else 0.0)
     frame["entry_signal"] = signals
     frame["signal_strength"] = strengths
     return frame
 
 
-def _is_synchronous_boll_macd_entry(previous: pd.Series, current: pd.Series) -> bool:
-    previous_dif = float(previous["dif"])
-    previous_dea = float(previous["dea"])
-    current_dif = float(current["dif"])
-    current_dea = float(current["dea"])
-    macd_values = (previous_dif, previous_dea, current_dif, current_dea)
-    macd_golden_cross = (
-        not any(math.isnan(value) for value in macd_values)
-        and previous_dif <= previous_dea
-        and current_dif > current_dea
+def _bollinger_lower(values, period: int, stddev: float):
+    prices = pd.Series(values, dtype="float64")
+    rolling = prices.rolling(period)
+    return (rolling.mean() - rolling.std(ddof=0) * stddev).to_numpy()
+
+
+def _is_two_day_middle_recovery_entry(
+    before_cross: pd.Series,
+    cross_day: pd.Series,
+    confirmation_day: pd.Series,
+) -> bool:
+    required_values = [
+        before_cross["Close"],
+        before_cross["middle"],
+        cross_day["Close"],
+        cross_day["middle"],
+        cross_day["Low"],
+        cross_day["lower"],
+        cross_day["High"],
+        cross_day["upper"],
+        confirmation_day["Close"],
+        confirmation_day["middle"],
+        confirmation_day["Low"],
+        confirmation_day["lower"],
+        confirmation_day["High"],
+        confirmation_day["upper"],
+    ]
+    if not all(math.isfinite(float(value)) for value in required_values):
+        return False
+
+    crossed_middle = (
+        float(before_cross["Close"]) <= float(before_cross["middle"])
+        and float(cross_day["Close"]) > float(cross_day["middle"])
     )
-    return should_enter_boll_macd_breakout(
-        previous_close=float(previous["Close"]),
-        previous_middle=float(previous["middle"]),
-        previous_upper=float(previous["upper"]),
-        current_close=float(current["Close"]),
-        current_middle=float(current["middle"]),
-        current_upper=float(current["upper"]),
-        current_dif=current_dif,
-        current_dea=current_dea,
-        recent_macd_golden_cross=macd_golden_cross,
+    cross_day_is_stable = (
+        float(cross_day["Low"]) >= float(cross_day["lower"])
+        and float(cross_day["High"]) < float(cross_day["upper"])
     )
+    confirmation_day_is_stable = (
+        float(confirmation_day["Close"]) > float(confirmation_day["middle"])
+        and float(confirmation_day["Low"]) >= float(confirmation_day["lower"])
+        and float(confirmation_day["High"]) < float(confirmation_day["upper"])
+    )
+    return crossed_middle and cross_day_is_stable and confirmation_day_is_stable
 
 
 def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contributions):
@@ -217,12 +239,17 @@ def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contr
         row = data.loc[date]
         reason = None
         raw_price = None
-        if float(row["Low"]) <= position.stop_price:
+        if position.exit_next_open_reason:
+            reason = position.exit_next_open_reason
+            raw_price = float(row["Open"])
+        elif float(row["Low"]) <= position.stop_price:
             reason = "stop_loss"
             raw_price = min(float(row["Open"]), position.stop_price)
-        elif float(row["High"]) >= position.take_price:
-            reason = "take_profit"
-            raw_price = max(float(row["Open"]), position.take_price)
+        else:
+            upper_price = _previous_indicator(data, date, "upper")
+            if upper_price is not None and float(row["High"]) >= upper_price:
+                reason = "upper_band"
+                raw_price = max(float(row["Open"]), upper_price)
         if reason is None:
             continue
         allowed, _ = can_sell(row.to_dict(), _previous_close(data, date), position.holding_bars, request.trading)
@@ -273,9 +300,27 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
             continue
         amount = shares * price
         cost = calculate_trade_cost(amount, "buy", request.trading)
-        stop_price, take_price = get_boll_macd_risk_prices(price, request.strategy.stop_loss_pct, request.strategy.take_profit_pct)
+        stop_price = price * (1 - request.strategy.stop_loss_pct / 100)
+        previous_upper = float(previous.iloc[-1]["upper"]) if not previous.empty else None
+        exit_next_open_reason = None
+        if float(row["Low"]) <= stop_price:
+            exit_next_open_reason = "stop_loss_t1"
+        elif (
+            previous_upper is not None
+            and math.isfinite(previous_upper)
+            and float(row["High"]) >= previous_upper
+        ):
+            exit_next_open_reason = "upper_band_t1"
         cash -= amount + cost
-        positions[symbol] = SignalPosition(symbol, shares, _date_str(date), price, cost, stop_price, take_price)
+        positions[symbol] = SignalPosition(
+            symbol=symbol,
+            shares=shares,
+            entry_date=_date_str(date),
+            entry_price=price,
+            entry_cost=cost,
+            stop_price=stop_price,
+            exit_next_open_reason=exit_next_open_reason,
+        )
         contributions.setdefault(symbol, {"realized_pnl": 0.0, "round_trips": 0})
         trades.append(_trade(date, symbol, "buy", shares, price, amount, cost, "signal", None))
     return cash
@@ -295,6 +340,14 @@ def _row_at(data, date):
 def _previous_close(data, date):
     previous = data[data.index < date]
     return float(previous.iloc[-1]["Close"]) if not previous.empty else float(data.loc[date]["Open"])
+
+
+def _previous_indicator(data, date, column):
+    previous = data[data.index < date]
+    if previous.empty or column not in previous.columns:
+        return None
+    value = float(previous.iloc[-1][column])
+    return value if math.isfinite(value) else None
 
 
 def _gross_exposure(date, positions, data_by_symbol):

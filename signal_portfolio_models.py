@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from optimization_models import AShareTradingConfig
 from portfolio_models import FactorConfig, SelectionConfig
@@ -77,26 +77,21 @@ class SignalUniverseConfig(BaseModel):
         return self
 
 
-class BollMacdSignalConfig(BaseModel):
-    strategy_name: Literal["boll_macd_breakout"] = "boll_macd_breakout"
+class BollMiddleRecoverySignalConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_name: Literal["boll_middle_recovery"] = "boll_middle_recovery"
     boll_period: int = 20
     boll_stddev: float = 2.0
-    fast_period: int = 12
-    slow_period: int = 26
-    signal_period: int = 9
-    stop_loss_pct: float = 1.0
-    take_profit_pct: float = 3.0
+    confirmation_days: Literal[2] = 2
+    stop_loss_pct: Literal[3.0] = 3.0
 
     @model_validator(mode="after")
-    def validate_parameters(self) -> "BollMacdSignalConfig":
-        if min(self.boll_period, self.fast_period, self.signal_period) < 1:
-            raise ValueError("strategy periods must be positive")
-        if self.slow_period <= self.fast_period:
-            raise ValueError("slow_period must be greater than fast_period")
+    def validate_parameters(self) -> "BollMiddleRecoverySignalConfig":
+        if self.boll_period < 2:
+            raise ValueError("boll_period must be at least 2")
         if self.boll_stddev <= 0:
             raise ValueError("boll_stddev must be greater than 0")
-        if not 0.1 <= self.stop_loss_pct <= 10 or not 0.1 <= self.take_profit_pct <= 10:
-            raise ValueError("stop/take percentages are outside the supported range")
         return self
 
 
@@ -127,7 +122,9 @@ class SignalPortfolioBacktestRequest(BaseModel):
     initial_cash: float = 100000
     data_provider: str = "auto"
     universe: SignalUniverseConfig
-    strategy: BollMacdSignalConfig = Field(default_factory=BollMacdSignalConfig)
+    strategy: BollMiddleRecoverySignalConfig = Field(
+        default_factory=BollMiddleRecoverySignalConfig
+    )
     trading: AShareTradingConfig = Field(default_factory=AShareTradingConfig)
     risk: SignalPortfolioRiskConfig = Field(default_factory=SignalPortfolioRiskConfig)
     selection: SelectionConfig = Field(

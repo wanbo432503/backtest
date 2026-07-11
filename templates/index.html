@@ -1001,7 +1001,7 @@ SZ002241</textarea>
                         <div class="card-body">
                             <form id="signalPortfolioBacktestForm">
                                 <div class="portfolio-optimization-note mb-3">
-                                    每只股票独立扫描 BOLL+MACD 信号，前一日收盘确认、下一交易日开盘成交；所有持仓共享一个现金账户。
+                                    每只股票独立扫描 BOLL 中轨修复信号，第1天上穿中轨、连续2天确认后，第3个交易日开盘买入；所有持仓共享一个现金账户。
                                 </div>
                                 <div class="compact-row">
                                     <div class="mb-3">
@@ -1032,16 +1032,13 @@ SZ000651</textarea>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
                                     <div class="portfolio-optimization-note mt-2 mb-2">
-                                        严格同日共振：布林中轨向上、收盘价从下向上穿越布林上轨、MACD 当日金叉，三个条件同时满足才开单。
+                                        第1天收盘上穿中轨；第1、2天均不下穿下轨、不触及上轨，且第2天收盘仍在中轨上方；第3个交易日开盘买入。持仓后触及上轨盘中卖出；买入当天触及上轨则按 T+1 于次日开盘卖出。固定止损 3%，不设固定止盈线。
                                     </div>
                                     <div class="portfolio-factor-grid mt-2">
                                         <div><label for="signalBollPeriod" class="form-label">BOLL周期</label><input type="number" class="form-control" id="signalBollPeriod" value="20" min="5"></div>
                                         <div><label for="signalBollStddev" class="form-label">标准差倍数</label><input type="number" class="form-control" id="signalBollStddev" value="2" min="0.5" step="0.1"></div>
-                                        <div><label for="signalFastPeriod" class="form-label">MACD快线</label><input type="number" class="form-control" id="signalFastPeriod" value="12" min="2"></div>
-                                        <div><label for="signalSlowPeriod" class="form-label">MACD慢线</label><input type="number" class="form-control" id="signalSlowPeriod" value="26" min="3"></div>
-                                        <div><label for="signalSignalPeriod" class="form-label">DEA周期</label><input type="number" class="form-control" id="signalSignalPeriod" value="9" min="2"></div>
-                                        <div><label for="signalStopLossPct" class="form-label">止损 (%)</label><input type="number" class="form-control" id="signalStopLossPct" value="1" min="0.1" max="10" step="0.1"></div>
-                                        <div><label for="signalTakeProfitPct" class="form-label">止盈 (%)</label><input type="number" class="form-control" id="signalTakeProfitPct" value="3" min="0.1" max="10" step="0.1"></div>
+                                        <div><label class="form-label">确认天数</label><div class="form-control bg-light">2 天（固定）</div></div>
+                                        <div><label class="form-label">止损</label><div class="form-control bg-light">3%（固定）</div></div>
                                     </div>
                                 </details>
                                 <details class="config-panel border rounded p-2 mb-3" open>
@@ -2140,14 +2137,11 @@ SZ000651</textarea>
                     exclude_funds: true
                 },
                 strategy: {
-                    strategy_name: 'boll_macd_breakout',
+                    strategy_name: 'boll_middle_recovery',
                     boll_period: readNumber('signalBollPeriod', 20),
                     boll_stddev: readNumber('signalBollStddev', 2),
-                    fast_period: readNumber('signalFastPeriod', 12),
-                    slow_period: readNumber('signalSlowPeriod', 26),
-                    signal_period: readNumber('signalSignalPeriod', 9),
-                    stop_loss_pct: readNumber('signalStopLossPct', 1),
-                    take_profit_pct: readNumber('signalTakeProfitPct', 3)
+                    confirmation_days: 2,
+                    stop_loss_pct: 3
                 },
                 trading: {
                     long_only: true, t_plus_one: true, lot_size: 100,
