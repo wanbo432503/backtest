@@ -60,6 +60,30 @@ def test_daily_market_data_cache_fetches_only_uncovered_tail(monkeypatch, tmp_pa
     assert snapshot.covers("2026-07-01", "2026-07-06")
 
 
+def test_daily_cache_extends_naive_cache_with_timezone_aware_data(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
+    calls = []
+
+    def source(symbol, start_date, end_date, interval):
+        calls.append((start_date, end_date))
+        frame = _daily_frame(start_date, end_date)
+        if len(calls) > 1:
+            frame.index = frame.index.tz_localize("Asia/Shanghai")
+        return DataSourceResult(frame, "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", source)
+
+    fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-03", "1d", "yfinance")
+    result = fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-06", "1d", "yfinance")
+
+    assert calls == [("2026-07-01", "2026-07-03"), ("2026-07-04", "2026-07-06")]
+    assert result.cache_status == "extended"
+    assert len(result.data) == 6
+    assert result.data.index.tz is None
+    assert result.data.index.min() == pd.Timestamp("2026-07-01")
+    assert result.data.index.max() == pd.Timestamp("2026-07-06")
+
+
 def test_intraday_market_data_bypasses_daily_cache(monkeypatch, tmp_path):
     monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
     calls = []

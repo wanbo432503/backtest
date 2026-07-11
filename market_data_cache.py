@@ -51,7 +51,7 @@ def load_daily_cache(symbol: str, provider: str) -> DailyCacheSnapshot | None:
             if metadata.get("schema_version") != CACHE_SCHEMA_VERSION:
                 return None
             frame = pd.read_csv(data_path, index_col="Date", parse_dates=["Date"])
-            frame.index = pd.to_datetime(frame.index).normalize()
+            frame = _normalize_daily_frame(frame)
             ranges = [
                 (date.fromisoformat(item["start"]), date.fromisoformat(item["end"]))
                 for item in metadata.get("covered_ranges", [])
@@ -79,14 +79,15 @@ def save_daily_cache(
     lock = _lock_for(data_path)
     with lock:
         existing = _load_without_lock(data_path, metadata_path, symbol, provider)
-        frames = [frame for frame in [existing.data if existing else None, data] if frame is not None]
-        merged = pd.concat(frames).sort_index() if frames else pd.DataFrame()
+        frames = [
+            _normalize_daily_frame(frame)
+            for frame in [existing.data if existing else None, data]
+            if frame is not None
+        ]
+        merged = pd.concat(frames) if frames else pd.DataFrame()
         if not merged.empty:
             merged = merged[~merged.index.duplicated(keep="last")]
-            if isinstance(merged.index, pd.DatetimeIndex) and merged.index.tz is not None:
-                merged.index = merged.index.tz_localize(None)
-            merged.index = pd.to_datetime(merged.index).normalize()
-            merged.index.name = "Date"
+            merged = _normalize_daily_frame(merged).sort_index()
         ranges = _merge_ranges([
             *(existing.covered_ranges if existing else []),
             *covered_ranges,
@@ -160,7 +161,7 @@ def _load_without_lock(
         if metadata.get("schema_version") != CACHE_SCHEMA_VERSION:
             return None
         frame = pd.read_csv(data_path, index_col="Date", parse_dates=["Date"])
-        frame.index = pd.to_datetime(frame.index).normalize()
+        frame = _normalize_daily_frame(frame)
         ranges = [
             (date.fromisoformat(item["start"]), date.fromisoformat(item["end"]))
             for item in metadata.get("covered_ranges", [])
@@ -174,6 +175,21 @@ def _load_without_lock(
         )
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
         return None
+
+
+def _normalize_daily_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    normalized = frame.copy()
+    index = normalized.index
+    if not isinstance(index, pd.DatetimeIndex):
+        try:
+            index = pd.to_datetime(index)
+        except (TypeError, ValueError):
+            index = pd.to_datetime(index, utc=True)
+    if isinstance(index, pd.DatetimeIndex) and index.tz is not None:
+        index = index.tz_localize(None)
+    normalized.index = pd.DatetimeIndex(index).normalize()
+    normalized.index.name = "Date"
+    return normalized
 
 
 def _merge_ranges(ranges: list[tuple[date, date]]) -> list[tuple[date, date]]:
