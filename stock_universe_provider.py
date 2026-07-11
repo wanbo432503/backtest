@@ -40,16 +40,19 @@ def get_default_stock_universe(
     path = Path(cache_path)
     warnings: list[str] = []
 
-    if not refresh:
-        cached = load_cached_universe(path)
-        if cached:
-            return StockUniverseResult(
-                records=_limit_records(cached, max_symbols),
-                source="cache",
-                warnings=[],
-            )
+    cached = load_cached_universe(path) if not refresh else []
+    cached_is_builtin = bool(cached) and all(record.source == "builtin" for record in cached)
+    if cached and not cached_is_builtin:
+        return StockUniverseResult(
+            records=_limit_records(cached, max_symbols),
+            source="cache",
+            warnings=[],
+        )
 
-    active_fetcher = fetcher or fetch_mootdx_universe
+    if cached_is_builtin:
+        warnings.append("builtin_cache_refresh_required")
+
+    active_fetcher = fetcher or fetch_remote_universe
     try:
         fetched = filter_tradable_universe_records(list(active_fetcher()))
         if fetched:
@@ -57,11 +60,13 @@ def get_default_stock_universe(
             return StockUniverseResult(
                 records=_limit_records(fetched, max_symbols),
                 source=fetched[0].source or "remote",
-                warnings=[],
+                warnings=warnings,
             )
     except Exception as exc:
         warnings.append(f"universe_fetch_failed: {exc}")
 
+    # Never keep reusing a previously persisted builtin list. Rebuild it so fixes to
+    # the curated symbols take effect even when an old fallback cache exists.
     fallback = filter_tradable_universe_records(_builtin_universe_records())
     if fallback:
         save_cached_universe(fallback, path)
@@ -147,6 +152,55 @@ def fetch_mootdx_universe() -> list[StockUniverseRecord]:
                 )
             )
     return records
+
+
+def fetch_akshare_universe() -> list[StockUniverseRecord]:
+    try:
+        import akshare as ak
+    except ImportError as exc:
+        raise RuntimeError("akshare is not installed") from exc
+
+    frame = ak.stock_info_a_code_name()
+    if frame is None or frame.empty:
+        return []
+
+    code_column = "code" if "code" in frame.columns else "代码"
+    name_column = "name" if "name" in frame.columns else "名称"
+    records: list[StockUniverseRecord] = []
+    for _, row in frame.iterrows():
+        code = str(row.get(code_column, "")).strip().zfill(6)
+        if len(code) != 6 or not code.isdigit():
+            continue
+        exchange = "SH" if code.startswith("60") else "SZ" if code.startswith("00") else ""
+        if not exchange:
+            continue
+        records.append(
+            StockUniverseRecord(
+                symbol=f"{exchange}{code}",
+                name=str(row.get(name_column, "") or "").strip(),
+                exchange=exchange,
+                code_prefix=code[:2],
+                source="akshare",
+                refreshed_at=_utc_now(),
+            )
+        )
+    return records
+
+
+def fetch_remote_universe() -> list[StockUniverseRecord]:
+    errors: list[str] = []
+    for source_name, source_fetcher in (
+        ("mootdx", fetch_mootdx_universe),
+        ("akshare", fetch_akshare_universe),
+    ):
+        try:
+            records = filter_tradable_universe_records(source_fetcher())
+            if records:
+                return records
+            errors.append(f"{source_name}: empty result")
+        except Exception as exc:
+            errors.append(f"{source_name}: {exc}")
+    raise RuntimeError("; ".join(errors))
 
 
 def _builtin_universe_records() -> list[StockUniverseRecord]:

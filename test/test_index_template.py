@@ -47,6 +47,10 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert ".signal-portfolio-panel > summary.card-header" not in template
     assert 'id="signalMaxScanSymbols" min="1" value="30"' in template
     assert 'id="signalMaxScanSymbols" min="1" max="200"' not in template
+    assert 'id="signalUniverseStatus"' in template
+    assert "自动扫描模式：忽略下方固定股票池" in template
+    assert "股票池来源" in template
+    assert "计划扫描" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

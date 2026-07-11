@@ -33,6 +33,30 @@ def test_signal_portfolio_job_api_creates_and_reads_job(monkeypatch):
     assert fetched.json()["progress"]["completed_days"] == 10
 
 
+def test_signal_portfolio_auto_mode_ignores_fixed_pool_symbols(monkeypatch):
+    client = TestClient(main.app)
+    snapshot = PortfolioJobSnapshot(job_id="signal-auto-1", status="queued")
+    submitted = []
+    monkeypatch.setattr(
+        main.signal_portfolio_job_store,
+        "submit",
+        lambda request: submitted.append(request) or snapshot,
+    )
+    payload = _payload()
+    payload["universe"] = {
+        "mode": "auto",
+        "symbols": ["SH603019", "SZ002241"],
+        "max_scan_symbols": 3000,
+    }
+
+    response = client.post("/signal-portfolio-backtest/jobs", json=payload)
+
+    assert response.status_code == 200
+    assert submitted[0].universe.mode == "auto"
+    assert submitted[0].universe.symbols == []
+    assert submitted[0].universe.max_scan_symbols == 3000
+
+
 def test_signal_portfolio_job_api_rejects_invalid_manual_pool():
     client = TestClient(main.app)
     payload = _payload()

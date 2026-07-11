@@ -1016,6 +1016,7 @@ SZ002241</textarea>
                                         <input type="number" class="form-control" id="signalMaxScanSymbols" min="1" value="30">
                                     </div>
                                 </div>
+                                <div class="portfolio-optimization-note mb-2" id="signalUniverseStatus"></div>
                                 <div class="form-text mb-2">默认30只；可按需填写3000等更大范围，已缓存股票会直接复用日线数据。</div>
                                 <div class="mb-3" id="signalManualUniverseBlock">
                                     <label for="signalSymbols" class="form-label">股票池（最多50只）</label>
@@ -2100,6 +2101,13 @@ SZ000651</textarea>
         function syncSignalPortfolioUniverseState() {
             const manual = document.getElementById('signalUniverseMode').value === 'manual';
             document.getElementById('signalManualUniverseBlock').style.display = manual ? 'block' : 'none';
+            const status = document.getElementById('signalUniverseStatus');
+            if (manual) {
+                status.textContent = `固定股票池模式：本次只扫描下方 ${collectSignalPortfolioSymbols().length} 只股票。`;
+            } else {
+                const limit = Math.max(1, Math.trunc(readNumber('signalMaxScanSymbols', 30)));
+                status.textContent = `自动扫描模式：忽略下方固定股票池，读取 60/00 A股列表并扫描前 ${limit} 只。`;
+            }
         }
 
         function collectSignalPortfolioRequest() {
@@ -4005,6 +4013,10 @@ SZ000651</textarea>
                 : '<span class="badge bg-success">风险标记: 无</span>';
             const diagnostics = result.scan_diagnostics || {};
             document.getElementById('signalPortfolioDiagnostics').textContent = [
+                `模式 ${diagnostics.mode === 'auto' ? '自动扫描' : diagnostics.mode === 'manual' ? '固定股票池' : '-'}`,
+                `股票池来源 ${diagnostics.universe_source ?? '-'}`,
+                `股票池 ${diagnostics.total_universe_size ?? '-'}`,
+                `计划扫描 ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
@@ -4149,6 +4161,8 @@ SZ000651</textarea>
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('signalUniverseMode').addEventListener('change', syncSignalPortfolioUniverseState);
+            document.getElementById('signalSymbols').addEventListener('input', syncSignalPortfolioUniverseState);
+            document.getElementById('signalMaxScanSymbols').addEventListener('input', syncSignalPortfolioUniverseState);
             document.getElementById('portfolioSelectionStrategy').addEventListener('change', () => {
                 portfolioSelectionStrategyOverrides = {};
                 renderPortfolioSelectionStrategyDetails();
