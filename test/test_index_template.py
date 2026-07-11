@@ -44,6 +44,7 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert "function renderSignalPortfolioResult(result)" in template
     assert "fetchJson('/signal-portfolio-backtest/jobs'" in template
     assert "signal-portfolio-backtest/jobs/${encodeURIComponent(jobId)}" in template
+    assert ".signal-portfolio-panel > summary.card-header" not in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

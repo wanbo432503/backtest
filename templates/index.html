@@ -95,9 +95,6 @@
         .settings-primary-panel[open] > summary.card-header::after {
             transform: rotate(180deg);
         }
-        .signal-portfolio-panel > summary.card-header {
-            background: linear-gradient(90deg, #087f8c, #0aa2a8);
-        }
         .card-body {
             padding: 1rem;
         }
@@ -3707,6 +3704,7 @@ SZ000651</textarea>
                 `Universe: ${diagnostics.total_universe_size ?? '-'}`,
                 `扫描: ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载: ${diagnostics.loaded_count ?? '-'}`,
+                `缓存命中: ${diagnostics.cache_hits ?? '-'}`,
                 `筛后: ${diagnostics.screened_count ?? '-'}`,
                 `评分: ${diagnostics.scored_count ?? diagnostics.candidate_ranking_rows ?? '-'}`,
                 `入选: ${diagnostics.selected_count ?? (diagnostics.selected_symbols || []).length ?? '-'}`,
@@ -4007,6 +4005,7 @@ SZ000651</textarea>
             const diagnostics = result.scan_diagnostics || {};
             document.getElementById('signalPortfolioDiagnostics').textContent = [
                 `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
+                `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
                 `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
             ].join(' | ');
@@ -4093,7 +4092,9 @@ SZ000651</textarea>
                 const warningText = result.data_warnings && result.data_warnings.length
                     ? `；${result.data_warnings.map(escapeHtml).join('；')}`
                     : '';
-                providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${warningText}</span>`;
+                const cacheLabels = { hit: '缓存命中', miss: '已写入缓存', extended: '缓存已补齐' };
+                const cacheText = cacheLabels[result.data_cache_status] ? `；${cacheLabels[result.data_cache_status]}` : '';
+                providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${cacheText}${warningText}</span>`;
                 statsContent.appendChild(providerDiv);
             }
             

@@ -12,3 +12,4 @@ media
 *.egg-info
 dist
 .codegraph
+data/market_cache/

@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Callable
 import urllib.request
 
 import pandas as pd
 import requests
 import yfinance as yf
+
+from market_data_cache import (
+    daily_cache_enabled,
+    load_daily_cache,
+    save_daily_cache,
+    slice_daily_cache,
+    uncovered_date_ranges,
+)
 
 
 @dataclass(frozen=True)
@@ -23,6 +32,8 @@ class DataSourceResult:
     data: pd.DataFrame
     provider: str
     warnings: list[str]
+    cache_hit: bool = False
+    cache_status: str = "disabled"
 
 
 def detect_market(symbol: str) -> str:
@@ -100,7 +111,8 @@ def prepare_ohlcv(data: pd.DataFrame) -> pd.DataFrame:
 
 def fetch_yfinance_ohlcv(symbol: str, start_date: str, end_date: str, interval: str) -> DataSourceResult:
     yfinance_symbol = to_yfinance_symbol(symbol)
-    data = yf.Ticker(yfinance_symbol).history(start=start_date, end=end_date, interval=interval)
+    inclusive_end = (date.fromisoformat(end_date) + timedelta(days=1)).isoformat()
+    data = yf.Ticker(yfinance_symbol).history(start=start_date, end=inclusive_end, interval=interval)
     if data.empty:
         raise ValueError("yfinance returned empty data")
     warnings = []
@@ -319,15 +331,147 @@ def fetch_ohlcv(
     if normalized.market != "CN":
         raise ValueError("仅支持 A 股代码，请输入 6 位 A 股代码或 SH/SZ/BJ 前缀代码")
 
+    if interval == "1d" and daily_cache_enabled():
+        return _fetch_cached_daily_ohlcv(
+            symbol,
+            normalized,
+            start_date,
+            end_date,
+            provider,
+        )
+
+    return _fetch_live_ohlcv(symbol, normalized, start_date, end_date, interval, provider)
+
+
+def _fetch_cached_daily_ohlcv(
+    symbol: str,
+    normalized: NormalizedSymbol,
+    start_date: str,
+    end_date: str,
+    provider: str,
+) -> DataSourceResult:
+    normalized_provider = provider.lower()
+    candidates = _cache_provider_candidates(normalized_provider)
+    partial_snapshot = None
+    for provider_name in candidates:
+        snapshot = load_daily_cache(normalized.symbol, provider_name)
+        if snapshot is None:
+            continue
+        cached = slice_daily_cache(snapshot, start_date, end_date)
+        if snapshot.covers(start_date, end_date) and not cached.empty:
+            return DataSourceResult(
+                data=prepare_ohlcv(cached),
+                provider=snapshot.provider,
+                warnings=list(snapshot.warnings),
+                cache_hit=True,
+                cache_status="hit",
+            )
+        if partial_snapshot is None:
+            partial_snapshot = snapshot
+
+    if partial_snapshot is not None:
+        try:
+            fetched_frames = []
+            fetched_warnings = list(partial_snapshot.warnings)
+            gaps = uncovered_date_ranges(
+                partial_snapshot.covered_ranges,
+                start_date,
+                end_date,
+            )
+            for gap_start, gap_end in gaps:
+                gap_days = pd.date_range(gap_start, gap_end, freq="D")
+                if len(gap_days) and all(day.weekday() >= 5 for day in gap_days):
+                    continue
+                result = _fetch_provider_ohlcv(
+                    symbol,
+                    normalized,
+                    gap_start.isoformat(),
+                    gap_end.isoformat(),
+                    "1d",
+                    partial_snapshot.provider,
+                )
+                fetched_frames.append(result.data)
+                fetched_warnings.extend(result.warnings)
+            snapshot = save_daily_cache(
+                normalized.symbol,
+                partial_snapshot.provider,
+                pd.concat(fetched_frames) if fetched_frames else partial_snapshot.data,
+                gaps,
+                fetched_warnings,
+            )
+            cached = slice_daily_cache(snapshot, start_date, end_date)
+            if not cached.empty:
+                return DataSourceResult(
+                    data=prepare_ohlcv(cached),
+                    provider=snapshot.provider,
+                    warnings=list(snapshot.warnings),
+                    cache_hit=False,
+                    cache_status="extended",
+                )
+        except Exception:
+            pass
+
+    live = _fetch_live_ohlcv(symbol, normalized, start_date, end_date, "1d", provider)
+    snapshot = save_daily_cache(
+        normalized.symbol,
+        live.provider,
+        live.data,
+        [(date.fromisoformat(start_date), date.fromisoformat(end_date))],
+        live.warnings,
+    )
+    cached = slice_daily_cache(snapshot, start_date, end_date)
+    return DataSourceResult(
+        data=prepare_ohlcv(cached),
+        provider=live.provider,
+        warnings=list(live.warnings),
+        cache_hit=False,
+        cache_status="miss",
+    )
+
+
+def _cache_provider_candidates(provider: str) -> list[str]:
+    if provider == "auto":
+        return ["mootdx", "yfinance"]
+    if provider in {"mootdx", "yfinance", "eastmoney"}:
+        return [provider]
+    return []
+
+
+def _fetch_provider_ohlcv(
+    symbol: str,
+    normalized: NormalizedSymbol,
+    start_date: str,
+    end_date: str,
+    interval: str,
+    provider: str,
+) -> DataSourceResult:
+    if provider == "mootdx":
+        return fetch_mootdx_ohlcv(normalized, interval, start_date, end_date)
+    if provider == "eastmoney" and interval == "1d":
+        return fetch_eastmoney_daily_ohlcv(normalized, start_date, end_date)
+    if provider == "yfinance":
+        return fetch_yfinance_ohlcv(symbol, start_date, end_date, interval)
+    raise ValueError(f"不支持的数据源或市场组合: provider={provider}, symbol={symbol}, interval={interval}")
+
+
+def _fetch_live_ohlcv(
+    symbol: str,
+    normalized: NormalizedSymbol,
+    start_date: str,
+    end_date: str,
+    interval: str,
+    provider: str,
+) -> DataSourceResult:
+
     normalized_provider = provider.lower()
     attempts: list[tuple[str, Callable[[], DataSourceResult]]] = []
 
     if normalized_provider in ("auto", "mootdx") and normalized.market == "CN":
-        attempts.append(("mootdx", lambda: fetch_mootdx_ohlcv(normalized, interval, start_date, end_date)))
+        attempts.append(("mootdx", lambda: _fetch_provider_ohlcv(symbol, normalized, start_date, end_date, interval, "mootdx")))
     if normalized_provider == "eastmoney" and normalized.market == "CN" and interval == "1d":
-        attempts.append(("eastmoney", lambda: fetch_eastmoney_daily_ohlcv(normalized, start_date, end_date)))
+        attempts.append(("eastmoney", lambda: _fetch_provider_ohlcv(symbol, normalized, start_date, end_date, interval, "eastmoney")))
     if normalized_provider in ("auto", "yfinance"):
-        attempts.append(("yfinance", lambda: fetch_yfinance_ohlcv(symbol, start_date, end_date, interval)))
+        attempts.append(("yfinance", lambda: _fetch_provider_ohlcv(symbol, normalized, start_date, end_date, interval, "yfinance")))
 
     errors: list[tuple[str, str]] = []
     for provider_name, attempt in attempts:

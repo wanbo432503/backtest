@@ -14,6 +14,8 @@ class PortfolioDataBundle:
     data_by_symbol: dict[str, pd.DataFrame] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     providers: dict[str, str] = field(default_factory=dict)
+    cache_hits: int = 0
+    cache_misses: int = 0
 
 
 def load_portfolio_ohlcv(
@@ -40,6 +42,8 @@ def load_portfolio_ohlcv(
     warnings: list[str] = []
     providers: dict[str, str] = {}
     failed_count = 0
+    cache_hits = 0
+    cache_misses = 0
 
     for batch_index, batch in enumerate(_chunks(symbols, batch_size)):
         for symbol_index, symbol in enumerate(batch):
@@ -55,10 +59,22 @@ def load_portfolio_ohlcv(
                     data_by_symbol[symbol] = data
                     providers[symbol] = source_result.provider
                     warnings.extend(source_result.warnings)
+                    if source_result.cache_hit:
+                        cache_hits += 1
+                    else:
+                        cache_misses += 1
             except Exception as exc:
                 failed_count += 1
                 warnings.append(f"{symbol} 获取失败: {exc}")
-            _emit_load_progress(progress_callback, symbols, data_by_symbol, failed_count, symbol)
+            _emit_load_progress(
+                progress_callback,
+                symbols,
+                data_by_symbol,
+                failed_count,
+                symbol,
+                cache_hits,
+                cache_misses,
+            )
 
             if request_delay_seconds and symbol_index < len(batch) - 1:
                 sleeper(request_delay_seconds)
@@ -73,6 +89,8 @@ def load_portfolio_ohlcv(
         data_by_symbol=data_by_symbol,
         warnings=warnings,
         providers=providers,
+        cache_hits=cache_hits,
+        cache_misses=cache_misses,
     )
 
 
@@ -92,6 +110,8 @@ def _emit_load_progress(
     data_by_symbol: dict[str, pd.DataFrame],
     failed_count: int,
     current_symbol: str,
+    cache_hits: int,
+    cache_misses: int,
 ) -> None:
     if progress_callback is None:
         return
@@ -100,6 +120,8 @@ def _emit_load_progress(
         "total_symbols": len(symbols),
         "loaded_count": len(data_by_symbol),
         "failed_count": failed_count,
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
         "current_symbol": current_symbol,
     })
 

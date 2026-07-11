@@ -162,4 +162,6 @@ def test_load_portfolio_ohlcv_applies_batch_rate_limits_and_reports_progress(mon
         "loaded_count": 3,
         "failed_count": 0,
         "current_symbol": "SZ000001",
+        "cache_hits": 0,
+        "cache_misses": 3,
     }

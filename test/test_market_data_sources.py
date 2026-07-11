@@ -11,6 +11,12 @@ import pandas as pd
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_market_data_cache(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path / "market-cache"))
+    monkeypatch.setenv("MARKET_DATA_CACHE_ENABLED", "true")
+
+
 def test_detects_a_share_formats():
     assert detect_market("600519") == "CN"
     assert detect_market("SH600519") == "CN"

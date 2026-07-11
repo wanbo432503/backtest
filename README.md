@@ -40,6 +40,22 @@ PORT=8010 ./scripts/start_server.sh
 - `yfinance`：仅作为 A 股代码转换后的备用 K 线来源。
 - TradingAgents：右侧智能分析由官方 GitHub 源码包提供，配置保存在 backtest 根目录的 `.env`，运行在当前 backtest Python 环境中。
 
+### 日线行情缓存
+
+单股回测、因子组合回测和多股票信号组合回测共用统一日线缓存。首次请求会将行情写入 `data/market_cache/daily/`；重复区间直接读取缓存，扩大日期范围时仅补拉未覆盖区间。缓存按股票和实际数据源分别保存，避免混合 mootdx 原始价与 yfinance 行情。
+
+可通过环境变量调整：
+
+```bash
+# 临时关闭缓存
+MARKET_DATA_CACHE_ENABLED=false ./scripts/start_server.sh
+
+# 修改缓存目录
+MARKET_DATA_CACHE_DIR=/path/to/cache ./scripts/start_server.sh
+```
+
+分钟和小时行情暂不写入持久缓存。
+
 注意：`mootdx` 返回不复权原始价，跨除权除息日回测需要谨慎解释结果。
 
 ## A 股代码格式

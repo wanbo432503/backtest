@@ -19,6 +19,7 @@ class BacktestResult:
     interval: str
     data_provider: str
     data_warnings: list[str]
+    data_cache_status: str = "disabled"
 
     def to_api_response(self) -> dict[str, Any]:
         return {
@@ -28,6 +29,7 @@ class BacktestResult:
             "interval": self.interval,
             "data_provider": self.data_provider,
             "data_warnings": self.data_warnings,
+            "data_cache_status": self.data_cache_status,
             "metrics": self.metrics,
         }
 
@@ -75,6 +77,7 @@ def run_single_backtest(
         interval=interval,
         data_provider=source_result.provider,
         data_warnings=source_result.warnings,
+        data_cache_status=source_result.cache_status,
     )
 
 
