@@ -34,3 +34,13 @@ def test_signal_portfolio_requires_slow_macd_period_above_fast_period():
             universe={"mode": "manual", "symbols": ["SZ002241"]},
             strategy={"fast_period": 26, "slow_period": 12},
         )
+
+
+def test_signal_portfolio_allows_full_market_scan_limit():
+    request = SignalPortfolioBacktestRequest(
+        start_date="2025-01-01",
+        end_date="2025-12-31",
+        universe={"mode": "auto", "symbols": [], "max_scan_symbols": 3000},
+    )
+
+    assert request.universe.max_scan_symbols == 3000

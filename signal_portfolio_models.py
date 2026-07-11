@@ -37,8 +37,8 @@ class SignalUniverseConfig(BaseModel):
     @field_validator("max_scan_symbols")
     @classmethod
     def validate_scan_limit(cls, value: int | None) -> int | None:
-        if value is not None and (value < 1 or value > 200):
-            raise ValueError("max_scan_symbols must be between 1 and 200")
+        if value is not None and value < 1:
+            raise ValueError("max_scan_symbols must be greater than 0")
         return value
 
     @field_validator("ohlcv_batch_size")
