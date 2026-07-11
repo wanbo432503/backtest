@@ -37,7 +37,9 @@ def test_signal_portfolio_uses_shared_cash_and_next_bar_execution(monkeypatch):
 
     def fake_signal_frame(data, request):
         frame = data.copy()
-        frame["upper"] = float(frame["Open"].iloc[0]) + 3
+        price = float(frame["Open"].iloc[0])
+        frame["ma_short"] = price - 1
+        frame["atr"] = price * 0.02
         frame["entry_signal"] = False
         frame["signal_strength"] = 0.0
         frame.loc[frame.index[1], "entry_signal"] = True
@@ -53,7 +55,11 @@ def test_signal_portfolio_uses_shared_cash_and_next_bar_execution(monkeypatch):
     assert len(buys) == 2
     assert {trade["date"] for trade in buys} == {"2025-01-03"}
     assert len(sells) == 2
-    assert {trade["reason"] for trade in sells} == {"upper_band"}
+    assert {trade["reason"] for trade in sells} == {"reward_target"}
+    assert {trade["symbol"]: trade["shares"] for trade in buys} == {
+        "SH603019": 200,
+        "SZ002241": 400,
+    }
     assert result.summary["trades"] == 2
     assert result.summary["final_equity"] > 100000
     assert len(result.symbol_contributions) == 2
@@ -65,7 +71,8 @@ def test_signal_portfolio_result_has_diagnostics_and_complete_payload(monkeypatc
         signal_portfolio_runner,
         "_build_signal_frame",
         lambda data, request: data.assign(
-            upper=float(data["Open"].iloc[0]) + 3,
+            ma_short=float(data["Open"].iloc[0]) - 1,
+            atr=float(data["Open"].iloc[0]) * 0.02,
             entry_signal=False,
             signal_strength=0.0,
         ),
@@ -92,77 +99,56 @@ def test_signal_portfolio_result_has_diagnostics_and_complete_payload(monkeypatc
     assert payload["scan_diagnostics"]["signal_count"] == 0
 
 
-def test_signal_portfolio_entry_requires_middle_cross_and_two_stable_days():
-    before_cross = pd.Series(
-        {"Close": 99.0, "middle": 100.0}
-    )
-    cross_day = pd.Series(
-        {"Close": 101.0, "middle": 100.0, "Low": 95.0, "lower": 90.0, "High": 105.0, "upper": 110.0}
-    )
-    confirmation_day = pd.Series(
-        {"Close": 102.0, "middle": 100.5, "Low": 96.0, "lower": 91.0, "High": 106.0, "upper": 111.0}
-    )
+def _pin_bar_row(**updates):
+    values = {
+        "Open": 100.0,
+        "High": 103.0,
+        "Low": 90.0,
+        "Close": 101.0,
+        "Volume": 120.0,
+        "ma_short": 100.0,
+        "ma_medium": 95.0,
+        "ma_long": 90.0,
+        "support": 90.0,
+        "average_volume": 100.0,
+        "atr": 3.0,
+    }
+    return pd.Series({**values, **updates})
 
-    assert signal_portfolio_runner._is_two_day_middle_recovery_entry(
-        before_cross,
-        cross_day,
-        confirmation_day,
-    )
+
+def test_signal_portfolio_entry_requires_trend_pullback_pin_bar_and_volume():
+    config = _request().strategy
+
+    assert signal_portfolio_runner._is_trend_pullback_pin_bar(_pin_bar_row(), config)
 
 
 @pytest.mark.parametrize(
-    ("before_updates", "cross_updates", "confirmation_updates"),
+    "updates",
     [
-        ({"Close": 101.0}, {}, {}),
-        ({}, {"Low": 89.0}, {}),
-        ({}, {"High": 110.0}, {}),
-        ({}, {}, {"Close": 100.0}),
-        ({}, {}, {"Low": 90.0}),
-        ({}, {}, {"High": 111.0}),
+        {"ma_short": 94.0},
+        {"Close": 110.0, "Low": 100.0, "support": 90.0},
+        {"Low": 99.0},
+        {"High": 110.0},
+        {"Volume": 119.0},
     ],
 )
-def test_signal_portfolio_entry_rejects_when_recovery_conditions_are_missing(
-    before_updates,
-    cross_updates,
-    confirmation_updates,
-):
-    before_cross = pd.Series({"Close": 99.0, "middle": 100.0, **before_updates})
-    cross_day = pd.Series(
-        {
-            "Close": 101.0,
-            "middle": 100.0,
-            "Low": 95.0,
-            "lower": 90.0,
-            "High": 105.0,
-            "upper": 110.0,
-            **cross_updates,
-        }
-    )
-    confirmation_day = pd.Series(
-        {
-            "Close": 102.0,
-            "middle": 100.5,
-            "Low": 96.0,
-            "lower": 91.0,
-            "High": 106.0,
-            "upper": 111.0,
-            **confirmation_updates,
-        }
-    )
+def test_signal_portfolio_entry_rejects_when_any_core_filter_is_missing(updates):
+    config = _request().strategy
 
-    assert not signal_portfolio_runner._is_two_day_middle_recovery_entry(
-        before_cross,
-        cross_day,
-        confirmation_day,
+    assert not signal_portfolio_runner._is_trend_pullback_pin_bar(
+        _pin_bar_row(**updates),
+        config,
     )
 
 
-def test_signal_portfolio_buy_day_upper_touch_exits_next_open(monkeypatch):
+def test_signal_portfolio_buy_day_reward_target_exits_next_open(monkeypatch):
     frame = _frame(100)
+    frame.loc[frame.index[2], "High"] = 105.0
 
     def fake_signal_frame(data, request):
         result = data.copy()
-        result["upper"] = 100.25
+        result["ma_short"] = 99.0
+        result["atr"] = 2.0
         result["entry_signal"] = False
         result["signal_strength"] = 0.0
         result.loc[result.index[1], "entry_signal"] = True
@@ -179,4 +165,58 @@ def test_signal_portfolio_buy_day_upper_touch_exits_next_open(monkeypatch):
 
     assert sells[0]["date"] == "2025-01-06"
     assert sells[0]["price"] == 100.0
-    assert sells[0]["reason"] == "upper_band_t1"
+    assert sells[0]["reason"] == "reward_target_t1"
+
+
+@pytest.mark.parametrize("entry_day_open", [100.0, 104.0])
+def test_signal_portfolio_skips_missing_breakout_or_excessive_gap(monkeypatch, entry_day_open):
+    frame = _frame(100)
+    frame.loc[frame.index[2], "Open"] = entry_day_open
+    frame.loc[frame.index[2], "High"] = 100.5 if entry_day_open == 100.0 else 105.0
+
+    def fake_signal_frame(data, request):
+        result = data.copy()
+        result["ma_short"] = 99.0
+        result["atr"] = 2.0
+        result["entry_signal"] = False
+        result["signal_strength"] = 0.0
+        result.loc[result.index[1], "High"] = 101.0 if entry_day_open == 100.0 else 100.5
+        result.loc[result.index[1], "entry_signal"] = True
+        result.loc[result.index[1], "signal_strength"] = 0.1
+        return result
+
+    monkeypatch.setattr(signal_portfolio_runner, "_build_signal_frame", fake_signal_frame)
+    request = _request().model_copy(
+        update={"universe": _request().universe.model_copy(update={"symbols": ["SH603019"]})}
+    )
+
+    result = run_signal_portfolio_with_data(request, {"SH603019": frame})
+
+    assert not [trade for trade in result.trades if trade["side"] == "buy"]
+
+
+def test_signal_portfolio_trend_weakness_exits_at_next_open(monkeypatch):
+    frame = _frame(100)
+    frame.loc[frame.index[3], ["High", "Close"]] = [100.5, 98.0]
+
+    def fake_signal_frame(data, request):
+        result = data.copy()
+        result["ma_short"] = 99.0
+        result["atr"] = 2.0
+        result["entry_signal"] = False
+        result["signal_strength"] = 0.0
+        result.loc[result.index[1], "entry_signal"] = True
+        result.loc[result.index[1], "signal_strength"] = 0.1
+        return result
+
+    monkeypatch.setattr(signal_portfolio_runner, "_build_signal_frame", fake_signal_frame)
+    request = _request().model_copy(
+        update={"universe": _request().universe.model_copy(update={"symbols": ["SH603019"]})}
+    )
+
+    result = run_signal_portfolio_with_data(request, {"SH603019": frame})
+    sells = [trade for trade in result.trades if trade["side"] == "sell"]
+
+    assert sells[0]["date"] == "2025-01-07"
+    assert sells[0]["price"] == 100.0
+    assert sells[0]["reason"] == "trend_weak"

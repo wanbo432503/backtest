@@ -77,21 +77,62 @@ class SignalUniverseConfig(BaseModel):
         return self
 
 
-class BollMiddleRecoverySignalConfig(BaseModel):
+class TrendPullbackPinBarSignalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    strategy_name: Literal["boll_middle_recovery"] = "boll_middle_recovery"
-    boll_period: int = 20
-    boll_stddev: float = 2.0
-    confirmation_days: Literal[2] = 2
-    stop_loss_pct: Literal[3.0] = 3.0
+    strategy_name: Literal["trend_pullback_pin_bar"] = "trend_pullback_pin_bar"
+    short_ma_period: int = 20
+    medium_ma_period: int = 60
+    long_ma_period: int = 120
+    ma_distance_pct: float = 3.0
+    support_lookback: int = 20
+    support_tolerance_pct: float = 1.0
+    lower_shadow_body_ratio: float = 2.5
+    max_body_range_pct: float = 30.0
+    min_close_location_pct: float = 65.0
+    max_upper_shadow_range_pct: float = 20.0
+    volume_lookback: int = 20
+    volume_multiplier: float = 1.2
+    atr_period: int = 14
+    min_stop_distance_pct: float = 1.5
+    max_stop_distance_pct: float = 6.0
+    reward_risk_ratio: float = 2.0
+    max_entry_gap_pct: float = 3.0
+    risk_per_trade_pct: float = 0.5
+    price_tick: Literal[0.01] = 0.01
 
     @model_validator(mode="after")
-    def validate_parameters(self) -> "BollMiddleRecoverySignalConfig":
-        if self.boll_period < 2:
-            raise ValueError("boll_period must be at least 2")
-        if self.boll_stddev <= 0:
-            raise ValueError("boll_stddev must be greater than 0")
+    def validate_parameters(self) -> "TrendPullbackPinBarSignalConfig":
+        periods = [
+            self.short_ma_period,
+            self.medium_ma_period,
+            self.long_ma_period,
+        ]
+        if periods != sorted(periods) or len(set(periods)) != 3:
+            raise ValueError("moving-average periods must be strictly increasing")
+        if min(periods) < 2 or min(self.support_lookback, self.volume_lookback, self.atr_period) < 2:
+            raise ValueError("strategy lookback periods must be at least 2")
+        if not 0 < self.ma_distance_pct <= 20 or not 0 < self.support_tolerance_pct <= 20:
+            raise ValueError("pullback distance percentages must be within (0, 20]")
+        if self.lower_shadow_body_ratio < 1:
+            raise ValueError("lower_shadow_body_ratio must be at least 1")
+        bounded_percentages = [
+            self.max_body_range_pct,
+            self.min_close_location_pct,
+            self.max_upper_shadow_range_pct,
+            self.min_stop_distance_pct,
+            self.max_stop_distance_pct,
+            self.max_entry_gap_pct,
+            self.risk_per_trade_pct,
+        ]
+        if any(value <= 0 or value > 100 for value in bounded_percentages):
+            raise ValueError("strategy percentages must be within (0, 100]")
+        if self.min_stop_distance_pct >= self.max_stop_distance_pct:
+            raise ValueError("min_stop_distance_pct must be below max_stop_distance_pct")
+        if not 1 <= self.volume_multiplier <= 10:
+            raise ValueError("volume_multiplier must be between 1 and 10")
+        if not 2 <= self.reward_risk_ratio <= 3:
+            raise ValueError("reward_risk_ratio must be between 2 and 3")
         return self
 
 
@@ -122,13 +163,13 @@ class SignalPortfolioBacktestRequest(BaseModel):
     initial_cash: float = 100000
     data_provider: str = "auto"
     universe: SignalUniverseConfig
-    strategy: BollMiddleRecoverySignalConfig = Field(
-        default_factory=BollMiddleRecoverySignalConfig
+    strategy: TrendPullbackPinBarSignalConfig = Field(
+        default_factory=TrendPullbackPinBarSignalConfig
     )
     trading: AShareTradingConfig = Field(default_factory=AShareTradingConfig)
     risk: SignalPortfolioRiskConfig = Field(default_factory=SignalPortfolioRiskConfig)
     selection: SelectionConfig = Field(
-        default_factory=lambda: SelectionConfig(top_n=5, min_history_bars=120)
+        default_factory=lambda: SelectionConfig(top_n=5, min_history_bars=150)
     )
     factors: FactorConfig = Field(default_factory=FactorConfig)
     selection_strategy: None = None

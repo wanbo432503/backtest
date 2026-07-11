@@ -9,7 +9,6 @@ import pandas as pd
 from a_share_rules import apply_slippage, calculate_trade_cost, can_buy, can_sell, round_lot_shares
 from selection_engine import build_trading_calendar
 from signal_portfolio_models import SignalPortfolioBacktestRequest, SignalPortfolioBacktestResult
-from strategies.boll_macd_breakout import bollinger_middle, bollinger_upper
 from universe_scan_runner import load_universe_scan_data
 
 
@@ -21,6 +20,7 @@ class SignalPosition:
     entry_price: float
     entry_cost: float
     stop_price: float
+    target_price: float
     holding_bars: int = 0
     exit_next_open_reason: str | None = None
 
@@ -114,6 +114,9 @@ def run_signal_portfolio_with_data(
                     "date": _date_str(date),
                     "symbol": symbol,
                     "strength": round(float(row.get("signal_strength", 0)), 8),
+                    "trigger_price": round(float(row["High"]), 6),
+                    "pin_low": round(float(row["Low"]), 6),
+                    "atr": round(float(row["atr"]), 6),
                 }
                 pending_entries[symbol] = event
                 signal_events.append(event)
@@ -155,79 +158,106 @@ def _build_signal_frame(data: pd.DataFrame, request: SignalPortfolioBacktestRequ
     config = request.strategy
     frame = data.copy()
     close = frame["Close"].astype(float)
-    frame["middle"] = bollinger_middle(close, config.boll_period)
-    frame["upper"] = bollinger_upper(close, config.boll_period, config.boll_stddev)
-    frame["lower"] = _bollinger_lower(close, config.boll_period, config.boll_stddev)
+    high = frame["High"].astype(float)
+    low = frame["Low"].astype(float)
+    volume = frame["Volume"].astype(float)
+    frame["ma_short"] = close.rolling(config.short_ma_period).mean()
+    frame["ma_medium"] = close.rolling(config.medium_ma_period).mean()
+    frame["ma_long"] = close.rolling(config.long_ma_period).mean()
+    frame["support"] = low.shift(1).rolling(config.support_lookback).min()
+    frame["average_volume"] = volume.shift(1).rolling(config.volume_lookback).mean()
+    previous_close = close.shift(1)
+    true_range = pd.concat(
+        [
+            high - low,
+            (high - previous_close).abs(),
+            (low - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    frame["atr"] = true_range.rolling(config.atr_period).mean()
     signals = []
     strengths = []
-    min_bars = config.boll_period + config.confirmation_days
+    min_bars = max(
+        config.long_ma_period,
+        config.support_lookback + 1,
+        config.volume_lookback + 1,
+        config.atr_period + 1,
+    )
     for index in range(len(frame)):
-        if index < 2 or index + 1 < min_bars:
+        if index + 1 < min_bars:
             signals.append(False)
             strengths.append(0.0)
             continue
-        before_cross = frame.iloc[index - 2]
-        cross_day = frame.iloc[index - 1]
-        confirmation_day = frame.iloc[index]
-        signal = _is_two_day_middle_recovery_entry(
-            before_cross,
-            cross_day,
-            confirmation_day,
-        )
+        current = frame.iloc[index]
+        signal = _is_trend_pullback_pin_bar(current, config)
         signals.append(signal)
-        close_price = float(confirmation_day["Close"])
-        upper = float(confirmation_day["upper"])
-        upside_room = (upper - close_price) / close_price if close_price > 0 else 0.0
-        strengths.append(upside_room if signal else 0.0)
+        strengths.append(_pin_bar_signal_strength(current) if signal else 0.0)
     frame["entry_signal"] = signals
     frame["signal_strength"] = strengths
     return frame
 
 
-def _bollinger_lower(values, period: int, stddev: float):
-    prices = pd.Series(values, dtype="float64")
-    rolling = prices.rolling(period)
-    return (rolling.mean() - rolling.std(ddof=0) * stddev).to_numpy()
-
-
-def _is_two_day_middle_recovery_entry(
-    before_cross: pd.Series,
-    cross_day: pd.Series,
-    confirmation_day: pd.Series,
-) -> bool:
+def _is_trend_pullback_pin_bar(current: pd.Series, config) -> bool:
     required_values = [
-        before_cross["Close"],
-        before_cross["middle"],
-        cross_day["Close"],
-        cross_day["middle"],
-        cross_day["Low"],
-        cross_day["lower"],
-        cross_day["High"],
-        cross_day["upper"],
-        confirmation_day["Close"],
-        confirmation_day["middle"],
-        confirmation_day["Low"],
-        confirmation_day["lower"],
-        confirmation_day["High"],
-        confirmation_day["upper"],
+        current["Open"],
+        current["High"],
+        current["Low"],
+        current["Close"],
+        current["Volume"],
+        current["ma_short"],
+        current["ma_medium"],
+        current["ma_long"],
+        current["support"],
+        current["average_volume"],
+        current["atr"],
     ]
     if not all(math.isfinite(float(value)) for value in required_values):
         return False
 
-    crossed_middle = (
-        float(before_cross["Close"]) <= float(before_cross["middle"])
-        and float(cross_day["Close"]) > float(cross_day["middle"])
+    open_price = float(current["Open"])
+    high = float(current["High"])
+    low = float(current["Low"])
+    close = float(current["Close"])
+    ma_short = float(current["ma_short"])
+    ma_medium = float(current["ma_medium"])
+    ma_long = float(current["ma_long"])
+    support = float(current["support"])
+    candle_range = high - low
+    if candle_range <= 0 or ma_short <= 0 or support <= 0:
+        return False
+
+    trend_ok = ma_short > ma_medium > ma_long and close > ma_medium
+    near_ma = abs(close / ma_short - 1) * 100 <= config.ma_distance_pct
+    near_support = abs(low / support - 1) * 100 <= config.support_tolerance_pct
+
+    body = abs(close - open_price)
+    lower_shadow = min(open_price, close) - low
+    upper_shadow = high - max(open_price, close)
+    close_location_pct = (close - low) / candle_range * 100
+    pin_bar_ok = (
+        lower_shadow >= body * config.lower_shadow_body_ratio
+        and body / candle_range * 100 <= config.max_body_range_pct
+        and close_location_pct >= config.min_close_location_pct
+        and upper_shadow / candle_range * 100 <= config.max_upper_shadow_range_pct
     )
-    cross_day_is_stable = (
-        float(cross_day["Low"]) >= float(cross_day["lower"])
-        and float(cross_day["High"]) < float(cross_day["upper"])
+    volume_ok = (
+        float(current["average_volume"]) > 0
+        and float(current["Volume"])
+        >= float(current["average_volume"]) * config.volume_multiplier
     )
-    confirmation_day_is_stable = (
-        float(confirmation_day["Close"]) > float(confirmation_day["middle"])
-        and float(confirmation_day["Low"]) >= float(confirmation_day["lower"])
-        and float(confirmation_day["High"]) < float(confirmation_day["upper"])
+    return trend_ok and (near_ma or near_support) and pin_bar_ok and volume_ok
+
+
+def _pin_bar_signal_strength(current: pd.Series) -> float:
+    candle_range = float(current["High"]) - float(current["Low"])
+    volume_ratio = float(current["Volume"]) / float(current["average_volume"])
+    close_location = (float(current["Close"]) - float(current["Low"])) / candle_range
+    trend_spread = (
+        float(current["ma_short"]) / float(current["ma_medium"]) - 1
+        + float(current["ma_medium"]) / float(current["ma_long"]) - 1
     )
-    return crossed_middle and cross_day_is_stable and confirmation_day_is_stable
+    return volume_ratio * 0.5 + close_location * 0.3 + trend_spread * 100 * 0.2
 
 
 def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contributions):
@@ -245,12 +275,13 @@ def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contr
         elif float(row["Low"]) <= position.stop_price:
             reason = "stop_loss"
             raw_price = min(float(row["Open"]), position.stop_price)
-        else:
-            upper_price = _previous_indicator(data, date, "upper")
-            if upper_price is not None and float(row["High"]) >= upper_price:
-                reason = "upper_band"
-                raw_price = max(float(row["Open"]), upper_price)
+        elif float(row["High"]) >= position.target_price:
+            reason = "reward_target"
+            raw_price = max(float(row["Open"]), position.target_price)
         if reason is None:
+            ma_short = float(row.get("ma_short", math.nan))
+            if math.isfinite(ma_short) and float(row["Close"]) < ma_short:
+                position.exit_next_open_reason = "trend_weak"
             continue
         allowed, _ = can_sell(row.to_dict(), _previous_close(data, date), position.holding_bars, request.trading)
         if not allowed:
@@ -279,17 +310,40 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
         if entry_blocked or len(positions) >= request.risk.max_positions:
             continue
         row = data.loc[date]
-        previous = data[data.index < date]
-        previous_volume = float(previous.iloc[-1]["Volume"]) if not previous.empty else float(row["Volume"])
-        open_row = {**row.to_dict(), "Close": float(row["Open"]), "Volume": previous_volume}
-        allowed, _ = can_buy(open_row, _previous_close(data, date), request.trading)
+        trigger_price = float(candidate["trigger_price"])
+        open_price = float(row["Open"])
+        if open_price > trigger_price * (1 + request.strategy.max_entry_gap_pct / 100):
+            continue
+        if float(row["High"]) < trigger_price:
+            continue
+        raw_entry_price = max(open_price, trigger_price)
+        execution_row = {**row.to_dict(), "Close": raw_entry_price}
+        allowed, _ = can_buy(execution_row, _previous_close(data, date), request.trading)
         if not allowed:
             continue
+
         equity = _portfolio_value(date, cash, positions, data_by_symbol)
+        price = apply_slippage(raw_entry_price, "buy", request.trading.slippage_pct)
+        structural_stop = float(candidate["pin_low"]) - request.strategy.price_tick
+        atr_stop = price - float(candidate["atr"])
+        stop_price = min(structural_stop, atr_stop)
+        risk_per_share = price - stop_price
+        if price <= 0 or risk_per_share <= 0:
+            continue
+        stop_distance_pct = risk_per_share / price * 100
+        if not (
+            request.strategy.min_stop_distance_pct
+            <= stop_distance_pct
+            <= request.strategy.max_stop_distance_pct
+        ):
+            continue
+
         slot_pct = min(request.risk.max_position_pct, request.risk.target_gross_exposure / request.risk.max_positions)
-        budget = min(cash, equity * slot_pct)
-        price = apply_slippage(float(row["Open"]), "buy", request.trading.slippage_pct)
-        shares = round_lot_shares(budget / price, request.trading.lot_size)
+        position_budget = min(cash, equity * slot_pct)
+        risk_budget = equity * request.strategy.risk_per_trade_pct / 100
+        budget_shares = round_lot_shares(position_budget / price, request.trading.lot_size)
+        risk_shares = round_lot_shares(risk_budget / risk_per_share, request.trading.lot_size)
+        shares = min(budget_shares, risk_shares)
         while shares > 0:
             amount = shares * price
             cost = calculate_trade_cost(amount, "buy", request.trading)
@@ -300,17 +354,14 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
             continue
         amount = shares * price
         cost = calculate_trade_cost(amount, "buy", request.trading)
-        stop_price = price * (1 - request.strategy.stop_loss_pct / 100)
-        previous_upper = float(previous.iloc[-1]["upper"]) if not previous.empty else None
+        target_price = price + risk_per_share * request.strategy.reward_risk_ratio
         exit_next_open_reason = None
         if float(row["Low"]) <= stop_price:
             exit_next_open_reason = "stop_loss_t1"
-        elif (
-            previous_upper is not None
-            and math.isfinite(previous_upper)
-            and float(row["High"]) >= previous_upper
-        ):
-            exit_next_open_reason = "upper_band_t1"
+        elif float(row["High"]) >= target_price:
+            exit_next_open_reason = "reward_target_t1"
+        elif float(row["Close"]) < float(row["ma_short"]):
+            exit_next_open_reason = "trend_weak"
         cash -= amount + cost
         positions[symbol] = SignalPosition(
             symbol=symbol,
@@ -319,6 +370,7 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
             entry_price=price,
             entry_cost=cost,
             stop_price=stop_price,
+            target_price=target_price,
             exit_next_open_reason=exit_next_open_reason,
         )
         contributions.setdefault(symbol, {"realized_pnl": 0.0, "round_trips": 0})
@@ -340,14 +392,6 @@ def _row_at(data, date):
 def _previous_close(data, date):
     previous = data[data.index < date]
     return float(previous.iloc[-1]["Close"]) if not previous.empty else float(data.loc[date]["Open"])
-
-
-def _previous_indicator(data, date, column):
-    previous = data[data.index < date]
-    if previous.empty or column not in previous.columns:
-        return None
-    value = float(previous.iloc[-1][column])
-    return value if math.isfinite(value) else None
 
 
 def _gross_exposure(date, positions, data_by_symbol):
@@ -374,7 +418,7 @@ def _position_rows(date, positions, data_by_symbol):
     rows = []
     for symbol, position in positions.items():
         price = float(_row_at(data_by_symbol[symbol], date)["Close"])
-        rows.append({"symbol": symbol, "shares": position.shares, "entry_date": position.entry_date, "entry_price": position.entry_price, "price": round(price, 6), "market_value": round(position.shares * price, 6), "unrealized_pnl": round(position.shares * (price - position.entry_price) - position.entry_cost, 6), "holding_bars": position.holding_bars})
+        rows.append({"symbol": symbol, "shares": position.shares, "entry_date": position.entry_date, "entry_price": position.entry_price, "stop_price": round(position.stop_price, 6), "target_price": round(position.target_price, 6), "price": round(price, 6), "market_value": round(position.shares * price, 6), "unrealized_pnl": round(position.shares * (price - position.entry_price) - position.entry_cost, 6), "holding_bars": position.holding_bars})
     return rows
 
 

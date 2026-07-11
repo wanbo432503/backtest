@@ -1001,7 +1001,7 @@ SZ002241</textarea>
                         <div class="card-body">
                             <form id="signalPortfolioBacktestForm">
                                 <div class="portfolio-optimization-note mb-3">
-                                    每只股票独立扫描 BOLL 中轨修复信号，第1天上穿中轨、连续2天确认后，第3个交易日开盘买入；所有持仓共享一个现金账户。
+                                    每只股票独立扫描多头趋势中的回调 Pin Bar，次日突破形态最高价才买入；所有持仓共享现金，并按单笔风险控制仓位。
                                 </div>
                                 <div class="compact-row">
                                     <div class="mb-3">
@@ -1032,13 +1032,22 @@ SZ000651</textarea>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
                                     <div class="portfolio-optimization-note mt-2 mb-2">
-                                        第1天收盘上穿中轨；第1、2天均不下穿下轨、不触及上轨，且第2天收盘仍在中轨上方；第3个交易日开盘买入。持仓后触及上轨盘中卖出；买入当天触及上轨则按 T+1 于次日开盘卖出。固定止损 3%，不设固定止盈线。
+                                        MA20 &gt; MA60 &gt; MA120 且股价在 MA60 上方；价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或收盘跌破 MA20 退出。
                                     </div>
                                     <div class="portfolio-factor-grid mt-2">
-                                        <div><label for="signalBollPeriod" class="form-label">BOLL周期</label><input type="number" class="form-control" id="signalBollPeriod" value="20" min="5"></div>
-                                        <div><label for="signalBollStddev" class="form-label">标准差倍数</label><input type="number" class="form-control" id="signalBollStddev" value="2" min="0.5" step="0.1"></div>
-                                        <div><label class="form-label">确认天数</label><div class="form-control bg-light">2 天（固定）</div></div>
-                                        <div><label class="form-label">止损</label><div class="form-control bg-light">3%（固定）</div></div>
+                                        <div><label for="signalShortMa" class="form-label">短期均线</label><input type="number" class="form-control" id="signalShortMa" value="20" min="2"></div>
+                                        <div><label for="signalMediumMa" class="form-label">中期均线</label><input type="number" class="form-control" id="signalMediumMa" value="60" min="3"></div>
+                                        <div><label for="signalLongMa" class="form-label">长期均线</label><input type="number" class="form-control" id="signalLongMa" value="120" min="4"></div>
+                                        <div><label for="signalMaDistancePct" class="form-label">距MA20上限 (%)</label><input type="number" class="form-control" id="signalMaDistancePct" value="3" min="0.1" max="20" step="0.1"></div>
+                                        <div><label for="signalSupportLookback" class="form-label">支撑回看天数</label><input type="number" class="form-control" id="signalSupportLookback" value="20" min="2"></div>
+                                        <div><label for="signalSupportTolerancePct" class="form-label">支撑距离 (%)</label><input type="number" class="form-control" id="signalSupportTolerancePct" value="1" min="0.1" max="20" step="0.1"></div>
+                                        <div><label for="signalLowerShadowRatio" class="form-label">下影/实体倍数</label><input type="number" class="form-control" id="signalLowerShadowRatio" value="2.5" min="1" step="0.1"></div>
+                                        <div><label for="signalMaxBodyPct" class="form-label">实体占比上限 (%)</label><input type="number" class="form-control" id="signalMaxBodyPct" value="30" min="1" max="100" step="1"></div>
+                                        <div><label for="signalVolumeMultiplier" class="form-label">量能倍数</label><input type="number" class="form-control" id="signalVolumeMultiplier" value="1.2" min="1" max="10" step="0.1"></div>
+                                        <div><label for="signalAtrPeriod" class="form-label">ATR周期</label><input type="number" class="form-control" id="signalAtrPeriod" value="14" min="2"></div>
+                                        <div><label for="signalRewardRiskRatio" class="form-label">止盈R倍数</label><input type="number" class="form-control" id="signalRewardRiskRatio" value="2" min="2" max="3" step="0.5"></div>
+                                        <div><label for="signalMaxEntryGapPct" class="form-label">最大高开 (%)</label><input type="number" class="form-control" id="signalMaxEntryGapPct" value="3" min="0.1" max="20" step="0.1"></div>
+                                        <div><label for="signalRiskPerTradePct" class="form-label">单笔账户风险 (%)</label><input type="number" class="form-control" id="signalRiskPerTradePct" value="0.5" min="0.1" max="5" step="0.1"></div>
                                     </div>
                                 </details>
                                 <details class="config-panel border rounded p-2 mb-3" open>
@@ -1051,7 +1060,7 @@ SZ000651</textarea>
                                         <div><label for="signalStartDate" class="form-label">开始日期</label><input type="date" class="form-control" id="signalStartDate" required></div>
                                         <div><label for="signalEndDate" class="form-label">结束日期</label><input type="date" class="form-control" id="signalEndDate" required></div>
                                         <div><label for="signalDataProvider" class="form-label">数据源</label><select class="form-select" id="signalDataProvider"><option value="auto" selected>自动（优先 mootdx）</option><option value="mootdx">mootdx</option><option value="yfinance">yfinance</option></select></div>
-                                        <div><label for="signalMinHistoryBars" class="form-label">最少历史K线</label><input type="number" class="form-control" id="signalMinHistoryBars" value="120" min="50"></div>
+                                        <div><label for="signalMinHistoryBars" class="form-label">最少历史K线</label><input type="number" class="form-control" id="signalMinHistoryBars" value="150" min="120"></div>
                                     </div>
                                 </details>
                                 <button type="submit" class="btn btn-info text-white w-100" id="submitSignalPortfolioButton">
@@ -2137,11 +2146,26 @@ SZ000651</textarea>
                     exclude_funds: true
                 },
                 strategy: {
-                    strategy_name: 'boll_middle_recovery',
-                    boll_period: readNumber('signalBollPeriod', 20),
-                    boll_stddev: readNumber('signalBollStddev', 2),
-                    confirmation_days: 2,
-                    stop_loss_pct: 3
+                    strategy_name: 'trend_pullback_pin_bar',
+                    short_ma_period: readNumber('signalShortMa', 20),
+                    medium_ma_period: readNumber('signalMediumMa', 60),
+                    long_ma_period: readNumber('signalLongMa', 120),
+                    ma_distance_pct: readNumber('signalMaDistancePct', 3),
+                    support_lookback: readNumber('signalSupportLookback', 20),
+                    support_tolerance_pct: readNumber('signalSupportTolerancePct', 1),
+                    lower_shadow_body_ratio: readNumber('signalLowerShadowRatio', 2.5),
+                    max_body_range_pct: readNumber('signalMaxBodyPct', 30),
+                    min_close_location_pct: 65,
+                    max_upper_shadow_range_pct: 20,
+                    volume_lookback: 20,
+                    volume_multiplier: readNumber('signalVolumeMultiplier', 1.2),
+                    atr_period: readNumber('signalAtrPeriod', 14),
+                    min_stop_distance_pct: 1.5,
+                    max_stop_distance_pct: 6,
+                    reward_risk_ratio: readNumber('signalRewardRiskRatio', 2),
+                    max_entry_gap_pct: readNumber('signalMaxEntryGapPct', 3),
+                    risk_per_trade_pct: readNumber('signalRiskPerTradePct', 0.5),
+                    price_tick: 0.01
                 },
                 trading: {
                     long_only: true, t_plus_one: true, lot_size: 100,
@@ -4030,6 +4054,8 @@ SZ000651</textarea>
                 { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
                 { label: '股数', key: 'shares' }, { label: '入场日', key: 'entry_date' },
                 { label: '入场价', key: 'entry_price', value: row => formatMetric(row.entry_price) },
+                { label: '止损价', key: 'stop_price', value: row => formatMetric(row.stop_price) },
+                { label: '目标价', key: 'target_price', value: row => formatMetric(row.target_price) },
                 { label: '现价', key: 'price', value: row => formatMetric(row.price) },
                 { label: '浮盈亏', key: 'unrealized_pnl', value: row => formatPortfolioCurrency(row.unrealized_pnl) }
             ], '期末无持仓');
@@ -4042,7 +4068,10 @@ SZ000651</textarea>
             ], '暂无成交');
             renderPortfolioTable('signalPortfolioEventTable', (result.signal_events || []).slice().reverse(), [
                 { label: '日期', key: 'date' }, { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
-                { label: '突破强度', key: 'strength', value: row => formatMetric(row.strength) }
+                { label: '信号评分', key: 'strength', value: row => formatMetric(row.strength) },
+                { label: '突破价', key: 'trigger_price', value: row => formatMetric(row.trigger_price) },
+                { label: 'Pin低点', key: 'pin_low', value: row => formatMetric(row.pin_low) },
+                { label: 'ATR', key: 'atr', value: row => formatMetric(row.atr) }
             ], '未发现入场信号');
             const warnings = result.data_warnings || [];
             document.getElementById('signalPortfolioWarningsList').innerHTML = warnings.length
