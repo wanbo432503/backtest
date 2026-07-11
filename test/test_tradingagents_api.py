@@ -16,8 +16,8 @@ def test_get_tradingagents_config_masks_api_key(monkeypatch):
         main,
         "get_tradingagents_config_view",
         lambda: TradingAgentsConfigResponse(
-            repo_path="/fake/repo",
-            env_path="/fake/repo/.env",
+            repo_path="/fake/backtest",
+            env_path="/fake/backtest/.env",
             config=TradingAgentsConfigView(
                 backend_url="http://localhost:1234/v1",
                 deep_model="deep",
@@ -58,8 +58,8 @@ def test_put_tradingagents_config_saves_payload(monkeypatch):
     def fake_update(payload):
         captured["payload"] = payload
         return TradingAgentsConfigResponse(
-            repo_path="/fake/repo",
-            env_path="/fake/repo/.env",
+            repo_path="/fake/backtest",
+            env_path="/fake/backtest/.env",
             config=TradingAgentsConfigView(
                 backend_url=payload.backend_url,
                 deep_model=payload.deep_model,

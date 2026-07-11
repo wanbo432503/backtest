@@ -13,8 +13,9 @@ from tradingagents_models import (
 )
 
 
-TRADINGAGENTS_REPO_PATH = Path("/Users/wanbo/knowledge/knowledge/repo/TradingAgents")
-TRADINGAGENTS_ENV_PATH = TRADINGAGENTS_REPO_PATH / ".env"
+PROJECT_ROOT = Path(__file__).resolve().parent
+TRADINGAGENTS_PROJECT_PATH = PROJECT_ROOT
+TRADINGAGENTS_ENV_PATH = PROJECT_ROOT / ".env"
 TRADINGAGENTS_INSTALL_COMMAND = "./scripts/install_dependencies.sh"
 TRADINGAGENTS_REQUIRED_IMPORTS = [
     "backtrader",

@@ -17,6 +17,13 @@ def write_env(path: Path, text: str) -> Path:
     return path
 
 
+def test_default_env_path_is_in_backtest_project():
+    expected_root = Path(__file__).resolve().parents[1]
+
+    assert tradingagents_config.TRADINGAGENTS_PROJECT_PATH == expected_root
+    assert tradingagents_config.TRADINGAGENTS_ENV_PATH == expected_root / ".env"
+
+
 def test_parse_env_file_reads_values_and_keeps_lines(tmp_path):
     env_path = write_env(
         tmp_path / ".env",
@@ -189,8 +196,18 @@ def test_install_script_installs_all_dependencies_into_current_environment():
         '"${PYTHON_BIN}" -m pip install -r requirements-tradingagents-openai-compatible.txt'
         in content
     )
-    assert '"${PYTHON_BIN}" -m pip install --no-deps -e "${TRADINGAGENTS_REPO}"' in content
-    assert str(tradingagents_config.TRADINGAGENTS_REPO_PATH) in content
+    assert (
+        '"${PYTHON_BIN}" -m pip install --no-deps '
+        '-r requirements-tradingagents-source.txt'
+    ) in content
+    assert "TRADINGAGENTS_REPO" not in content
+    assert "/Users/" not in content
+
+
+def test_tradingagents_source_requirement_uses_pinned_official_release():
+    content = Path("requirements-tradingagents-source.txt").read_text(encoding="utf-8")
+
+    assert "git+https://github.com/TauricResearch/TradingAgents.git@v0.3.1" in content
 
 
 def test_dedicated_tradingagents_env_script_is_removed():

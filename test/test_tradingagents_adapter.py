@@ -159,7 +159,7 @@ def test_build_run_config_merges_env_and_request_rounds(tmp_path):
         max_risk_rounds=3,
     )
 
-    config = build_run_config(request, env_values, repo_path=tmp_path)
+    config = build_run_config(request, env_values, project_path=tmp_path)
 
     assert config["llm_provider"] == "openai_compatible"
     assert config["backend_url"] == "http://localhost:1234/v1"
@@ -202,7 +202,7 @@ def test_run_tradingagents_analysis_stays_in_current_process_when_legacy_python_
     response = run_tradingagents_analysis(
         TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
         env_path=env_path,
-        repo_path=tmp_path,
+        project_path=tmp_path,
     )
 
     assert captured["selected_analysts"] == ["market", "news", "fundamentals"]
@@ -249,7 +249,7 @@ def test_run_tradingagents_analysis_uses_fake_graph(tmp_path):
             analysts=["market", "news"],
         ),
         env_path=env_path,
-        repo_path=tmp_path,
+        project_path=tmp_path,
         graph_class=FakeGraph,
     )
 
@@ -369,7 +369,7 @@ def test_run_tradingagents_analysis_accepts_tradingagents_tuple_result(tmp_path)
     response = run_tradingagents_analysis(
         TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
         env_path=env_path,
-        repo_path=tmp_path,
+        project_path=tmp_path,
         graph_class=FakeGraph,
     )
 
@@ -394,7 +394,7 @@ def test_run_tradingagents_analysis_sanitizes_graph_errors(tmp_path):
         run_tradingagents_analysis(
             TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
             env_path=env_path,
-            repo_path=tmp_path,
+            project_path=tmp_path,
             graph_class=BrokenGraph,
         )
 
@@ -410,5 +410,5 @@ def test_run_tradingagents_analysis_wraps_import_errors(tmp_path):
         run_tradingagents_analysis(
             TradingAgentsAnalysisRequest(symbol="SZ002241", analysis_date="2026-07-05"),
             env_path=env_path,
-            repo_path=tmp_path,
+            project_path=tmp_path,
         )

@@ -2,13 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TRADINGAGENTS_REPO="${TRADINGAGENTS_REPO:-/Users/wanbo/knowledge/knowledge/repo/TradingAgents}"
 PYTHON_BIN="${PYTHON:-python}"
-
-if [ ! -d "${TRADINGAGENTS_REPO}" ]; then
-    echo "TradingAgents repo not found: ${TRADINGAGENTS_REPO}" >&2
-    exit 1
-fi
 
 cd "${ROOT_DIR}"
 
@@ -18,7 +12,7 @@ echo "Using Python:"
 "${PYTHON_BIN}" -m pip install --upgrade pip
 "${PYTHON_BIN}" -m pip install -r requirements.txt
 "${PYTHON_BIN}" -m pip install -r requirements-tradingagents-openai-compatible.txt
-"${PYTHON_BIN}" -m pip install --no-deps -e "${TRADINGAGENTS_REPO}"
+"${PYTHON_BIN}" -m pip install --no-deps -r requirements-tradingagents-source.txt
 
 "${PYTHON_BIN}" - <<'PY'
 import importlib.util

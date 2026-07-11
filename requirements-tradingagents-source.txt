@@ -1,0 +1,3 @@
+# TradingAgents is not published on PyPI. Install the packaged source from the
+# official repository and pin the release so installs are reproducible.
+tradingagents @ git+https://github.com/TauricResearch/TradingAgents.git@v0.3.1

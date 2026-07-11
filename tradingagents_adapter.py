@@ -9,7 +9,11 @@ from typing import Callable
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from tradingagents_config import TRADINGAGENTS_ENV_PATH, TRADINGAGENTS_REPO_PATH, parse_env_file
+from tradingagents_config import (
+    TRADINGAGENTS_ENV_PATH,
+    TRADINGAGENTS_PROJECT_PATH,
+    parse_env_file,
+)
 from tradingagents_models import (
     ALLOWED_ANALYSTS,
     TradingAgentsAnalysisRequest,
@@ -115,12 +119,12 @@ def load_tradingagents_env(env_path: Path = TRADINGAGENTS_ENV_PATH) -> dict[str,
 def build_run_config(
     request: TradingAgentsAnalysisRequest,
     env_values: dict[str, str],
-    repo_path: Path = TRADINGAGENTS_REPO_PATH,
+    project_path: Path = TRADINGAGENTS_PROJECT_PATH,
     base_config: dict | None = None,
 ) -> dict:
     config = dict(base_config or {})
     home = Path.home() / ".tradingagents"
-    config.setdefault("project_dir", str(repo_path))
+    config.setdefault("project_dir", str(project_path))
     config.setdefault("results_dir", str(home / "logs"))
     config.setdefault("data_cache_dir", str(home / "cache"))
     config.setdefault("memory_log_path", str(home / "memory" / "trading_memory.md"))
@@ -147,7 +151,7 @@ def build_run_config(
 def run_tradingagents_analysis(
     request: TradingAgentsAnalysisRequest,
     env_path: Path = TRADINGAGENTS_ENV_PATH,
-    repo_path: Path = TRADINGAGENTS_REPO_PATH,
+    project_path: Path = TRADINGAGENTS_PROJECT_PATH,
     graph_class=None,
 ) -> TradingAgentsAnalysisResponse:
     selected_analysts = validate_analysts(request.analysts)
@@ -158,10 +162,15 @@ def run_tradingagents_analysis(
     started_at = monotonic()
 
     try:
-        with temporary_sys_path(repo_path), temporary_environ(env_values):
+        with temporary_environ(env_values):
             base_config = None if graph_class is not None else _load_default_config()
             graph_cls = graph_class or _load_tradingagents_graph_class()
-            config = build_run_config(request, env_values, repo_path=repo_path, base_config=base_config)
+            config = build_run_config(
+                request,
+                env_values,
+                project_path=project_path,
+                base_config=base_config,
+            )
             graph = graph_cls(selected_analysts, config=config, debug=True)
             final_state = _coerce_final_state(
                 graph.propagate(ticker, request.analysis_date, asset_type="stock")
