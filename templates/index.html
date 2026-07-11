@@ -1032,31 +1032,34 @@ SZ000651</textarea>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
                                     <div class="portfolio-optimization-note mt-2 mb-2">
-                                        MA20 &gt; MA60 &gt; MA120 且股价在 MA60 上方；价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或收盘跌破 MA20 退出。
+                                        MA20 &gt; MA60 &gt; MA120、股价在 MA60 上方，且股票池超过50%的有效股票位于 MA60 上方；价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或连续两日收盘跌破 MA20 退出，同票退出后默认冷却20日。
                                     </div>
                                     <div class="portfolio-factor-grid mt-2">
                                         <div><label for="signalShortMa" class="form-label">短期均线</label><input type="number" class="form-control" id="signalShortMa" value="20" min="2"></div>
                                         <div><label for="signalMediumMa" class="form-label">中期均线</label><input type="number" class="form-control" id="signalMediumMa" value="60" min="3"></div>
                                         <div><label for="signalLongMa" class="form-label">长期均线</label><input type="number" class="form-control" id="signalLongMa" value="120" min="4"></div>
-                                        <div><label for="signalMaDistancePct" class="form-label">距MA20上限 (%)</label><input type="number" class="form-control" id="signalMaDistancePct" value="3" min="0.1" max="20" step="0.1"></div>
+                                        <div><label for="signalMaDistancePct" class="form-label">距MA20上限 (%)</label><input type="number" class="form-control" id="signalMaDistancePct" value="2" min="0.1" max="20" step="0.1"></div>
                                         <div><label for="signalSupportLookback" class="form-label">支撑回看天数</label><input type="number" class="form-control" id="signalSupportLookback" value="20" min="2"></div>
                                         <div><label for="signalSupportTolerancePct" class="form-label">支撑距离 (%)</label><input type="number" class="form-control" id="signalSupportTolerancePct" value="1" min="0.1" max="20" step="0.1"></div>
                                         <div><label for="signalLowerShadowRatio" class="form-label">下影/实体倍数</label><input type="number" class="form-control" id="signalLowerShadowRatio" value="2.5" min="1" step="0.1"></div>
                                         <div><label for="signalMaxBodyPct" class="form-label">实体占比上限 (%)</label><input type="number" class="form-control" id="signalMaxBodyPct" value="30" min="1" max="100" step="1"></div>
-                                        <div><label for="signalVolumeMultiplier" class="form-label">量能倍数</label><input type="number" class="form-control" id="signalVolumeMultiplier" value="1.2" min="1" max="10" step="0.1"></div>
+                                        <div><label for="signalVolumeMultiplier" class="form-label">量能倍数</label><input type="number" class="form-control" id="signalVolumeMultiplier" value="1.3" min="1" max="10" step="0.1"></div>
                                         <div><label for="signalAtrPeriod" class="form-label">ATR周期</label><input type="number" class="form-control" id="signalAtrPeriod" value="14" min="2"></div>
-                                        <div><label for="signalRewardRiskRatio" class="form-label">止盈R倍数</label><input type="number" class="form-control" id="signalRewardRiskRatio" value="2" min="2" max="3" step="0.5"></div>
-                                        <div><label for="signalMaxEntryGapPct" class="form-label">最大高开 (%)</label><input type="number" class="form-control" id="signalMaxEntryGapPct" value="3" min="0.1" max="20" step="0.1"></div>
+                                        <div><label for="signalRewardRiskRatio" class="form-label">止盈R倍数</label><input type="number" class="form-control" id="signalRewardRiskRatio" value="2.5" min="2" max="3" step="0.5"></div>
+                                        <div><label for="signalMaxEntryGapPct" class="form-label">最大高开 (%)</label><input type="number" class="form-control" id="signalMaxEntryGapPct" value="2" min="0.1" max="20" step="0.1"></div>
                                         <div><label for="signalRiskPerTradePct" class="form-label">单笔账户风险 (%)</label><input type="number" class="form-control" id="signalRiskPerTradePct" value="0.5" min="0.1" max="5" step="0.1"></div>
+                                        <div><label for="signalMarketBreadthPct" class="form-label">MA60市场宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthPct" value="50" min="1" max="99" step="1"></div>
+                                        <div><label for="signalCooldownDays" class="form-label">同票冷却天数</label><input type="number" class="form-control" id="signalCooldownDays" value="20" min="0" max="252"></div>
+                                        <div><label class="form-label">趋势退出确认</label><div class="form-control bg-light">连续 2 日跌破 MA20</div></div>
                                     </div>
                                 </details>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-wallet"></i> 资金与区间</summary>
                                     <div class="portfolio-factor-grid mt-2">
                                         <div><label for="signalInitialCash" class="form-label">初始资金</label><input type="number" class="form-control" id="signalInitialCash" value="100000" min="10000" step="1000"></div>
-                                        <div><label for="signalMaxPositions" class="form-label">最大持仓数</label><input type="number" class="form-control" id="signalMaxPositions" value="5" min="1" max="20"></div>
-                                        <div><label for="signalMaxPositionPct" class="form-label">单票上限 (%)</label><input type="number" class="form-control" id="signalMaxPositionPct" value="20" min="5" max="100"></div>
-                                        <div><label for="signalTargetExposurePct" class="form-label">目标总仓位 (%)</label><input type="number" class="form-control" id="signalTargetExposurePct" value="95" min="5" max="100"></div>
+                                        <div><label for="signalMaxPositions" class="form-label">最大持仓数</label><input type="number" class="form-control" id="signalMaxPositions" value="10" min="1" max="20"></div>
+                                        <div><label for="signalMaxPositionPct" class="form-label">单票上限 (%)</label><input type="number" class="form-control" id="signalMaxPositionPct" value="10" min="5" max="100"></div>
+                                        <div><label for="signalTargetExposurePct" class="form-label">目标总仓位 (%)</label><input type="number" class="form-control" id="signalTargetExposurePct" value="85" min="5" max="100"></div>
                                         <div><label for="signalStartDate" class="form-label">开始日期</label><input type="date" class="form-control" id="signalStartDate" required></div>
                                         <div><label for="signalEndDate" class="form-label">结束日期</label><input type="date" class="form-control" id="signalEndDate" required></div>
                                         <div><label for="signalDataProvider" class="form-label">数据源</label><select class="form-select" id="signalDataProvider"><option value="auto" selected>自动（优先 mootdx）</option><option value="mootdx">mootdx</option><option value="yfinance">yfinance</option></select></div>
@@ -2150,7 +2153,7 @@ SZ000651</textarea>
                     short_ma_period: readNumber('signalShortMa', 20),
                     medium_ma_period: readNumber('signalMediumMa', 60),
                     long_ma_period: readNumber('signalLongMa', 120),
-                    ma_distance_pct: readNumber('signalMaDistancePct', 3),
+                    ma_distance_pct: readNumber('signalMaDistancePct', 2),
                     support_lookback: readNumber('signalSupportLookback', 20),
                     support_tolerance_pct: readNumber('signalSupportTolerancePct', 1),
                     lower_shadow_body_ratio: readNumber('signalLowerShadowRatio', 2.5),
@@ -2158,13 +2161,16 @@ SZ000651</textarea>
                     min_close_location_pct: 65,
                     max_upper_shadow_range_pct: 20,
                     volume_lookback: 20,
-                    volume_multiplier: readNumber('signalVolumeMultiplier', 1.2),
+                    volume_multiplier: readNumber('signalVolumeMultiplier', 1.3),
                     atr_period: readNumber('signalAtrPeriod', 14),
                     min_stop_distance_pct: 1.5,
                     max_stop_distance_pct: 6,
-                    reward_risk_ratio: readNumber('signalRewardRiskRatio', 2),
-                    max_entry_gap_pct: readNumber('signalMaxEntryGapPct', 3),
+                    reward_risk_ratio: readNumber('signalRewardRiskRatio', 2.5),
+                    max_entry_gap_pct: readNumber('signalMaxEntryGapPct', 2),
                     risk_per_trade_pct: readNumber('signalRiskPerTradePct', 0.5),
+                    market_breadth_threshold_pct: readNumber('signalMarketBreadthPct', 50),
+                    trend_exit_confirmation_days: 2,
+                    cooldown_days: readNumber('signalCooldownDays', 20),
                     price_tick: 0.01
                 },
                 trading: {
@@ -2174,13 +2180,13 @@ SZ000651</textarea>
                     sell_commission_pct: 0.03, stamp_tax_pct: 0.05, min_commission: 5
                 },
                 risk: {
-                    max_positions: readNumber('signalMaxPositions', 5),
-                    max_position_pct: readNumber('signalMaxPositionPct', 20) / 100,
-                    target_gross_exposure: readNumber('signalTargetExposurePct', 95) / 100,
+                    max_positions: readNumber('signalMaxPositions', 10),
+                    max_position_pct: readNumber('signalMaxPositionPct', 10) / 100,
+                    target_gross_exposure: readNumber('signalTargetExposurePct', 85) / 100,
                     max_drawdown_stop_pct: 30
                 },
                 selection: {
-                    top_n: readNumber('signalMaxPositions', 5),
+                    top_n: readNumber('signalMaxPositions', 10),
                     min_history_bars: readNumber('signalMinHistoryBars', 120)
                 },
                 metadata: { ui: 'multi_stock_signal_portfolio' }
@@ -4038,6 +4044,8 @@ SZ000651</textarea>
                 `计划扫描 ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
+                `平均MA60宽度 ${diagnostics.average_market_breadth_pct == null ? '-' : formatPortfolioPct(diagnostics.average_market_breadth_pct)}`,
+                `宽度拦截 ${diagnostics.breadth_blocked_signal_count ?? '-'}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
                 `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
             ].join(' | ');
@@ -4071,7 +4079,8 @@ SZ000651</textarea>
                 { label: '信号评分', key: 'strength', value: row => formatMetric(row.strength) },
                 { label: '突破价', key: 'trigger_price', value: row => formatMetric(row.trigger_price) },
                 { label: 'Pin低点', key: 'pin_low', value: row => formatMetric(row.pin_low) },
-                { label: 'ATR', key: 'atr', value: row => formatMetric(row.atr) }
+                { label: 'ATR', key: 'atr', value: row => formatMetric(row.atr) },
+                { label: 'MA60宽度', key: 'market_breadth_pct', value: row => formatPortfolioPct(row.market_breadth_pct) }
             ], '未发现入场信号');
             const warnings = result.data_warnings || [];
             document.getElementById('signalPortfolioWarningsList').innerHTML = warnings.length

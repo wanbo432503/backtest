@@ -22,6 +22,7 @@ class SignalPosition:
     stop_price: float
     target_price: float
     holding_bars: int = 0
+    trend_weak_bars: int = 0
     exit_next_open_reason: str | None = None
 
 
@@ -56,6 +57,7 @@ def run_signal_portfolio_with_data(
         symbol: _build_signal_frame(data, request)
         for symbol, data in data_by_symbol.items()
     }
+    breadth_diagnostics = _apply_market_breadth_filter(signal_frames, request)
     calendar = build_trading_calendar(signal_frames)
     calendar = [
         date for date in calendar
@@ -73,6 +75,7 @@ def run_signal_portfolio_with_data(
     contributions: dict[str, dict[str, float | int]] = {}
     peak_equity = float(request.initial_cash)
     entry_blocked = False
+    last_exit_day_index: dict[str, int] = {}
 
     for day_index, date in enumerate(calendar):
         _emit(
@@ -86,7 +89,17 @@ def run_signal_portfolio_with_data(
             if date in signal_frames[symbol].index and _date_str(date) != position.entry_date:
                 position.holding_bars += 1
 
-        cash = _execute_exits(date, cash, positions, signal_frames, request, trades, contributions)
+        cash, exited_symbols = _execute_exits(
+            date,
+            cash,
+            positions,
+            signal_frames,
+            request,
+            trades,
+            contributions,
+        )
+        for symbol in exited_symbols:
+            last_exit_day_index[symbol] = day_index
         equity_before_entries = _portfolio_value(date, cash, positions, signal_frames)
         peak_equity = max(peak_equity, equity_before_entries)
         drawdown_pct = (equity_before_entries / peak_equity - 1) * 100 if peak_equity else 0.0
@@ -108,6 +121,12 @@ def run_signal_portfolio_with_data(
         for symbol, frame in signal_frames.items():
             if symbol in positions or symbol in pending_entries or date not in frame.index:
                 continue
+            last_exit_index = last_exit_day_index.get(symbol)
+            if (
+                last_exit_index is not None
+                and day_index - last_exit_index <= request.strategy.cooldown_days
+            ):
+                continue
             row = frame.loc[date]
             if bool(row.get("entry_signal", False)):
                 event = {
@@ -117,6 +136,7 @@ def run_signal_portfolio_with_data(
                     "trigger_price": round(float(row["High"]), 6),
                     "pin_low": round(float(row["Low"]), 6),
                     "atr": round(float(row["atr"]), 6),
+                    "market_breadth_pct": round(float(row["market_breadth"]) * 100, 4),
                 }
                 pending_entries[symbol] = event
                 signal_events.append(event)
@@ -139,6 +159,7 @@ def run_signal_portfolio_with_data(
         "signal_count": len(signal_events),
         "traded_symbols": len({trade["symbol"] for trade in trades}),
         "providers": providers or {},
+        **breadth_diagnostics,
     })
     return SignalPortfolioBacktestResult(
         summary=summary,
@@ -196,6 +217,41 @@ def _build_signal_frame(data: pd.DataFrame, request: SignalPortfolioBacktestRequ
     frame["entry_signal"] = signals
     frame["signal_strength"] = strengths
     return frame
+
+
+def _apply_market_breadth_filter(
+    signal_frames: dict[str, pd.DataFrame],
+    request: SignalPortfolioBacktestRequest,
+) -> dict[str, Any]:
+    above_medium_ma = {}
+    for symbol, frame in signal_frames.items():
+        valid = frame["ma_medium"].notna() & frame["Close"].notna()
+        above_medium_ma[symbol] = (frame["Close"] > frame["ma_medium"]).astype(float).where(valid)
+
+    breadth_matrix = pd.DataFrame(above_medium_ma)
+    breadth = breadth_matrix.mean(axis=1, skipna=True)
+    sample_size = breadth_matrix.notna().sum(axis=1)
+    threshold = request.strategy.market_breadth_threshold_pct / 100
+    blocked_signal_count = 0
+    for frame in signal_frames.values():
+        aligned_breadth = breadth.reindex(frame.index)
+        aligned_sample_size = sample_size.reindex(frame.index).fillna(0).astype(int)
+        raw_signal = frame["entry_signal"].astype(bool)
+        allowed = aligned_breadth > threshold
+        blocked_signal_count += int((raw_signal & ~allowed.fillna(False)).sum())
+        frame["market_breadth"] = aligned_breadth
+        frame["market_breadth_sample_size"] = aligned_sample_size
+        frame["entry_signal"] = raw_signal & allowed.fillna(False)
+
+    valid_breadth = breadth.dropna()
+    return {
+        "market_breadth_threshold_pct": request.strategy.market_breadth_threshold_pct,
+        "breadth_blocked_signal_count": blocked_signal_count,
+        "average_market_breadth_pct": (
+            round(float(valid_breadth.mean()) * 100, 6) if not valid_breadth.empty else None
+        ),
+        "breadth_observation_days": int(len(valid_breadth)),
+    }
 
 
 def _is_trend_pullback_pin_bar(current: pd.Series, config) -> bool:
@@ -261,6 +317,7 @@ def _pin_bar_signal_strength(current: pd.Series) -> float:
 
 
 def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contributions):
+    exited_symbols: list[str] = []
     for symbol in list(positions):
         position = positions[symbol]
         data = data_by_symbol[symbol]
@@ -281,6 +338,10 @@ def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contr
         if reason is None:
             ma_short = float(row.get("ma_short", math.nan))
             if math.isfinite(ma_short) and float(row["Close"]) < ma_short:
+                position.trend_weak_bars += 1
+            else:
+                position.trend_weak_bars = 0
+            if position.trend_weak_bars >= request.strategy.trend_exit_confirmation_days:
                 position.exit_next_open_reason = "trend_weak"
             continue
         allowed, _ = can_sell(row.to_dict(), _previous_close(data, date), position.holding_bars, request.trading)
@@ -296,7 +357,8 @@ def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contr
         bucket["realized_pnl"] = float(bucket["realized_pnl"]) + pnl
         bucket["round_trips"] = int(bucket["round_trips"]) + 1
         positions.pop(symbol)
-    return cash
+        exited_symbols.append(symbol)
+    return cash, exited_symbols
 
 
 def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, request, trades, contributions, *, entry_blocked):
@@ -360,8 +422,7 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
             exit_next_open_reason = "stop_loss_t1"
         elif float(row["High"]) >= target_price:
             exit_next_open_reason = "reward_target_t1"
-        elif float(row["Close"]) < float(row["ma_short"]):
-            exit_next_open_reason = "trend_weak"
+        trend_weak_bars = int(float(row["Close"]) < float(row["ma_short"]))
         cash -= amount + cost
         positions[symbol] = SignalPosition(
             symbol=symbol,
@@ -371,6 +432,7 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
             entry_cost=cost,
             stop_price=stop_price,
             target_price=target_price,
+            trend_weak_bars=trend_weak_bars,
             exit_next_open_reason=exit_next_open_reason,
         )
         contributions.setdefault(symbol, {"realized_pnl": 0.0, "round_trips": 0})

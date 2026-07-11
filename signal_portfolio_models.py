@@ -84,7 +84,7 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
     short_ma_period: int = 20
     medium_ma_period: int = 60
     long_ma_period: int = 120
-    ma_distance_pct: float = 3.0
+    ma_distance_pct: float = 2.0
     support_lookback: int = 20
     support_tolerance_pct: float = 1.0
     lower_shadow_body_ratio: float = 2.5
@@ -92,13 +92,16 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
     min_close_location_pct: float = 65.0
     max_upper_shadow_range_pct: float = 20.0
     volume_lookback: int = 20
-    volume_multiplier: float = 1.2
+    volume_multiplier: float = 1.3
     atr_period: int = 14
     min_stop_distance_pct: float = 1.5
     max_stop_distance_pct: float = 6.0
-    reward_risk_ratio: float = 2.0
-    max_entry_gap_pct: float = 3.0
+    reward_risk_ratio: float = 2.5
+    max_entry_gap_pct: float = 2.0
     risk_per_trade_pct: float = 0.5
+    market_breadth_threshold_pct: float = 50.0
+    trend_exit_confirmation_days: Literal[2] = 2
+    cooldown_days: int = 20
     price_tick: Literal[0.01] = 0.01
 
     @model_validator(mode="after")
@@ -124,6 +127,7 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
             self.max_stop_distance_pct,
             self.max_entry_gap_pct,
             self.risk_per_trade_pct,
+            self.market_breadth_threshold_pct,
         ]
         if any(value <= 0 or value > 100 for value in bounded_percentages):
             raise ValueError("strategy percentages must be within (0, 100]")
@@ -133,13 +137,15 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
             raise ValueError("volume_multiplier must be between 1 and 10")
         if not 2 <= self.reward_risk_ratio <= 3:
             raise ValueError("reward_risk_ratio must be between 2 and 3")
+        if self.cooldown_days < 0 or self.cooldown_days > 252:
+            raise ValueError("cooldown_days must be between 0 and 252")
         return self
 
 
 class SignalPortfolioRiskConfig(BaseModel):
-    max_positions: int = 5
-    max_position_pct: float = 0.20
-    target_gross_exposure: float = 0.95
+    max_positions: int = 10
+    max_position_pct: float = 0.10
+    target_gross_exposure: float = 0.85
     max_drawdown_stop_pct: float | None = 30.0
 
     @field_validator("max_positions")
@@ -169,7 +175,7 @@ class SignalPortfolioBacktestRequest(BaseModel):
     trading: AShareTradingConfig = Field(default_factory=AShareTradingConfig)
     risk: SignalPortfolioRiskConfig = Field(default_factory=SignalPortfolioRiskConfig)
     selection: SelectionConfig = Field(
-        default_factory=lambda: SelectionConfig(top_n=5, min_history_bars=150)
+        default_factory=lambda: SelectionConfig(top_n=10, min_history_bars=150)
     )
     factors: FactorConfig = Field(default_factory=FactorConfig)
     selection_strategy: None = None

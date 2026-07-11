@@ -198,14 +198,19 @@ curl -X POST "http://localhost:8005/signal-portfolio-backtest/jobs" \
       "short_ma_period": 20,
       "medium_ma_period": 60,
       "long_ma_period": 120,
-      "ma_distance_pct": 3,
-      "volume_multiplier": 1.2,
-      "reward_risk_ratio": 2,
-      "risk_per_trade_pct": 0.5
+      "ma_distance_pct": 2,
+      "volume_multiplier": 1.3,
+      "reward_risk_ratio": 2.5,
+      "max_entry_gap_pct": 2,
+      "risk_per_trade_pct": 0.5,
+      "market_breadth_threshold_pct": 50,
+      "trend_exit_confirmation_days": 2,
+      "cooldown_days": 20
     },
     "risk": {
-      "max_positions": 5,
-      "max_position_pct": 0.2
+      "max_positions": 10,
+      "max_position_pct": 0.1,
+      "target_gross_exposure": 0.85
     }
   }'
 ```

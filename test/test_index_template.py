@@ -62,6 +62,17 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert 'id="signalShortMa"' in template
     assert 'id="signalRewardRiskRatio"' in template
     assert 'id="signalRiskPerTradePct"' in template
+    assert 'id="signalMaDistancePct" value="2"' in template
+    assert 'id="signalVolumeMultiplier" value="1.3"' in template
+    assert 'id="signalRewardRiskRatio" value="2.5"' in template
+    assert 'id="signalMaxEntryGapPct" value="2"' in template
+    assert 'id="signalMarketBreadthPct" value="50"' in template
+    assert 'id="signalCooldownDays" value="20"' in template
+    assert 'id="signalMaxPositions" value="10"' in template
+    assert 'id="signalMaxPositionPct" value="10"' in template
+    assert 'id="signalTargetExposurePct" value="85"' in template
+    assert "平均MA60宽度" in template
+    assert "宽度拦截" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template
