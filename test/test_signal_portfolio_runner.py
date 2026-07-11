@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 import signal_portfolio_runner
 from signal_portfolio_models import SignalPortfolioBacktestRequest
@@ -85,3 +86,51 @@ def test_signal_portfolio_result_has_diagnostics_and_complete_payload(monkeypatc
     }
     assert payload["scan_diagnostics"]["loaded_symbols"] == 1
     assert payload["scan_diagnostics"]["signal_count"] == 0
+
+
+def test_signal_portfolio_entry_requires_same_bar_three_condition_confluence():
+    previous = pd.Series(
+        {"Close": 99.0, "middle": 100.0, "upper": 100.0, "dif": 0.10, "dea": 0.20}
+    )
+    current = pd.Series(
+        {"Close": 102.0, "middle": 100.5, "upper": 101.0, "dif": 0.30, "dea": 0.25}
+    )
+
+    assert signal_portfolio_runner._is_synchronous_boll_macd_entry(previous, current)
+
+
+@pytest.mark.parametrize(
+    ("previous_updates", "current_updates"),
+    [
+        ({}, {"middle": 100.0}),
+        ({"Close": 101.0}, {}),
+        ({"dif": 0.30, "dea": 0.20}, {"dif": 0.40, "dea": 0.25}),
+        ({}, {"dif": 0.20, "dea": 0.25}),
+    ],
+)
+def test_signal_portfolio_entry_rejects_when_any_confluence_condition_is_missing(
+    previous_updates,
+    current_updates,
+):
+    previous = pd.Series(
+        {
+            "Close": 99.0,
+            "middle": 100.0,
+            "upper": 100.0,
+            "dif": 0.10,
+            "dea": 0.20,
+            **previous_updates,
+        }
+    )
+    current = pd.Series(
+        {
+            "Close": 102.0,
+            "middle": 100.5,
+            "upper": 101.0,
+            "dif": 0.30,
+            "dea": 0.25,
+            **current_updates,
+        }
+    )
+
+    assert not signal_portfolio_runner._is_synchronous_boll_macd_entry(previous, current)

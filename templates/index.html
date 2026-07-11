@@ -1031,13 +1031,15 @@ SZ000651</textarea>
                                 </div>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
+                                    <div class="portfolio-optimization-note mt-2 mb-2">
+                                        严格同日共振：布林中轨向上、收盘价从下向上穿越布林上轨、MACD 当日金叉，三个条件同时满足才开单。
+                                    </div>
                                     <div class="portfolio-factor-grid mt-2">
                                         <div><label for="signalBollPeriod" class="form-label">BOLL周期</label><input type="number" class="form-control" id="signalBollPeriod" value="20" min="5"></div>
                                         <div><label for="signalBollStddev" class="form-label">标准差倍数</label><input type="number" class="form-control" id="signalBollStddev" value="2" min="0.5" step="0.1"></div>
                                         <div><label for="signalFastPeriod" class="form-label">MACD快线</label><input type="number" class="form-control" id="signalFastPeriod" value="12" min="2"></div>
                                         <div><label for="signalSlowPeriod" class="form-label">MACD慢线</label><input type="number" class="form-control" id="signalSlowPeriod" value="26" min="3"></div>
                                         <div><label for="signalSignalPeriod" class="form-label">DEA周期</label><input type="number" class="form-control" id="signalSignalPeriod" value="9" min="2"></div>
-                                        <div><label for="signalConfirmationBars" class="form-label">金叉确认窗口</label><input type="number" class="form-control" id="signalConfirmationBars" value="5" min="1" max="30"></div>
                                         <div><label for="signalStopLossPct" class="form-label">止损 (%)</label><input type="number" class="form-control" id="signalStopLossPct" value="1" min="0.1" max="10" step="0.1"></div>
                                         <div><label for="signalTakeProfitPct" class="form-label">止盈 (%)</label><input type="number" class="form-control" id="signalTakeProfitPct" value="3" min="0.1" max="10" step="0.1"></div>
                                     </div>
@@ -2144,7 +2146,6 @@ SZ000651</textarea>
                     fast_period: readNumber('signalFastPeriod', 12),
                     slow_period: readNumber('signalSlowPeriod', 26),
                     signal_period: readNumber('signalSignalPeriod', 9),
-                    macd_confirmation_bars: readNumber('signalConfirmationBars', 5),
                     stop_loss_pct: readNumber('signalStopLossPct', 1),
                     take_profit_pct: readNumber('signalTakeProfitPct', 3)
                 },

@@ -44,3 +44,16 @@ def test_signal_portfolio_allows_full_market_scan_limit():
     )
 
     assert request.universe.max_scan_symbols == 3000
+
+
+def test_signal_portfolio_strategy_keeps_independent_stop_and_take_parameters():
+    request = SignalPortfolioBacktestRequest(
+        start_date="2025-01-01",
+        end_date="2025-12-31",
+        universe={"mode": "manual", "symbols": ["SZ002241"]},
+        strategy={"stop_loss_pct": 2.5, "take_profit_pct": 7.5},
+    )
+
+    assert request.strategy.stop_loss_pct == 2.5
+    assert request.strategy.take_profit_pct == 7.5
+    assert "macd_confirmation_bars" not in request.strategy.model_dump()

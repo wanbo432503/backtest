@@ -13,7 +13,6 @@ from strategies.boll_macd_breakout import (
     bollinger_middle,
     bollinger_upper,
     get_boll_macd_risk_prices,
-    has_recent_macd_golden_cross,
     should_enter_boll_macd_breakout,
 )
 from strategies.macd_volume_divergence_risk_control import macd_dea, macd_dif
@@ -176,29 +175,37 @@ def _build_signal_frame(data: pd.DataFrame, request: SignalPortfolioBacktestRequ
             continue
         current = frame.iloc[index]
         previous = frame.iloc[index - 1]
-        start = max(0, index - config.macd_confirmation_bars)
-        recent_cross = has_recent_macd_golden_cross(
-            frame["dif"].iloc[start : index + 1],
-            frame["dea"].iloc[start : index + 1],
-            config.macd_confirmation_bars,
-        )
-        signal = should_enter_boll_macd_breakout(
-            previous_close=float(previous["Close"]),
-            previous_middle=float(previous["middle"]),
-            previous_upper=float(previous["upper"]),
-            current_close=float(current["Close"]),
-            current_middle=float(current["middle"]),
-            current_upper=float(current["upper"]),
-            current_dif=float(current["dif"]),
-            current_dea=float(current["dea"]),
-            recent_macd_golden_cross=recent_cross,
-        )
+        signal = _is_synchronous_boll_macd_entry(previous, current)
         signals.append(signal)
         upper = float(current["upper"])
         strengths.append(float(current["Close"]) / upper - 1 if signal and upper else 0.0)
     frame["entry_signal"] = signals
     frame["signal_strength"] = strengths
     return frame
+
+
+def _is_synchronous_boll_macd_entry(previous: pd.Series, current: pd.Series) -> bool:
+    previous_dif = float(previous["dif"])
+    previous_dea = float(previous["dea"])
+    current_dif = float(current["dif"])
+    current_dea = float(current["dea"])
+    macd_values = (previous_dif, previous_dea, current_dif, current_dea)
+    macd_golden_cross = (
+        not any(math.isnan(value) for value in macd_values)
+        and previous_dif <= previous_dea
+        and current_dif > current_dea
+    )
+    return should_enter_boll_macd_breakout(
+        previous_close=float(previous["Close"]),
+        previous_middle=float(previous["middle"]),
+        previous_upper=float(previous["upper"]),
+        current_close=float(current["Close"]),
+        current_middle=float(current["middle"]),
+        current_upper=float(current["upper"]),
+        current_dif=current_dif,
+        current_dea=current_dea,
+        recent_macd_golden_cross=macd_golden_cross,
+    )
 
 
 def _execute_exits(date, cash, positions, data_by_symbol, request, trades, contributions):

@@ -84,13 +84,12 @@ class BollMacdSignalConfig(BaseModel):
     fast_period: int = 12
     slow_period: int = 26
     signal_period: int = 9
-    macd_confirmation_bars: int = 5
     stop_loss_pct: float = 1.0
     take_profit_pct: float = 3.0
 
     @model_validator(mode="after")
     def validate_parameters(self) -> "BollMacdSignalConfig":
-        if min(self.boll_period, self.fast_period, self.signal_period, self.macd_confirmation_bars) < 1:
+        if min(self.boll_period, self.fast_period, self.signal_period) < 1:
             raise ValueError("strategy periods must be positive")
         if self.slow_period <= self.fast_period:
             raise ValueError("slow_period must be greater than fast_period")
