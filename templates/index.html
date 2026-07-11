@@ -1032,7 +1032,7 @@ SZ000651</textarea>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
                                     <div class="portfolio-optimization-note mt-2 mb-2">
-                                        MA20 &gt; MA60 &gt; MA120、股价在 MA60 上方，且股票池超过50%的有效股票位于 MA60 上方；价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或连续两日收盘跌破 MA20 退出，同票退出后默认冷却20日。
+                                        MA20 &gt; MA60 &gt; MA120、股价在 MA60 上方；市场宽度低于40%禁止开仓，40%～50%使用半风险，超过50%使用完整风险。价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或连续两日收盘跌破 MA20 退出，同票退出后默认冷却20日。
                                     </div>
                                     <div class="portfolio-factor-grid mt-2">
                                         <div><label for="signalShortMa" class="form-label">短期均线</label><input type="number" class="form-control" id="signalShortMa" value="20" min="2"></div>
@@ -1048,7 +1048,9 @@ SZ000651</textarea>
                                         <div><label for="signalRewardRiskRatio" class="form-label">止盈R倍数</label><input type="number" class="form-control" id="signalRewardRiskRatio" value="2.5" min="2" max="3" step="0.5"></div>
                                         <div><label for="signalMaxEntryGapPct" class="form-label">最大高开 (%)</label><input type="number" class="form-control" id="signalMaxEntryGapPct" value="2" min="0.1" max="20" step="0.1"></div>
                                         <div><label for="signalRiskPerTradePct" class="form-label">单笔账户风险 (%)</label><input type="number" class="form-control" id="signalRiskPerTradePct" value="0.5" min="0.1" max="5" step="0.1"></div>
-                                        <div><label for="signalMarketBreadthPct" class="form-label">MA60市场宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthPct" value="50" min="1" max="99" step="1"></div>
+                                        <div><label for="signalMarketBreadthMinPct" class="form-label">禁止开仓宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthMinPct" value="40" min="1" max="98" step="1"></div>
+                                        <div><label for="signalMarketBreadthPct" class="form-label">完整风险宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthPct" value="50" min="2" max="99" step="1"></div>
+                                        <div><label for="signalBreadthPartialRiskPct" class="form-label">中间区间风险 (%)</label><input type="number" class="form-control" id="signalBreadthPartialRiskPct" value="50" min="1" max="100" step="1"></div>
                                         <div><label for="signalCooldownDays" class="form-label">同票冷却天数</label><input type="number" class="form-control" id="signalCooldownDays" value="20" min="0" max="252"></div>
                                         <div><label class="form-label">趋势退出确认</label><div class="form-control bg-light">连续 2 日跌破 MA20</div></div>
                                     </div>
@@ -2168,7 +2170,9 @@ SZ000651</textarea>
                     reward_risk_ratio: readNumber('signalRewardRiskRatio', 2.5),
                     max_entry_gap_pct: readNumber('signalMaxEntryGapPct', 2),
                     risk_per_trade_pct: readNumber('signalRiskPerTradePct', 0.5),
+                    market_breadth_min_pct: readNumber('signalMarketBreadthMinPct', 40),
                     market_breadth_threshold_pct: readNumber('signalMarketBreadthPct', 50),
+                    market_breadth_partial_risk_pct: readNumber('signalBreadthPartialRiskPct', 50),
                     trend_exit_confirmation_days: 2,
                     cooldown_days: readNumber('signalCooldownDays', 20),
                     price_tick: 0.01
@@ -4046,6 +4050,7 @@ SZ000651</textarea>
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
                 `平均MA60宽度 ${diagnostics.average_market_breadth_pct == null ? '-' : formatPortfolioPct(diagnostics.average_market_breadth_pct)}`,
                 `宽度拦截 ${diagnostics.breadth_blocked_signal_count ?? '-'}`,
+                `半风险信号 ${diagnostics.breadth_partial_signal_count ?? '-'}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
                 `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
             ].join(' | ');
@@ -4080,7 +4085,8 @@ SZ000651</textarea>
                 { label: '突破价', key: 'trigger_price', value: row => formatMetric(row.trigger_price) },
                 { label: 'Pin低点', key: 'pin_low', value: row => formatMetric(row.pin_low) },
                 { label: 'ATR', key: 'atr', value: row => formatMetric(row.atr) },
-                { label: 'MA60宽度', key: 'market_breadth_pct', value: row => formatPortfolioPct(row.market_breadth_pct) }
+                { label: 'MA60宽度', key: 'market_breadth_pct', value: row => formatPortfolioPct(row.market_breadth_pct) },
+                { label: '风险倍率', key: 'market_risk_multiplier', value: row => `${formatMetric((row.market_risk_multiplier ?? 0) * 100)}%` }
             ], '未发现入场信号');
             const warnings = result.data_warnings || [];
             document.getElementById('signalPortfolioWarningsList').innerHTML = warnings.length

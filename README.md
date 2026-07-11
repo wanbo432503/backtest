@@ -203,7 +203,9 @@ curl -X POST "http://localhost:8005/signal-portfolio-backtest/jobs" \
       "reward_risk_ratio": 2.5,
       "max_entry_gap_pct": 2,
       "risk_per_trade_pct": 0.5,
+      "market_breadth_min_pct": 40,
       "market_breadth_threshold_pct": 50,
+      "market_breadth_partial_risk_pct": 50,
       "trend_exit_confirmation_days": 2,
       "cooldown_days": 20
     },

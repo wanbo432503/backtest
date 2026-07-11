@@ -99,7 +99,9 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
     reward_risk_ratio: float = 2.5
     max_entry_gap_pct: float = 2.0
     risk_per_trade_pct: float = 0.5
+    market_breadth_min_pct: float = 40.0
     market_breadth_threshold_pct: float = 50.0
+    market_breadth_partial_risk_pct: float = 50.0
     trend_exit_confirmation_days: Literal[2] = 2
     cooldown_days: int = 20
     price_tick: Literal[0.01] = 0.01
@@ -127,7 +129,9 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
             self.max_stop_distance_pct,
             self.max_entry_gap_pct,
             self.risk_per_trade_pct,
+            self.market_breadth_min_pct,
             self.market_breadth_threshold_pct,
+            self.market_breadth_partial_risk_pct,
         ]
         if any(value <= 0 or value > 100 for value in bounded_percentages):
             raise ValueError("strategy percentages must be within (0, 100]")
@@ -137,6 +141,8 @@ class TrendPullbackPinBarSignalConfig(BaseModel):
             raise ValueError("volume_multiplier must be between 1 and 10")
         if not 2 <= self.reward_risk_ratio <= 3:
             raise ValueError("reward_risk_ratio must be between 2 and 3")
+        if self.market_breadth_min_pct >= self.market_breadth_threshold_pct:
+            raise ValueError("market_breadth_min_pct must be below the full-risk threshold")
         if self.cooldown_days < 0 or self.cooldown_days > 252:
             raise ValueError("cooldown_days must be between 0 and 252")
         return self

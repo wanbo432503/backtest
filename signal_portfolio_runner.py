@@ -137,6 +137,7 @@ def run_signal_portfolio_with_data(
                     "pin_low": round(float(row["Low"]), 6),
                     "atr": round(float(row["atr"]), 6),
                     "market_breadth_pct": round(float(row["market_breadth"]) * 100, 4),
+                    "market_risk_multiplier": round(float(row["market_risk_multiplier"]), 4),
                 }
                 pending_entries[symbol] = event
                 signal_events.append(event)
@@ -231,22 +232,35 @@ def _apply_market_breadth_filter(
     breadth_matrix = pd.DataFrame(above_medium_ma)
     breadth = breadth_matrix.mean(axis=1, skipna=True)
     sample_size = breadth_matrix.notna().sum(axis=1)
-    threshold = request.strategy.market_breadth_threshold_pct / 100
+    minimum = request.strategy.market_breadth_min_pct / 100
+    full_risk_threshold = request.strategy.market_breadth_threshold_pct / 100
+    partial_risk_multiplier = request.strategy.market_breadth_partial_risk_pct / 100
     blocked_signal_count = 0
+    partial_signal_count = 0
     for frame in signal_frames.values():
         aligned_breadth = breadth.reindex(frame.index)
         aligned_sample_size = sample_size.reindex(frame.index).fillna(0).astype(int)
         raw_signal = frame["entry_signal"].astype(bool)
-        allowed = aligned_breadth > threshold
+        full_risk = aligned_breadth > full_risk_threshold
+        partial_risk = (aligned_breadth >= minimum) & ~full_risk
+        risk_multiplier = pd.Series(0.0, index=frame.index)
+        risk_multiplier.loc[partial_risk.fillna(False)] = partial_risk_multiplier
+        risk_multiplier.loc[full_risk.fillna(False)] = 1.0
+        allowed = risk_multiplier > 0
         blocked_signal_count += int((raw_signal & ~allowed.fillna(False)).sum())
+        partial_signal_count += int((raw_signal & partial_risk.fillna(False)).sum())
         frame["market_breadth"] = aligned_breadth
         frame["market_breadth_sample_size"] = aligned_sample_size
+        frame["market_risk_multiplier"] = risk_multiplier
         frame["entry_signal"] = raw_signal & allowed.fillna(False)
 
     valid_breadth = breadth.dropna()
     return {
+        "market_breadth_min_pct": request.strategy.market_breadth_min_pct,
         "market_breadth_threshold_pct": request.strategy.market_breadth_threshold_pct,
+        "market_breadth_partial_risk_pct": request.strategy.market_breadth_partial_risk_pct,
         "breadth_blocked_signal_count": blocked_signal_count,
+        "breadth_partial_signal_count": partial_signal_count,
         "average_market_breadth_pct": (
             round(float(valid_breadth.mean()) * 100, 6) if not valid_breadth.empty else None
         ),
@@ -402,7 +416,12 @@ def _execute_pending_entries(date, cash, positions, pending, data_by_symbol, req
 
         slot_pct = min(request.risk.max_position_pct, request.risk.target_gross_exposure / request.risk.max_positions)
         position_budget = min(cash, equity * slot_pct)
-        risk_budget = equity * request.strategy.risk_per_trade_pct / 100
+        risk_budget = (
+            equity
+            * request.strategy.risk_per_trade_pct
+            / 100
+            * float(candidate.get("market_risk_multiplier", 1.0))
+        )
         budget_shares = round_lot_shares(position_budget / price, request.trading.lot_size)
         risk_shares = round_lot_shares(risk_budget / risk_per_share, request.trading.lot_size)
         shares = min(budget_shares, risk_shares)

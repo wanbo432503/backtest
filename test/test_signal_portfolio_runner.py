@@ -123,6 +123,7 @@ def test_market_breadth_filter_requires_more_than_half_above_medium_ma():
     )
 
     assert all(bool(frame.loc[date, "entry_signal"]) for frame in passing_frames.values())
+    assert all(frame.loc[date, "market_risk_multiplier"] == 1 for frame in passing_frames.values())
     assert passing["breadth_blocked_signal_count"] == 0
 
     blocked_frames = {
@@ -139,9 +140,53 @@ def test_market_breadth_filter_requires_more_than_half_above_medium_ma():
     assert blocked["breadth_blocked_signal_count"] == 3
 
     exactly_half_frames = {"A": breadth_frame(101), "B": breadth_frame(99)}
-    signal_portfolio_runner._apply_market_breadth_filter(exactly_half_frames, _request())
+    exactly_half = signal_portfolio_runner._apply_market_breadth_filter(
+        exactly_half_frames,
+        _request(),
+    )
 
-    assert not any(bool(frame.loc[date, "entry_signal"]) for frame in exactly_half_frames.values())
+    assert all(bool(frame.loc[date, "entry_signal"]) for frame in exactly_half_frames.values())
+    assert all(frame.loc[date, "market_risk_multiplier"] == 0.5 for frame in exactly_half_frames.values())
+    assert exactly_half["breadth_partial_signal_count"] == 2
+
+    exactly_minimum_frames = {
+        "A": breadth_frame(101),
+        "B": breadth_frame(102),
+        "C": breadth_frame(99),
+        "D": breadth_frame(98),
+        "E": breadth_frame(97),
+    }
+    signal_portfolio_runner._apply_market_breadth_filter(exactly_minimum_frames, _request())
+
+    assert all(
+        frame.loc[date, "market_risk_multiplier"] == 0.5
+        for frame in exactly_minimum_frames.values()
+    )
+
+
+def test_signal_portfolio_partial_breadth_halves_risk_sized_position(monkeypatch):
+    frames = {"SH603019": _frame(100), "SZ002241": _frame(50)}
+
+    def fake_signal_frame(data, request):
+        result = data.copy()
+        price = float(result["Open"].iloc[0])
+        result["ma_short"] = price - 1
+        result["ma_medium"] = 98.0 if price == 100 else 52.0
+        result["atr"] = price * 0.02
+        result["entry_signal"] = False
+        result["signal_strength"] = 0.0
+        if price == 100:
+            result.loc[result.index[1], "entry_signal"] = True
+            result.loc[result.index[1], "signal_strength"] = 0.1
+        return result
+
+    monkeypatch.setattr(signal_portfolio_runner, "_build_signal_frame", fake_signal_frame)
+
+    result = run_signal_portfolio_with_data(_request(), frames)
+    buys = [trade for trade in result.trades if trade["side"] == "buy"]
+
+    assert buys[0]["shares"] == 100
+    assert result.signal_events[0]["market_risk_multiplier"] == 0.5
 
 
 def _pin_bar_row(**updates):

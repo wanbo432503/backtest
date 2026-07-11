@@ -23,7 +23,9 @@ def test_signal_portfolio_accepts_large_manual_a_share_pool():
     assert request.strategy.ma_distance_pct == 2
     assert request.strategy.volume_multiplier == 1.3
     assert request.strategy.risk_per_trade_pct == 0.5
+    assert request.strategy.market_breadth_min_pct == 40
     assert request.strategy.market_breadth_threshold_pct == 50
+    assert request.strategy.market_breadth_partial_risk_pct == 50
     assert request.strategy.cooldown_days == 20
 
 
@@ -74,3 +76,13 @@ def test_signal_portfolio_strategy_limits_reward_risk_ratio_to_two_or_three():
     assert request.strategy.min_stop_distance_pct == 1.5
     assert request.strategy.max_stop_distance_pct == 6
     assert "take_profit_pct" not in request.strategy.model_dump()
+
+
+def test_signal_portfolio_requires_breadth_minimum_below_full_risk_threshold():
+    with pytest.raises(ValidationError, match="market_breadth_min_pct"):
+        SignalPortfolioBacktestRequest(
+            start_date="2025-01-01",
+            end_date="2025-12-31",
+            universe={"mode": "manual", "symbols": ["SZ002241"]},
+            strategy={"market_breadth_min_pct": 50, "market_breadth_threshold_pct": 50},
+        )
