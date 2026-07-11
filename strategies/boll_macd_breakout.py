@@ -20,20 +20,17 @@ def should_enter_boll_macd_breakout(
     previous_close,
     previous_middle,
     previous_upper,
-    previous_dif,
-    previous_dea,
     current_close,
     current_middle,
     current_upper,
     current_dif,
     current_dea,
+    recent_macd_golden_cross,
 ) -> bool:
     values = [
         previous_close,
         previous_middle,
         previous_upper,
-        previous_dif,
-        previous_dea,
         current_close,
         current_middle,
         current_upper,
@@ -45,8 +42,40 @@ def should_enter_boll_macd_breakout(
 
     middle_is_rising = current_middle > previous_middle
     crossed_upper_band = previous_close <= previous_upper and current_close > current_upper
-    macd_golden_cross = previous_dif <= previous_dea and current_dif > current_dea
-    return middle_is_rising and crossed_upper_band and macd_golden_cross
+    macd_is_bullish = current_dif > current_dea
+    return (
+        middle_is_rising
+        and crossed_upper_band
+        and macd_is_bullish
+        and bool(recent_macd_golden_cross)
+    )
+
+
+def has_recent_macd_golden_cross(dif_values, dea_values, confirmation_bars) -> bool:
+    confirmation_bars = int(confirmation_bars)
+    if confirmation_bars < 1:
+        raise ValueError("macd_confirmation_bars must be at least 1")
+
+    dif = np.asarray(dif_values, dtype="float64")
+    dea = np.asarray(dea_values, dtype="float64")
+    if len(dif) != len(dea) or len(dif) < 2:
+        return False
+
+    transition_count = min(confirmation_bars, len(dif) - 1)
+    start = len(dif) - transition_count
+    for current_index in range(start, len(dif)):
+        previous_index = current_index - 1
+        values = [
+            dif[previous_index],
+            dea[previous_index],
+            dif[current_index],
+            dea[current_index],
+        ]
+        if any(np.isnan(value) for value in values):
+            continue
+        if dif[previous_index] <= dea[previous_index] and dif[current_index] > dea[current_index]:
+            return True
+    return False
 
 
 def validate_boll_macd_risk_percentages(stop_loss_pct, take_profit_pct):
@@ -78,23 +107,26 @@ def get_boll_macd_risk_prices(entry_price, stop_loss_pct, take_profit_pct):
 
 
 class BollMACDBreakoutStrategy(Strategy):
-    """BOLL upper-band breakout confirmed by a rising middle band and MACD golden cross."""
+    """BOLL breakout while MACD is bullish after a recent golden cross."""
 
     strategy_name = "boll_macd_breakout"
     display_name = "BOLL+MACD上轨突破策略"
-    description = "布林中轨向上、收盘价上穿上轨且MACD同步金叉时买入，按可优化比例止盈止损。"
+    description = "布林中轨向上、收盘价上穿上轨、MACD保持多头且近期发生金叉时买入，按可优化比例止盈止损。"
 
     boll_period = 20
     boll_stddev = 2.0
     fast_period = 12
     slow_period = 26
     signal_period = 9
+    macd_confirmation_bars = 5
     stop_loss_pct = 1.0
     take_profit_pct = 1.0
     position_pct = 0.95
 
     def init(self):
         validate_boll_macd_risk_percentages(self.stop_loss_pct, self.take_profit_pct)
+        if int(self.macd_confirmation_bars) < 1:
+            raise ValueError("macd_confirmation_bars must be at least 1")
         close = self.data.Close
         self.middle = self.I(bollinger_middle, close, self.boll_period)
         self.upper = self.I(bollinger_upper, close, self.boll_period, self.boll_stddev)
@@ -123,12 +155,15 @@ class BollMACDBreakoutStrategy(Strategy):
             previous_close=float(self.data.Close[-2]),
             previous_middle=float(self.middle[-2]),
             previous_upper=float(self.upper[-2]),
-            previous_dif=float(self.dif[-2]),
-            previous_dea=float(self.dea[-2]),
             current_close=float(self.data.Close[-1]),
             current_middle=float(self.middle[-1]),
             current_upper=float(self.upper[-1]),
             current_dif=float(self.dif[-1]),
             current_dea=float(self.dea[-1]),
+            recent_macd_golden_cross=has_recent_macd_golden_cross(
+                self.dif[-(int(self.macd_confirmation_bars) + 1) :],
+                self.dea[-(int(self.macd_confirmation_bars) + 1) :],
+                self.macd_confirmation_bars,
+            ),
         ):
             self.buy(size=self.position_pct)

@@ -81,6 +81,17 @@ STRATEGY_METADATA: dict[str, StrategyMeta] = {
                 step=1,
             ),
             StrategyParamMeta(
+                name="macd_confirmation_bars",
+                label="MACD金叉确认窗口",
+                type="int",
+                default=5,
+                search_values=[3, 5, 10],
+                min_value=1,
+                max_value=30,
+                step=1,
+                description="突破上轨时，要求最近若干交易日内发生过MACD金叉且当前DIF仍高于DEA。",
+            ),
+            StrategyParamMeta(
                 name="stop_loss_pct",
                 label="止损比例",
                 type="float",

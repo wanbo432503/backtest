@@ -20,18 +20,17 @@ def valid_entry_values(**overrides):
         "previous_close": 100,
         "previous_middle": 98,
         "previous_upper": 101,
-        "previous_dif": 0.1,
-        "previous_dea": 0.2,
         "current_close": 103,
         "current_middle": 99,
         "current_upper": 102,
         "current_dif": 0.3,
         "current_dea": 0.25,
+        "recent_macd_golden_cross": True,
     }
     return {**values, **overrides}
 
 
-def test_entry_requires_rising_middle_upper_breakout_and_macd_golden_cross():
+def test_entry_requires_rising_middle_upper_breakout_bullish_macd_and_recent_golden_cross():
     module = load_strategy_module()
 
     assert module.should_enter_boll_macd_breakout(**valid_entry_values())
@@ -43,12 +42,33 @@ def test_entry_requires_rising_middle_upper_breakout_and_macd_golden_cross():
         {"current_middle": 98},
         {"previous_close": 102},
         {"current_dif": 0.2, "current_dea": 0.25},
+        {"recent_macd_golden_cross": False},
     ],
 )
 def test_entry_is_blocked_when_any_required_condition_is_missing(overrides):
     module = load_strategy_module()
 
     assert not module.should_enter_boll_macd_breakout(**valid_entry_values(**overrides))
+
+
+def test_recent_macd_golden_cross_accepts_cross_within_confirmation_window():
+    module = load_strategy_module()
+
+    assert module.has_recent_macd_golden_cross(
+        dif_values=[-0.3, -0.2, 0.1, 0.2, 0.3, 0.4],
+        dea_values=[-0.2, -0.1, 0.0, 0.1, 0.2, 0.3],
+        confirmation_bars=5,
+    )
+
+
+def test_recent_macd_golden_cross_rejects_cross_older_than_confirmation_window():
+    module = load_strategy_module()
+
+    assert not module.has_recent_macd_golden_cross(
+        dif_values=[-0.1, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        dea_values=[0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
+        confirmation_bars=5,
+    )
 
 
 def test_bollinger_upper_uses_population_standard_deviation():
@@ -164,11 +184,14 @@ def test_strategy_defaults_and_metadata_expose_approved_risk_grid():
 
     assert module.BollMACDBreakoutStrategy.stop_loss_pct == 1
     assert module.BollMACDBreakoutStrategy.take_profit_pct == 1
+    assert module.BollMACDBreakoutStrategy.macd_confirmation_bars == 5
     assert metadata.label == "BOLL+MACD上轨突破策略"
     assert params["stop_loss_pct"].default == 1
     assert params["stop_loss_pct"].search_values == [0.5, 1.0, 1.5, 2.0, 3.0]
     assert params["take_profit_pct"].default == 1
     assert params["take_profit_pct"].search_values == [0.5, 1.0, 1.5, 2.0, 3.0]
+    assert params["macd_confirmation_bars"].default == 5
+    assert params["macd_confirmation_bars"].search_values == [3, 5, 10]
     for name in ("stop_loss_pct", "take_profit_pct"):
         assert params[name].min_value == 0.1
         assert params[name].max_value == 10
