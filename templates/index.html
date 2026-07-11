@@ -95,6 +95,9 @@
         .settings-primary-panel[open] > summary.card-header::after {
             transform: rotate(180deg);
         }
+        .signal-portfolio-panel > summary.card-header {
+            background: linear-gradient(90deg, #087f8c, #0aa2a8);
+        }
         .card-body {
             padding: 1rem;
         }
@@ -994,6 +997,72 @@ SZ002241</textarea>
                         </div>
                     </details>
 
+                    <details class="settings-primary-panel signal-portfolio-panel" id="signalPortfolioBacktestPanel">
+                        <summary class="card-header settings-primary-summary">
+                            <i class="fas fa-wave-square"></i> 多股票信号组合回测
+                        </summary>
+                        <div class="card-body">
+                            <form id="signalPortfolioBacktestForm">
+                                <div class="portfolio-optimization-note mb-3">
+                                    每只股票独立扫描 BOLL+MACD 信号，前一日收盘确认、下一交易日开盘成交；所有持仓共享一个现金账户。
+                                </div>
+                                <div class="compact-row">
+                                    <div class="mb-3">
+                                        <label for="signalUniverseMode" class="form-label">股票池模式</label>
+                                        <select class="form-select" id="signalUniverseMode">
+                                            <option value="manual" selected>固定股票池</option>
+                                            <option value="auto">自动扫描 60/00</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="signalMaxScanSymbols" class="form-label">自动扫描上限</label>
+                                        <input type="number" class="form-control" id="signalMaxScanSymbols" min="1" max="200" value="30">
+                                    </div>
+                                </div>
+                                <div class="mb-3" id="signalManualUniverseBlock">
+                                    <label for="signalSymbols" class="form-label">股票池（最多50只）</label>
+                                    <textarea class="form-control portfolio-symbol-pool" id="signalSymbols" rows="5">SH603019
+SZ002241
+SH600519
+SH601318
+SH600036
+SZ000001
+SZ000333
+SZ000651</textarea>
+                                </div>
+                                <details class="config-panel border rounded p-2 mb-3" open>
+                                    <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
+                                    <div class="portfolio-factor-grid mt-2">
+                                        <div><label for="signalBollPeriod" class="form-label">BOLL周期</label><input type="number" class="form-control" id="signalBollPeriod" value="20" min="5"></div>
+                                        <div><label for="signalBollStddev" class="form-label">标准差倍数</label><input type="number" class="form-control" id="signalBollStddev" value="2" min="0.5" step="0.1"></div>
+                                        <div><label for="signalFastPeriod" class="form-label">MACD快线</label><input type="number" class="form-control" id="signalFastPeriod" value="12" min="2"></div>
+                                        <div><label for="signalSlowPeriod" class="form-label">MACD慢线</label><input type="number" class="form-control" id="signalSlowPeriod" value="26" min="3"></div>
+                                        <div><label for="signalSignalPeriod" class="form-label">DEA周期</label><input type="number" class="form-control" id="signalSignalPeriod" value="9" min="2"></div>
+                                        <div><label for="signalConfirmationBars" class="form-label">金叉确认窗口</label><input type="number" class="form-control" id="signalConfirmationBars" value="5" min="1" max="30"></div>
+                                        <div><label for="signalStopLossPct" class="form-label">止损 (%)</label><input type="number" class="form-control" id="signalStopLossPct" value="1" min="0.1" max="10" step="0.1"></div>
+                                        <div><label for="signalTakeProfitPct" class="form-label">止盈 (%)</label><input type="number" class="form-control" id="signalTakeProfitPct" value="3" min="0.1" max="10" step="0.1"></div>
+                                    </div>
+                                </details>
+                                <details class="config-panel border rounded p-2 mb-3" open>
+                                    <summary><i class="fas fa-wallet"></i> 资金与区间</summary>
+                                    <div class="portfolio-factor-grid mt-2">
+                                        <div><label for="signalInitialCash" class="form-label">初始资金</label><input type="number" class="form-control" id="signalInitialCash" value="100000" min="10000" step="1000"></div>
+                                        <div><label for="signalMaxPositions" class="form-label">最大持仓数</label><input type="number" class="form-control" id="signalMaxPositions" value="5" min="1" max="20"></div>
+                                        <div><label for="signalMaxPositionPct" class="form-label">单票上限 (%)</label><input type="number" class="form-control" id="signalMaxPositionPct" value="20" min="5" max="100"></div>
+                                        <div><label for="signalTargetExposurePct" class="form-label">目标总仓位 (%)</label><input type="number" class="form-control" id="signalTargetExposurePct" value="95" min="5" max="100"></div>
+                                        <div><label for="signalStartDate" class="form-label">开始日期</label><input type="date" class="form-control" id="signalStartDate" required></div>
+                                        <div><label for="signalEndDate" class="form-label">结束日期</label><input type="date" class="form-control" id="signalEndDate" required></div>
+                                        <div><label for="signalDataProvider" class="form-label">数据源</label><select class="form-select" id="signalDataProvider"><option value="auto" selected>自动（优先 mootdx）</option><option value="mootdx">mootdx</option><option value="yfinance">yfinance</option></select></div>
+                                        <div><label for="signalMinHistoryBars" class="form-label">最少历史K线</label><input type="number" class="form-control" id="signalMinHistoryBars" value="120" min="50"></div>
+                                    </div>
+                                </details>
+                                <button type="submit" class="btn btn-info text-white w-100" id="submitSignalPortfolioButton">
+                                    <i class="fas fa-play"></i> 开始信号组合回测
+                                </button>
+                            </form>
+                        </div>
+                    </details>
+
                     <details class="settings-primary-panel" id="singleStockBacktestPanel">
                         <summary class="card-header settings-primary-summary">
                             <i class="fas fa-stethoscope"></i> 单股回测
@@ -1348,6 +1417,29 @@ SZ002241</textarea>
                         <div class="progress" role="progressbar" aria-label="组合扫描进度">
                             <div class="progress-bar bg-success" id="portfolioProgressBar" style="width: 0%">0%</div>
                         </div>
+                    </div>
+                </div>
+
+                <div id="signalPortfolioProgressPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header"><i class="fas fa-wave-square"></i> 多股票信号组合进度</div>
+                    <div class="card-body">
+                        <div class="portfolio-status mb-2" id="signalPortfolioProgressText">等待开始</div>
+                        <div class="progress"><div class="progress-bar bg-info" id="signalPortfolioProgressBar" style="width:0%">0%</div></div>
+                    </div>
+                </div>
+
+                <div id="signalPortfolioResultPanel" class="card stats-panel portfolio-result-panel" style="display: none;">
+                    <div class="card-header"><i class="fas fa-chart-line"></i> 多股票信号组合结果</div>
+                    <div class="card-body">
+                        <div id="signalPortfolioSummaryContent" class="portfolio-summary-grid"></div>
+                        <div id="signalPortfolioRiskFlags" class="portfolio-badge-row"></div>
+                        <div id="signalPortfolioDiagnostics" class="portfolio-status mb-2"></div>
+                        <div id="signalPortfolioEquityChart" class="portfolio-chart"></div>
+                        <h6 class="mt-3">分股票贡献</h6><div id="signalPortfolioContributionTable"></div>
+                        <h6 class="mt-3">当前持仓</h6><div id="signalPortfolioPositionsTable"></div>
+                        <h6 class="mt-3">逐笔成交</h6><div id="signalPortfolioTradeTable"></div>
+                        <h6 class="mt-3">入场信号</h6><div id="signalPortfolioEventTable"></div>
+                        <h6 class="mt-3">数据提示</h6><div id="signalPortfolioWarningsList"></div>
                     </div>
                 </div>
 
@@ -1995,6 +2087,78 @@ SZ002241</textarea>
                 metadata: {
                     ui: 'phase3_portfolio_workbench'
                 }
+            };
+        }
+
+        function collectSignalPortfolioSymbols() {
+            return Array.from(new Set(
+                document.getElementById('signalSymbols').value
+                    .split(/[\s,，、;；]+/)
+                    .map(normalizePortfolioSymbol)
+                    .filter(Boolean)
+            ));
+        }
+
+        function syncSignalPortfolioUniverseState() {
+            const manual = document.getElementById('signalUniverseMode').value === 'manual';
+            document.getElementById('signalManualUniverseBlock').style.display = manual ? 'block' : 'none';
+        }
+
+        function collectSignalPortfolioRequest() {
+            const mode = document.getElementById('signalUniverseMode').value;
+            const symbols = collectSignalPortfolioSymbols();
+            if (mode === 'manual') {
+                if (!symbols.length) throw new Error('请至少输入1只股票');
+                if (symbols.length > 50) throw new Error('固定股票池最多50只');
+                const invalid = symbols.filter(symbol => !isPortfolioTradableSymbol(symbol));
+                if (invalid.length) throw new Error(`仅支持60/00开头普通A股: ${invalid.join(', ')}`);
+            }
+            return {
+                start_date: document.getElementById('signalStartDate').value,
+                end_date: document.getElementById('signalEndDate').value,
+                initial_cash: readNumber('signalInitialCash', 100000),
+                data_provider: document.getElementById('signalDataProvider').value,
+                universe: {
+                    mode,
+                    symbols: mode === 'manual' ? symbols : [],
+                    max_symbols: 50,
+                    max_scan_symbols: readNumber('signalMaxScanSymbols', 30),
+                    ohlcv_batch_size: 20,
+                    ohlcv_batch_delay_seconds: 0,
+                    ohlcv_request_delay_seconds: 0,
+                    allowed_code_prefixes: ['60', '00'],
+                    exclude_star: true,
+                    exclude_bj: true,
+                    exclude_funds: true
+                },
+                strategy: {
+                    strategy_name: 'boll_macd_breakout',
+                    boll_period: readNumber('signalBollPeriod', 20),
+                    boll_stddev: readNumber('signalBollStddev', 2),
+                    fast_period: readNumber('signalFastPeriod', 12),
+                    slow_period: readNumber('signalSlowPeriod', 26),
+                    signal_period: readNumber('signalSignalPeriod', 9),
+                    macd_confirmation_bars: readNumber('signalConfirmationBars', 5),
+                    stop_loss_pct: readNumber('signalStopLossPct', 1),
+                    take_profit_pct: readNumber('signalTakeProfitPct', 3)
+                },
+                trading: {
+                    long_only: true, t_plus_one: true, lot_size: 100,
+                    limit_up_down_filter: true, volume_filter: true, min_volume: 1,
+                    slippage_pct: 0.05, buy_commission_pct: 0.03,
+                    sell_commission_pct: 0.03, stamp_tax_pct: 0.05, min_commission: 5
+                },
+                risk: {
+                    max_positions: readNumber('signalMaxPositions', 5),
+                    max_position_pct: readNumber('signalMaxPositionPct', 20) / 100,
+                    target_gross_exposure: readNumber('signalTargetExposurePct', 95) / 100,
+                    max_drawdown_stop_pct: 30
+                },
+                selection: {
+                    top_n: readNumber('signalMaxPositions', 5),
+                    min_history_bars: readNumber('signalMinHistoryBars', 120)
+                },
+                metadata: { ui: 'multi_stock_signal_portfolio' }
             };
         }
 
@@ -3255,7 +3419,8 @@ SZ002241</textarea>
                 high_validation_volatility: '验证波动高',
                 low_equity_trend_quality: '趋势质量低',
                 high_validation_drawdown: '验证高回撤',
-                too_few_selected_symbols: '入选股票不足'
+                too_few_selected_symbols: '入选股票不足',
+                drawdown_entry_stop: '回撤触发停止开仓'
             };
             return labels[flag] || flag;
         }
@@ -3464,6 +3629,9 @@ SZ002241</textarea>
             if (job.phase === 'backtesting') {
                 return 90;
             }
+            if (progress.total_days) {
+                return Math.max(5, Math.min(98, Math.round(Number(progress.completed_days || 0) / Number(progress.total_days) * 100)));
+            }
             return job.status === 'running' ? 12 : 3;
         }
 
@@ -3554,8 +3722,8 @@ SZ002241</textarea>
             host.textContent = parts.join(' | ');
         }
 
-        function renderPortfolioEquityCurve(points) {
-            const host = document.getElementById('portfolioEquityChart');
+        function renderPortfolioEquityCurve(points, hostId = 'portfolioEquityChart', gradientId = 'portfolioEquityGradient') {
+            const host = document.getElementById(hostId);
             if (!points.length) {
                 host.innerHTML = '<div class="portfolio-empty">暂无组合净值数据</div>';
                 return;
@@ -3589,7 +3757,7 @@ SZ002241</textarea>
             host.innerHTML = `
                 <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="组合净值曲线">
                     <defs>
-                        <linearGradient id="portfolioEquityGradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="${escapeHtml(gradientId)}" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stop-color="#198754" stop-opacity="0.26"></stop>
                             <stop offset="100%" stop-color="#198754" stop-opacity="0.02"></stop>
                         </linearGradient>
@@ -3597,7 +3765,7 @@ SZ002241</textarea>
                     <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
                     <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#e5e7eb"></line>
                     <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#e5e7eb"></line>
-                    <path d="${areaPath}" fill="url(#portfolioEquityGradient)"></path>
+                    <path d="${areaPath}" fill="url(#${escapeHtml(gradientId)})"></path>
                     <path d="${linePath}" fill="none" stroke="#198754" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
                     <circle cx="${coordinates[coordinates.length - 1][0].toFixed(2)}" cy="${coordinates[coordinates.length - 1][1].toFixed(2)}" r="4" fill="#198754"></circle>
                     <text x="${padding}" y="18" fill="#6c757d" font-size="12">${escapeHtml(first.date || '')}</text>
@@ -3786,6 +3954,96 @@ SZ002241</textarea>
             renderPortfolioWarnings(result.data_warnings || []);
         }
 
+        async function createSignalPortfolioJob(requestBody) {
+            return fetchJson('/signal-portfolio-backtest/jobs', {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+        }
+
+        function renderSignalPortfolioProgress(job) {
+            const progress = job.progress || {};
+            const percent = portfolioProgressPercent(job);
+            const dayText = progress.total_days ? ` | ${progress.completed_days || 0}/${progress.total_days}交易日` : '';
+            const symbolText = progress.total_symbols
+                ? ` | ${Number(progress.loaded_count || 0) + Number(progress.failed_count || 0)}/${progress.total_symbols}股票`
+                : '';
+            document.getElementById('signalPortfolioProgressPanel').style.display = 'block';
+            document.getElementById('signalPortfolioProgressText').textContent = `${job.message || job.phase || '运行中'}${symbolText}${dayText}`;
+            const bar = document.getElementById('signalPortfolioProgressBar');
+            bar.style.width = `${percent}%`;
+            bar.textContent = `${percent}%`;
+        }
+
+        async function pollSignalPortfolioJob(jobId) {
+            while (true) {
+                const job = await fetchJson(`/signal-portfolio-backtest/jobs/${encodeURIComponent(jobId)}`);
+                renderSignalPortfolioProgress(job);
+                if (job.status === 'succeeded') return job.result;
+                if (job.status === 'failed') throw new Error(job.error || '多股票信号组合回测失败');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        function renderSignalPortfolioResult(result) {
+            const summary = result.summary || {};
+            const entries = [
+                ['最终权益', formatPortfolioCurrency(summary.final_equity)],
+                ['总收益', formatPortfolioPct(summary.total_return_pct)],
+                ['年化收益', formatPortfolioPct(summary.annual_return_pct)],
+                ['最大回撤', formatPortfolioPct(summary.max_drawdown_pct)],
+                ['夏普', formatMetric(summary.sharpe)],
+                ['完整交易', summary.trades ?? 0],
+                ['胜率', formatPortfolioPct(summary.win_rate_pct)],
+                ['换手', `${formatMetric(summary.turnover)}x`]
+            ];
+            document.getElementById('signalPortfolioSummaryContent').innerHTML = entries.map(([label, value]) => `
+                <div class="portfolio-summary-item"><div class="portfolio-summary-label">${escapeHtml(label)}</div><div class="portfolio-summary-value">${escapeHtml(value)}</div></div>
+            `).join('');
+            const flags = result.risk_flags || [];
+            document.getElementById('signalPortfolioRiskFlags').innerHTML = flags.length
+                ? flags.map(flag => `<span class="badge bg-warning text-dark">${escapeHtml(riskFlagLabel(flag))}</span>`).join('')
+                : '<span class="badge bg-success">风险标记: 无</span>';
+            const diagnostics = result.scan_diagnostics || {};
+            document.getElementById('signalPortfolioDiagnostics').textContent = [
+                `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
+                `发现信号 ${diagnostics.signal_count ?? '-'}`,
+                `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
+            ].join(' | ');
+            document.getElementById('signalPortfolioResultPanel').style.display = 'block';
+            renderPortfolioEquityCurve(result.equity_curve || [], 'signalPortfolioEquityChart', 'signalPortfolioEquityGradient');
+            renderPortfolioTable('signalPortfolioContributionTable', result.symbol_contributions || [], [
+                { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '完整交易', key: 'round_trips' },
+                { label: '已实现盈亏', key: 'realized_pnl', value: row => formatPortfolioCurrency(row.realized_pnl) },
+                { label: '浮动盈亏', key: 'unrealized_pnl', value: row => formatPortfolioCurrency(row.unrealized_pnl) },
+                { label: '总贡献', key: 'total_pnl', value: row => formatPortfolioCurrency(row.total_pnl) }
+            ], '暂无股票产生交易');
+            renderPortfolioTable('signalPortfolioPositionsTable', result.positions || [], [
+                { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '股数', key: 'shares' }, { label: '入场日', key: 'entry_date' },
+                { label: '入场价', key: 'entry_price', value: row => formatMetric(row.entry_price) },
+                { label: '现价', key: 'price', value: row => formatMetric(row.price) },
+                { label: '浮盈亏', key: 'unrealized_pnl', value: row => formatPortfolioCurrency(row.unrealized_pnl) }
+            ], '期末无持仓');
+            renderPortfolioTable('signalPortfolioTradeTable', (result.trades || []).slice().reverse(), [
+                { label: '日期', key: 'date' }, { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '方向', key: 'side', value: row => row.side === 'buy' ? '买入' : '卖出' },
+                { label: '股数', key: 'shares' }, { label: '价格', key: 'price', value: row => formatMetric(row.price) },
+                { label: '费用', key: 'cost', value: row => formatMetric(row.cost) },
+                { label: '原因', key: 'reason' }, { label: '盈亏', key: 'pnl', value: row => row.pnl == null ? '-' : formatPortfolioCurrency(row.pnl) }
+            ], '暂无成交');
+            renderPortfolioTable('signalPortfolioEventTable', (result.signal_events || []).slice().reverse(), [
+                { label: '日期', key: 'date' }, { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
+                { label: '突破强度', key: 'strength', value: row => formatMetric(row.strength) }
+            ], '未发现入场信号');
+            const warnings = result.data_warnings || [];
+            document.getElementById('signalPortfolioWarningsList').innerHTML = warnings.length
+                ? warnings.map(warning => `<div class="list-group-item small">${escapeHtml(warning)}</div>`).join('')
+                : '<div class="portfolio-empty">暂无数据源提示</div>';
+            scrollPortfolioPanelIntoView('signalPortfolioResultPanel');
+        }
+
         function handlePortfolioResultClick(event) {
             const button = event.target.closest('[data-portfolio-symbol]');
             if (!button) {
@@ -3874,17 +4132,21 @@ SZ002241</textarea>
             const today = new Date();
             const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
             const twoYearsAgo = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate());
+            const threeYearsAgo = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
             
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
             document.getElementById('portfolioEndDate').value = today.toISOString().split('T')[0];
             document.getElementById('portfolioStartDate').value = twoYearsAgo.toISOString().split('T')[0];
+            document.getElementById('signalEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('signalStartDate').value = threeYearsAgo.toISOString().split('T')[0];
             document.getElementById('taAnalysisDate').value = today.toISOString().split('T')[0];
             syncTradingAgentsSymbol(document.getElementById('symbol').value);
             document.getElementById('symbol').addEventListener('input', event => syncTradingAgentsSymbol(event.target.value));
             document.getElementById('portfolioUniverseMode').addEventListener('change', syncPortfolioUniverseState);
             document.getElementById('portfolioSymbols').addEventListener('input', syncPortfolioUniverseState);
             document.getElementById('portfolioTopN').addEventListener('input', syncPortfolioUniverseState);
+            document.getElementById('signalUniverseMode').addEventListener('change', syncSignalPortfolioUniverseState);
             document.getElementById('portfolioSelectionStrategy').addEventListener('change', () => {
                 portfolioSelectionStrategyOverrides = {};
                 renderPortfolioSelectionStrategyDetails();
@@ -3923,6 +4185,38 @@ SZ002241</textarea>
             document.getElementById('commission').addEventListener('input', updateStrategyDescription);
             document.getElementById('enableOptimization').addEventListener('change', toggleOptimizationControls);
             syncPortfolioUniverseState();
+            syncSignalPortfolioUniverseState();
+        });
+
+        document.getElementById('signalPortfolioBacktestForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const button = document.getElementById('submitSignalPortfolioButton');
+            let requestBody;
+            try {
+                requestBody = collectSignalPortfolioRequest();
+                if (new Date(requestBody.start_date) >= new Date(requestBody.end_date)) {
+                    throw new Error('开始日期必须早于结束日期');
+                }
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+            button.disabled = true;
+            document.getElementById('signalPortfolioProgressPanel').style.display = 'block';
+            document.getElementById('signalPortfolioResultPanel').style.display = 'none';
+            document.getElementById('portfolioResultPanel').style.display = 'none';
+            document.getElementById('statsContainer').style.display = 'none';
+            try {
+                const job = await createSignalPortfolioJob(requestBody);
+                renderSignalPortfolioProgress(job);
+                const result = await pollSignalPortfolioJob(job.job_id);
+                renderSignalPortfolioResult(result);
+            } catch (error) {
+                document.getElementById('signalPortfolioProgressText').textContent = `回测失败: ${error.message}`;
+                document.getElementById('signalPortfolioProgressText').className = 'portfolio-status failed mb-2';
+            } finally {
+                button.disabled = false;
+            }
         });
 
         document.getElementById('portfolioBacktestForm').addEventListener('submit', async function(e) {

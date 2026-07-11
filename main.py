@@ -23,6 +23,8 @@ from portfolio_factor_optimizer import run_factor_optimization
 from portfolio_models import PortfolioBacktestRequest
 from portfolio_selection_strategy_library import list_selection_strategies
 from portfolio_progress import PortfolioBacktestJobStore
+from signal_portfolio_models import SignalPortfolioBacktestRequest
+from signal_portfolio_runner import run_signal_portfolio_backtest
 from strategy_metadata import get_strategy_parameters
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
@@ -55,6 +57,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # 设置模板目录
 templates = Jinja2Templates(directory="templates")
 portfolio_job_store = PortfolioBacktestJobStore(run_portfolio_backtest)
+signal_portfolio_job_store = PortfolioBacktestJobStore(
+    run_signal_portfolio_backtest,
+    job_label="多股票信号组合回测",
+)
 portfolio_factor_optimization_job_store = PortfolioFactorOptimizationJobStore(run_factor_optimization)
 
 # 定义请求模型
@@ -252,6 +258,25 @@ async def get_portfolio_backtest_job(job_id: str):
     snapshot = portfolio_job_store.get(job_id)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="portfolio backtest job not found")
+    return snapshot.to_api_response()
+
+
+@app.post("/signal-portfolio-backtest/jobs")
+async def create_signal_portfolio_backtest_job(payload: dict):
+    try:
+        request = SignalPortfolioBacktestRequest.model_validate(payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    snapshot = signal_portfolio_job_store.submit(request)
+    return snapshot.to_api_response()
+
+
+@app.get("/signal-portfolio-backtest/jobs/{job_id}")
+async def get_signal_portfolio_backtest_job(job_id: str):
+    snapshot = signal_portfolio_job_store.get(job_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="signal portfolio backtest job not found")
     return snapshot.to_api_response()
 
 

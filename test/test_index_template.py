@@ -32,6 +32,18 @@ def test_index_template_contains_optimization_controls():
     assert "优化标的" in template
     assert "使用上方当前 A 股代码" in template
     assert "optimization-symbol" not in template
+
+
+def test_index_template_contains_multi_stock_signal_portfolio_mode():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="signalPortfolioBacktestPanel"' in template
+    assert 'id="signalPortfolioBacktestForm"' in template
+    assert 'id="signalPortfolioResultPanel"' in template
+    assert "function collectSignalPortfolioRequest()" in template
+    assert "function renderSignalPortfolioResult(result)" in template
+    assert "fetchJson('/signal-portfolio-backtest/jobs'" in template
+    assert "signal-portfolio-backtest/jobs/${encodeURIComponent(jobId)}" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

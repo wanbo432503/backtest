@@ -45,8 +45,10 @@ class PortfolioBacktestJobStore:
         runner: Callable[..., PortfolioBacktestResult],
         *,
         max_workers: int = 1,
+        job_label: str = "组合回测",
     ) -> None:
         self._runner = runner
+        self._job_label = job_label
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._jobs: dict[str, PortfolioJobSnapshot] = {}
         self._lock = Lock()
@@ -82,7 +84,7 @@ class PortfolioBacktestJobStore:
             snapshot.updated_at = _utc_now()
 
     def _run_job(self, job_id: str, request: PortfolioBacktestRequest) -> None:
-        self.update_progress(job_id, phase="starting", message="开始组合回测")
+        self.update_progress(job_id, phase="starting", message=f"开始{self._job_label}")
         try:
             result = self._runner(
                 request,
@@ -96,7 +98,7 @@ class PortfolioBacktestJobStore:
                 snapshot = self._jobs[job_id]
                 snapshot.status = "succeeded"
                 snapshot.phase = "completed"
-                snapshot.message = "组合回测完成"
+                snapshot.message = f"{self._job_label}完成"
                 snapshot.result = result.to_api_response()
                 snapshot.error = None
                 snapshot.updated_at = _utc_now()
@@ -105,7 +107,7 @@ class PortfolioBacktestJobStore:
                 snapshot = self._jobs[job_id]
                 snapshot.status = "failed"
                 snapshot.phase = "failed"
-                snapshot.message = "组合回测失败"
+                snapshot.message = f"{self._job_label}失败"
                 snapshot.error = str(exc)
                 snapshot.updated_at = _utc_now()
 
@@ -117,6 +119,8 @@ def _message_for_phase(phase: str) -> str:
         "loading_fundamentals": "正在加载财务因子",
         "scoring": "正在计算候选评分",
         "backtesting": "正在执行组合调仓回测",
+        "building_signals": "正在计算多股票交易信号",
+        "signal_backtesting": "正在执行多股票信号组合回测",
         "completed": "组合回测完成",
     }
     return labels.get(phase, "正在执行")

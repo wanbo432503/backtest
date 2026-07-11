@@ -1,0 +1,52 @@
+from fastapi.testclient import TestClient
+
+import main
+from portfolio_progress import PortfolioJobSnapshot
+
+
+def _payload():
+    return {
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31",
+        "universe": {"mode": "manual", "symbols": ["SH603019", "SZ002241"]},
+        "risk": {"max_positions": 2},
+    }
+
+
+def test_signal_portfolio_job_api_creates_and_reads_job(monkeypatch):
+    client = TestClient(main.app)
+    snapshot = PortfolioJobSnapshot(
+        job_id="signal-job-1",
+        status="running",
+        phase="signal_backtesting",
+        progress={"completed_days": 10, "total_days": 100},
+    )
+    monkeypatch.setattr(main.signal_portfolio_job_store, "submit", lambda request: snapshot)
+    monkeypatch.setattr(main.signal_portfolio_job_store, "get", lambda job_id: snapshot)
+
+    created = client.post("/signal-portfolio-backtest/jobs", json=_payload())
+    fetched = client.get("/signal-portfolio-backtest/jobs/signal-job-1")
+
+    assert created.status_code == 200
+    assert created.json()["job_id"] == "signal-job-1"
+    assert fetched.status_code == 200
+    assert fetched.json()["progress"]["completed_days"] == 10
+
+
+def test_signal_portfolio_job_api_rejects_invalid_manual_pool():
+    client = TestClient(main.app)
+    payload = _payload()
+    payload["universe"] = {"mode": "manual", "symbols": ["AAPL"]}
+
+    response = client.post("/signal-portfolio-backtest/jobs", json=payload)
+
+    assert response.status_code == 400
+
+
+def test_signal_portfolio_job_api_returns_404_for_missing_job(monkeypatch):
+    client = TestClient(main.app)
+    monkeypatch.setattr(main.signal_portfolio_job_store, "get", lambda job_id: None)
+
+    response = client.get("/signal-portfolio-backtest/jobs/missing")
+
+    assert response.status_code == 404
