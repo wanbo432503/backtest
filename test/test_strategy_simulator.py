@@ -103,6 +103,25 @@ def test_close_signal_fills_at_next_open_without_lookahead():
     assert buy["price"] == 11
 
 
+def test_entry_requires_configured_history_bars_before_creating_signal():
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.bar_index in {2, 3} and context.position is None
+        else StrategyDecision()
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": _data(opens=(10, 10, 10, 10, 11))},
+        _simulation(min_entry_history_bars=4),
+    )
+
+    assert [event["date"] for event in result.signal_events] == ["2026-01-04"]
+    assert result.trades[0]["date"] == "2026-01-05"
+    assert result.diagnostics["insufficient_entry_history_count"] == 1
+
+
 def test_stop_next_bar_only_fills_when_next_high_reaches_trigger():
     definition = _definition(
         lambda context: StrategyDecision(

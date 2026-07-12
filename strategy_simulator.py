@@ -35,6 +35,7 @@ class SimulationConfig:
     trading: AShareTradingConfig = field(default_factory=AShareTradingConfig)
     start_date: str | None = None
     end_date: str | None = None
+    min_entry_history_bars: int = 0
 
 
 @dataclass
@@ -120,6 +121,7 @@ def run_strategy_simulation(
     diagnostics = {
         "expired_entry_count": 0,
         "rejected_entry_count": 0,
+        "insufficient_entry_history_count": 0,
         "drawdown_entry_stop": False,
     }
 
@@ -323,6 +325,9 @@ def run_strategy_simulation(
                 and symbol not in positions
                 and symbol not in pending_entries
             ):
+                if location + 1 < simulation_config.min_entry_history_bars:
+                    diagnostics["insufficient_entry_history_count"] += 1
+                    continue
                 pending_entries[symbol] = _PendingEntry(
                     symbol=symbol,
                     created_date=date,

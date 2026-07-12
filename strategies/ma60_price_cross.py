@@ -15,6 +15,7 @@ from strategy_engine import (
 
 MA_PERIOD = 60
 CROSSING_LOOKBACK_BARS = 250
+PORTFOLIO_PRIORITY_HISTORY_BARS = MA_PERIOD + CROSSING_LOOKBACK_BARS
 
 
 class MA60PriceCrossConfig(BaseModel):
@@ -134,4 +135,5 @@ STRATEGY_DEFINITION = StrategyDefinition(
     prepare_frame=prepare_ma60_price_cross_frame,
     evaluate=evaluate_ma60_price_cross,
     min_history_bars=ma60_price_cross_min_history_bars,
+    portfolio_priority_history_bars=PORTFOLIO_PRIORITY_HISTORY_BARS,
 )

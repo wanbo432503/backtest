@@ -46,6 +46,20 @@ def test_signal_portfolio_normalization_validates_and_completes_strategy_default
     assert request.strategy.parameters == {"rsi_period": 9}
 
 
+def test_ma60_signal_portfolio_requires_full_year_priority_history():
+    request = _request(
+        strategy={
+            "strategy_name": "ma60_price_cross",
+            "parameters": {},
+        }
+    )
+
+    normalized = request.normalized_for_library(get_strategy_library())
+
+    # 250 comparison bars plus 60 bars to warm up MA60 for the whole window.
+    assert normalized.selection.min_history_bars == 310
+
+
 def test_signal_portfolio_rejects_unknown_strategy_parameter_during_normalization():
     request = _request(
         strategy={

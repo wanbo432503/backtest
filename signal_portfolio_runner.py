@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import ceil
 from typing import Any, Callable
 
 import pandas as pd
@@ -10,6 +11,7 @@ from signal_portfolio_models import (
     SignalPortfolioBacktestResult,
 )
 from strategy_library import StrategyLibrary, get_strategy_library
+from strategy_engine import StrategyDefinition
 from strategy_simulator import SimulationConfig, run_strategy_simulation
 from universe_scan_runner import load_universe_scan_data
 
@@ -22,7 +24,17 @@ def run_signal_portfolio_backtest(
 ) -> SignalPortfolioBacktestResult:
     library = strategy_library or get_strategy_library()
     normalized = request.normalized_for_library(library)
-    scan = load_universe_scan_data(normalized, progress_callback=progress_callback)
+    definition = library.get(normalized.strategy.strategy_name)
+    data_start_date = _portfolio_data_start_date(normalized.start_date, definition)
+    load_request = normalized.model_copy(deep=True)
+    load_request.start_date = data_start_date
+    scan = load_universe_scan_data(load_request, progress_callback=progress_callback)
+    scan.diagnostics.update(
+        {
+            "history_data_start_date": data_start_date,
+            "entry_history_bars": definition.portfolio_priority_history_bars,
+        }
+    )
     return run_signal_portfolio_with_data(
         normalized,
         scan.data_by_symbol,
@@ -85,6 +97,7 @@ def run_signal_portfolio_with_data(
             trading=normalized.trading,
             start_date=normalized.start_date,
             end_date=normalized.end_date,
+            min_entry_history_bars=definition.portfolio_priority_history_bars,
         ),
         progress_callback=forward_progress,
         entry_risk_multiplier=risk_multiplier,
@@ -142,6 +155,19 @@ def run_signal_portfolio_with_data(
         scan_diagnostics=result_diagnostics,
         config=normalized.model_dump(mode="json"),
     )
+
+
+def _portfolio_data_start_date(
+    start_date: str,
+    definition: StrategyDefinition,
+) -> str:
+    history_bars = definition.portfolio_priority_history_bars
+    if history_bars <= 0:
+        return start_date
+    warmup_months = ceil(history_bars / 250 * 12 * 1.2)
+    return (
+        pd.Timestamp(start_date) - pd.DateOffset(months=warmup_months)
+    ).strftime("%Y-%m-%d")
 
 
 def _build_market_breadth_overlay(

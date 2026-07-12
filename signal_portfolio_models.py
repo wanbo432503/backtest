@@ -221,6 +221,7 @@ class SignalPortfolioBacktestRequest(BaseModel):
         normalized.selection.min_history_bars = max(
             normalized.selection.min_history_bars,
             definition.min_history_bars(config),
+            definition.portfolio_priority_history_bars,
             normalized.market_filter.breadth_ma_period,
         )
         return normalized

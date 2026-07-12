@@ -113,6 +113,7 @@ class StrategyDefinition:
         "single_stock",
         "signal_portfolio",
     )
+    portfolio_priority_history_bars: int = 0
 
 
 @dataclass

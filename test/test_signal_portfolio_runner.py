@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 from dataclasses import replace
 
+import signal_portfolio_runner
 from signal_portfolio_models import SignalPortfolioBacktestRequest
 from signal_portfolio_runner import (
     _build_market_breadth_overlay,
@@ -143,6 +144,23 @@ def test_disabled_market_filter_always_returns_full_risk():
 
     assert set(overlay["risk_multiplier"]) == {1.0}
     assert diagnostics["market_filter_enabled"] is False
+
+
+def test_ma60_portfolio_preloads_history_before_backtest_start():
+    definition = get_strategy_library().get("ma60_price_cross")
+    other_definition = get_strategy_library().get("rsi_risk_control")
+
+    assert hasattr(signal_portfolio_runner, "_portfolio_data_start_date")
+    assert (
+        signal_portfolio_runner._portfolio_data_start_date("2025-01-01", definition)
+        == "2023-07-01"
+    )
+    assert (
+        signal_portfolio_runner._portfolio_data_start_date(
+            "2025-01-01", other_definition
+        )
+        == "2025-01-01"
+    )
 
 
 def test_signal_portfolio_result_preserves_scan_context_and_normalized_config():
