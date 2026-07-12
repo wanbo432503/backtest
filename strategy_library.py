@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import importlib
+import pkgutil
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -80,3 +83,37 @@ class StrategyLibrary:
                     "parameter metadata default does not match config default for "
                     f"strategy '{definition.strategy_id}': {parameter.name}"
                 )
+
+
+def build_strategy_library() -> StrategyLibrary:
+    strategies_path = Path(__file__).resolve().parent / "strategies"
+    definitions = []
+    for module_info in sorted(
+        pkgutil.iter_modules([str(strategies_path)]),
+        key=lambda item: item.name,
+    ):
+        module = importlib.import_module(f"strategies.{module_info.name}")
+        definition = getattr(module, "STRATEGY_DEFINITION", None)
+        if not isinstance(definition, StrategyDefinition):
+            raise ValueError(
+                f"strategy module 'strategies.{module_info.name}' does not export "
+                "STRATEGY_DEFINITION"
+            )
+        definitions.append(definition)
+    return StrategyLibrary(definitions)
+
+
+_STRATEGY_LIBRARY: StrategyLibrary | None = None
+
+
+def get_strategy_library() -> StrategyLibrary:
+    global _STRATEGY_LIBRARY
+    if _STRATEGY_LIBRARY is None:
+        _STRATEGY_LIBRARY = build_strategy_library()
+    return _STRATEGY_LIBRARY
+
+
+def reload_strategy_library() -> StrategyLibrary:
+    global _STRATEGY_LIBRARY
+    _STRATEGY_LIBRARY = build_strategy_library()
+    return _STRATEGY_LIBRARY

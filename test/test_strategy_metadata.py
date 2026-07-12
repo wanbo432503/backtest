@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 import main
 from strategy_metadata import get_strategy_metadata
+from strategy_library import get_strategy_library
 
 
 RETAINED_STRATEGIES = {
@@ -11,6 +12,7 @@ RETAINED_STRATEGIES = {
     "rsi_risk_control",
     "ma_trend_risk_control",
     "volume_breakout_risk_control",
+    "trend_pullback_pin_bar",
 }
 
 
@@ -111,3 +113,13 @@ def test_strategies_endpoint_includes_parameter_metadata():
     assert set(strategies) == RETAINED_STRATEGIES
     assert "parameters" in strategies["macd_volume_divergence_risk_control"]
     assert strategies["macd_volume_divergence_risk_control"]["parameters"]
+
+
+def test_unified_library_contains_exactly_seven_dual_mode_strategies():
+    catalog = get_strategy_library().to_catalog()
+
+    assert {item["name"] for item in catalog} == RETAINED_STRATEGIES
+    assert all(
+        item["supported_modes"] == ["single_stock", "signal_portfolio"]
+        for item in catalog
+    )

@@ -4,12 +4,15 @@ from backtesting import Backtest
 
 import main
 from strategies.ma_breakout_atr_risk_control import (
+    MABreakoutATRConfig,
     MABreakoutATRRiskControlStrategy,
+    STRATEGY_DEFINITION,
     calculate_atr_position_pct,
     get_ma_breakout_atr_exit_reason,
     should_enter_ma_breakout,
     should_enter_trend_bootstrap,
 )
+from strategy_engine import SimulationPosition, StrategyBarContext
 
 
 def test_ma_breakout_atr_enters_on_trend_breakout_with_volume_confirmation():
@@ -191,3 +194,102 @@ def test_ma_breakout_atr_bootstrap_can_trade_before_long_ma_window_is_full():
     )
 
     assert int(stats["# Trades"]) >= 1
+
+
+def test_ma_breakout_atr_definition_preserves_bootstrap_entry_and_atr_size():
+    config = MABreakoutATRConfig(
+        short_ma=5,
+        medium_ma=20,
+        long_ma=60,
+        breakout_lookback=10,
+        volume_lookback=5,
+        bootstrap_bars=120,
+        atr_period=5,
+        target_atr_risk_pct=0.03,
+        min_position_pct=0.2,
+        max_position_pct=0.95,
+    )
+    frame = pd.DataFrame(
+        {
+            "Open": [13.0] * 22,
+            "High": [14.0] * 21 + [15.4],
+            "Low": [12.0] * 22,
+            "Close": [13.0] * 21 + [15.2],
+            "Volume": [1_000_000] * 21 + [1_600_000],
+            "ma_short_value": [14.0] * 22,
+            "ma_medium_value": [13.5] * 22,
+            "ma_long_value": [float("nan")] * 22,
+            "highest_high": [15.0] * 22,
+            "average_volume": [1_000_000] * 22,
+            "atr": [0.6] * 22,
+        },
+        index=pd.date_range("2026-01-01", periods=22, freq="D"),
+    )
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext("SH603019", frame, 21, config)
+    )
+
+    assert decision.entry is not None
+    assert decision.entry.order_type == "next_open"
+    assert decision.entry.suggested_position_pct == 0.76
+
+
+def test_ma_breakout_atr_definition_emits_atr_trailing_exit():
+    config = MABreakoutATRConfig()
+    rows = STRATEGY_DEFINITION.min_history_bars(config)
+    frame = pd.DataFrame(
+        {
+            "Open": [14.4] * rows,
+            "High": [15.0] * rows,
+            "Low": [14.0] * rows,
+            "Close": [14.4] * rows,
+            "Volume": [1_000_000] * rows,
+            "ma_short_value": [14.0] * rows,
+            "ma_medium_value": [13.5] * rows,
+            "ma_long_value": [12.0] * rows,
+            "highest_high": [15.0] * rows,
+            "average_volume": [1_000_000] * rows,
+            "atr": [0.6] * rows,
+        },
+        index=pd.date_range("2025-01-01", periods=rows, freq="D"),
+    )
+    position = SimulationPosition(
+        "SH603019",
+        100,
+        "2025-01-01",
+        14.0,
+        holding_bars=20,
+        highest_price=16.0,
+    )
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext("SH603019", frame, rows - 1, config, position)
+    )
+
+    assert decision.exit is not None
+    assert decision.exit.reason == "atr_trailing_stop"
+
+
+def test_ma_breakout_atr_preparation_is_prefix_invariant():
+    dates = pd.date_range("2025-01-01", periods=160, freq="D")
+    data = pd.DataFrame(
+        {
+            "Open": range(100, 260),
+            "High": range(101, 261),
+            "Low": range(99, 259),
+            "Close": range(100, 260),
+            "Volume": range(1_000_000, 1_000_160),
+        },
+        index=dates,
+    )
+    config = MABreakoutATRConfig()
+    prefix = STRATEGY_DEFINITION.prepare_frame(data.iloc[:130], config)
+    changed = data.copy()
+    changed.loc[dates[130]:, ["Close", "High", "Volume"]] = [10_000, 10_100, 99_000_000]
+    full = STRATEGY_DEFINITION.prepare_frame(changed, config).iloc[:130]
+
+    pd.testing.assert_frame_equal(
+        prefix[["ma_short_value", "ma_medium_value", "ma_long_value", "highest_high", "average_volume", "atr"]],
+        full[["ma_short_value", "ma_medium_value", "ma_long_value", "highest_high", "average_volume", "atr"]],
+    )
