@@ -104,6 +104,18 @@ def test_ma_breakout_atr_metadata_exposes_trend_breakout_parameters():
     assert params["atr_stop_multiplier"].default == 2.5
 
 
+def test_ma60_metadata_exposes_optimizable_slope_and_gap_parameters():
+    metadata = get_strategy_metadata("ma60_price_cross")
+    params = {param.name: param for param in metadata.parameters}
+
+    assert params["ma_slope_lookback_bars"].default == 20
+    assert params["ma_slope_lookback_bars"].search_values == [10, 20, 30, 40]
+    assert params["min_ma_slope_return_pct"].default == 1
+    assert params["min_ma_slope_return_pct"].search_values == [0, 0.5, 1, 2]
+    assert params["max_entry_gap_pct"].default == 3
+    assert params["max_entry_gap_pct"].search_values == [1, 2, 3, 5]
+
+
 def test_strategies_endpoint_includes_parameter_metadata():
     main.load_strategy_modules()
     client = TestClient(main.app)

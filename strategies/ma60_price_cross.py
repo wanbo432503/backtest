@@ -18,10 +18,8 @@ CROSSING_LOOKBACK_BARS = 250
 PORTFOLIO_PRIORITY_HISTORY_BARS = CROSSING_LOOKBACK_BARS
 PORTFOLIO_INDICATOR_WARMUP_BARS = MA_PERIOD
 ATR_PERIOD = 14
-MA_SLOPE_LOOKBACK_BARS = 20
 ENTRY_ATR_MULTIPLIER = 0.5
 EXIT_ATR_MULTIPLIER = 0.25
-MIN_MA_SLOPE_RETURN = 0.01
 REENTRY_COOLDOWN_BARS = 10
 
 
@@ -29,6 +27,9 @@ class MA60PriceCrossConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     position_pct: float = Field(default=0.15, ge=0.05, le=0.15)
+    ma_slope_lookback_bars: int = Field(default=20, ge=5, le=60)
+    min_ma_slope_return_pct: float = Field(default=1.0, ge=-5, le=5)
+    max_entry_gap_pct: float = Field(default=3.0, ge=0, le=20)
 
 
 def crossed_above_ma(
@@ -72,7 +73,7 @@ def prepare_ma60_price_cross_frame(
     data: pd.DataFrame,
     config: BaseModel,
 ) -> pd.DataFrame:
-    MA60PriceCrossConfig.model_validate(config.model_dump())
+    validated = MA60PriceCrossConfig.model_validate(config.model_dump())
     frame = data.copy()
     close = frame["Close"].astype(float)
     high = frame["High"].astype(float)
@@ -89,7 +90,9 @@ def prepare_ma60_price_cross_frame(
     ).max(axis=1)
     frame["atr_value"] = true_range.rolling(ATR_PERIOD).mean()
     frame["ma_slope_return"] = (
-        frame["ma_value"] / frame["ma_value"].shift(MA_SLOPE_LOOKBACK_BARS) - 1
+        frame["ma_value"]
+        / frame["ma_value"].shift(validated.ma_slope_lookback_bars)
+        - 1
     )
     return frame
 
@@ -129,14 +132,14 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
         and context.bars_since_exit <= REENTRY_COOLDOWN_BARS
     ):
         return StrategyDecision()
-    if ma_slope_return < MIN_MA_SLOPE_RETURN:
-        return StrategyDecision()
-    if current_close <= current_ma:
+    is_breakout_setup = current_close <= entry_threshold
+    minimum_slope_return = config.min_ma_slope_return_pct / 100
+    if not is_breakout_setup and ma_slope_return < minimum_slope_return:
         return StrategyDecision()
     entry_mode = (
-        "trend_continuation"
-        if current_close > entry_threshold
-        else "breakout"
+        "breakout"
+        if is_breakout_setup
+        else "trend_continuation"
     )
     cross_count = count_ma_crosses(
         context.entry_history["Close"].astype(float),
@@ -158,20 +161,21 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
                 "entry_threshold": round(entry_threshold, 6),
                 "ma_slope_return": round(ma_slope_return, 8),
                 "entry_mode": entry_mode,
+                "max_entry_gap_pct": config.max_entry_gap_pct,
             },
         )
     )
 
 
 def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
-    MA60PriceCrossConfig.model_validate(config.model_dump())
-    return MA_PERIOD + MA_SLOPE_LOOKBACK_BARS
+    validated = MA60PriceCrossConfig.model_validate(config.model_dump())
+    return MA_PERIOD + validated.ma_slope_lookback_bars
 
 
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="前一日站上 MA60 且 MA60 向上时布置 0.5 ATR 上轨买入条件单，次日盘中触及即成交；持仓后每日更新 0.25 ATR 下轨保护价，次日盘中触及即卖出；卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易，之后优先选择观察期内交叉次数较少的股票。",
+    description="每日收盘后按当日 MA60 与 ATR 预挂次日 0.5 ATR 上轨突破单，首次突破不受斜率限制；已经站上上轨的趋势延续入场需满足可配置的 MA60 斜率，并限制跳空追价；持仓后使用 0.25 ATR 下轨保护，卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(
@@ -183,6 +187,39 @@ STRATEGY_DEFINITION = StrategyDefinition(
             min_value=0.05,
             max_value=0.15,
             step=0.05,
+        ),
+        StrategyParamMeta(
+            name="ma_slope_lookback_bars",
+            label="MA60斜率回看周期",
+            type="int",
+            default=20,
+            search_values=[10, 20, 30, 40],
+            min_value=5,
+            max_value=60,
+            step=5,
+            description="仅用于趋势延续入场，计算 MA60 在指定交易日内的变化。",
+        ),
+        StrategyParamMeta(
+            name="min_ma_slope_return_pct",
+            label="最低MA60斜率收益(%)",
+            type="float",
+            default=1.0,
+            search_values=[0, 0.5, 1, 2],
+            min_value=-5,
+            max_value=5,
+            step=0.5,
+            description="仅限制已经站上 ATR 上轨后的趋势延续入场。",
+        ),
+        StrategyParamMeta(
+            name="max_entry_gap_pct",
+            label="最大追价幅度(%)",
+            type="float",
+            default=3.0,
+            search_values=[1, 2, 3, 5],
+            min_value=0,
+            max_value=20,
+            step=0.5,
+            description="次日开盘高出 ATR 触发价超过该比例时取消买入。",
         ),
     ),
     prepare_frame=prepare_ma60_price_cross_frame,

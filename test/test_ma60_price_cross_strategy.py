@@ -151,6 +151,156 @@ def test_entry_places_intraday_stop_order_before_upper_band_breakout():
     assert decision.entry.risk.stop_price == 9.9
 
 
+def test_fresh_breakout_setup_does_not_wait_for_ma60_slope_confirmation():
+    frame = _filtered_signal_frame(current=9.95, slope=-0.05)
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+        )
+    )
+
+    assert decision.entry is not None
+    assert decision.entry.trigger_price == 10.2
+    assert decision.entry.metadata["entry_mode"] == "breakout"
+
+
+def test_trend_continuation_uses_configurable_ma60_slope_threshold():
+    frame = _filtered_signal_frame(current=10.4, slope=0.015)
+
+    blocked = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(min_ma_slope_return_pct=2),
+        )
+    )
+    allowed = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(min_ma_slope_return_pct=1),
+        )
+    )
+
+    assert blocked.entry is None
+    assert allowed.entry is not None
+    assert allowed.entry.metadata["entry_mode"] == "trend_continuation"
+
+
+def test_ma60_slope_lookback_is_configurable():
+    data = _frame([float(value) for value in range(100, 200)])
+
+    ten_bar = STRATEGY_DEFINITION.prepare_frame(
+        data,
+        MA60PriceCrossConfig(ma_slope_lookback_bars=10),
+    )
+    thirty_bar = STRATEGY_DEFINITION.prepare_frame(
+        data,
+        MA60PriceCrossConfig(ma_slope_lookback_bars=30),
+    )
+
+    assert ten_bar["ma_slope_return"].iloc[-1] < thirty_bar["ma_slope_return"].iloc[-1]
+    assert STRATEGY_DEFINITION.min_history_bars(
+        MA60PriceCrossConfig(ma_slope_lookback_bars=30)
+    ) == 90
+
+
+def test_ma60_entry_exposes_configurable_gap_limit_to_execution_engine():
+    frame = _filtered_signal_frame(current=10.4, slope=0.02)
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(max_entry_gap_pct=3),
+        )
+    )
+
+    assert decision.entry is not None
+    assert decision.entry.metadata["max_entry_gap_pct"] == 3
+
+
+def test_sh603019_like_breakout_fills_on_the_breakout_session():
+    frame = _filtered_signal_frame(current=36.12, atr=2.0064, slope=-0.044947)
+    frame["ma_value"] = 36.5402
+    signal_date = frame.index[-1]
+    fill_date = signal_date + pd.offsets.BDay()
+    frame.loc[fill_date] = {
+        "Open": 38.50,
+        "High": 39.73,
+        "Low": 38.49,
+        "Close": 39.14,
+        "Volume": 1_000_000,
+        "ma_value": 36.5265,
+        "atr_value": 2.1229,
+        "ma_slope_return": -0.044159,
+    }
+    definition = replace(
+        STRATEGY_DEFINITION,
+        prepare_frame=lambda data, config: data.copy(),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        MA60PriceCrossConfig(max_entry_gap_pct=3),
+        {"SH603019": frame},
+        SimulationConfig(
+            initial_cash=100_000,
+            trading=_trading(),
+            start_date=signal_date.strftime("%Y-%m-%d"),
+            end_date=fill_date.strftime("%Y-%m-%d"),
+        ),
+    )
+
+    buys = [trade for trade in result.trades if trade["side"] == "buy"]
+    assert buys[0]["date"] == fill_date.strftime("%Y-%m-%d")
+    assert buys[0]["price"] == 38.50
+
+
+def test_ma60_rejects_delayed_entry_far_above_the_atr_trigger():
+    frame = _filtered_signal_frame(current=54.50, atr=3.285, slope=0.010151)
+    frame["ma_value"] = 38.079
+    signal_date = frame.index[-1]
+    fill_date = signal_date + pd.offsets.BDay()
+    frame.loc[fill_date] = {
+        "Open": 54.01,
+        "High": 54.65,
+        "Low": 51.80,
+        "Close": 52.07,
+        "Volume": 1_000_000,
+        "ma_value": 38.307,
+        "atr_value": 3.3743,
+        "ma_slope_return": 0.020142,
+    }
+    definition = replace(
+        STRATEGY_DEFINITION,
+        prepare_frame=lambda data, config: data.copy(),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        MA60PriceCrossConfig(max_entry_gap_pct=3),
+        {"SH603019": frame},
+        SimulationConfig(
+            initial_cash=100_000,
+            trading=_trading(),
+            start_date=signal_date.strftime("%Y-%m-%d"),
+            end_date=fill_date.strftime("%Y-%m-%d"),
+        ),
+    )
+
+    assert result.signal_events[0]["trigger_price"] == 39.7215
+    assert result.trades == []
+    assert result.diagnostics["rejected_entry_count"] == 1
+
+
 def test_position_updates_intraday_atr_exit_for_next_session():
     frame = _filtered_signal_frame(current=10.0)
 
@@ -356,7 +506,7 @@ def test_signal_portfolio_buys_fewer_cross_stock_first():
 
     result = run_strategy_simulation(
         definition,
-        MA60PriceCrossConfig(),
+        MA60PriceCrossConfig(max_entry_gap_pct=20),
         {
             "SH603019": frequent_frame,
             "SZ002241": stable_frame,

@@ -167,6 +167,7 @@ def test_ma60_portfolio_observes_first_year_before_trading():
     frame = _frame()
     request = _request(
         "ma60_price_cross",
+        {"max_entry_gap_pct": 20},
         market_filter={"enabled": False},
     )
 
