@@ -173,6 +173,25 @@ def test_t1_blocks_exit_until_trading_day_after_fill():
     assert sell["date"] == "2026-01-03"
 
 
+def test_summary_reports_time_exposed_across_the_full_backtest():
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is not None:
+            return StrategyDecision(exit=ExitIntent("signal_exit"))
+        return StrategyDecision()
+
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SH603019": _data(opens=(10, 10, 10, 10))},
+        _simulation(),
+    )
+
+    assert result.summary["final_gross_exposure"] == 0
+    assert result.summary["exposure_time_pct"] == 25
+
+
 def test_shared_cash_allocates_stronger_signal_first():
     def evaluator(context):
         if context.bar_index != 0:

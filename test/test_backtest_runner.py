@@ -77,6 +77,45 @@ def test_run_single_backtest_returns_score(monkeypatch):
     )
 
 
+def test_single_backtest_reports_benchmark_and_simulation_details(monkeypatch):
+    monkeypatch.setattr(
+        "backtest_runner.fetch_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", []),
+    )
+
+    result = run_single_backtest(
+        symbol="SH603019",
+        start_date="2025-07-03",
+        end_date="2025-10-01",
+        strategy_name="ma_trend_risk_control",
+        strategy_library=get_strategy_library(),
+    )
+    payload = result.to_api_response()
+
+    assert result.stats["基准收益率"] == "17.80%"
+    assert payload["summary"]["benchmark_return_pct"] == pytest.approx(17.8)
+    assert payload["equity_curve"]
+    assert isinstance(payload["positions"], list)
+    assert isinstance(payload["trades"], list)
+    assert isinstance(payload["signal_events"], list)
+
+
+def test_single_stats_use_full_period_exposure_not_final_position():
+    stats = backtest_runner._format_stats(
+        {
+            "total_return_pct": 10,
+            "max_drawdown_pct": 5,
+            "benchmark_return_pct": 12.5,
+            "exposure_time_pct": 37.5,
+            "final_gross_exposure": 0,
+        },
+        {"score": 1},
+    )
+
+    assert stats["基准收益率"] == "12.50%"
+    assert stats["持仓时间"] == "37.50%"
+
+
 def test_plot_root_layout_stretches_to_iframe_width(monkeypatch):
     captured = {}
 
@@ -202,6 +241,11 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
         "interval",
         "data_provider",
         "data_warnings",
+        "summary",
+        "equity_curve",
+        "positions",
+        "trades",
+        "signal_events",
     }
     assert payload["data_provider"] == "test"
     assert payload["data_warnings"] == ["source warning"]

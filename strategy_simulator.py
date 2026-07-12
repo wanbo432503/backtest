@@ -524,6 +524,9 @@ def _summary(curve, trades, initial_cash):
     )
     sells = [trade for trade in trades if trade["side"] == "sell"]
     wins = [trade for trade in sells if float(trade.get("pnl") or 0) > 0]
+    exposed_bars = sum(
+        1 for point in curve if float(point.get("gross_exposure", 0)) > 0
+    )
     return {
         "final_equity": round(final, 6),
         "total_return_pct": round(total_return, 6),
@@ -538,6 +541,9 @@ def _summary(curve, trades, initial_cash):
         "win_rate_pct": round(len(wins) / len(sells) * 100, 6) if sells else 0.0,
         "turnover": round(sum(trade["amount"] for trade in trades) / initial_cash, 6)
         if initial_cash
+        else 0.0,
+        "exposure_time_pct": round(exposed_bars / len(curve) * 100, 6)
+        if curve
         else 0.0,
         "final_gross_exposure": curve[-1]["gross_exposure"] if curve else 0.0,
     }

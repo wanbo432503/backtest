@@ -238,8 +238,8 @@
             padding: 50px;
         }
         .chart-card {
-            flex: 1;
-            min-height: 0;
+            flex: 1 0 680px;
+            min-height: 680px;
             display: flex;
             flex-direction: column;
         }
@@ -1579,6 +1579,17 @@ SZ000651</textarea>
                         </div>
                     </div>
                 </div>
+
+                <details id="singleBacktestDetailsPanel" class="card stats-panel collapsible-result-panel" style="display: none;">
+                    <summary class="card-header"><i class="fas fa-list-alt"></i> 单股持仓与成交明细</summary>
+                    <div class="card-body">
+                        <div id="singleBacktestDetailsNote" class="portfolio-status mb-2"></div>
+                        <h6>当前持仓</h6>
+                        <div id="singleBacktestPositionsTable"></div>
+                        <h6 class="mt-3">逐笔成交</h6>
+                        <div id="singleBacktestTradeTable"></div>
+                    </div>
+                </details>
             </div>
 
             <div class="col-xl-3 col-lg-12 pane-column" id="rightAnalysisColumn">
@@ -4226,6 +4237,41 @@ SZ000651</textarea>
             document.getElementById('statsContainer').style.display = 'block';
         }
 
+        function renderSingleBacktestDetails(result) {
+            const summary = result.summary || {};
+            const positions = result.positions || [];
+            const trades = result.trades || [];
+            const panel = document.getElementById('singleBacktestDetailsPanel');
+            panel.open = true;
+            panel.style.display = 'block';
+            document.getElementById('singleBacktestDetailsNote').textContent = [
+                `区间持仓时间 ${formatPortfolioPct(summary.exposure_time_pct)}`,
+                `期末仓位 ${formatPortfolioPct((summary.final_gross_exposure ?? 0) * 100)}`,
+                `成交记录 ${trades.length} 笔`
+            ].join(' | ');
+            renderPortfolioTable('singleBacktestPositionsTable', positions, [
+                { label: '股票', key: 'symbol' },
+                { label: '股数', key: 'shares' },
+                { label: '入场日', key: 'entry_date' },
+                { label: '入场价', key: 'entry_price', value: row => formatMetric(row.entry_price) },
+                { label: '现价', key: 'price', value: row => formatMetric(row.price) },
+                { label: '市值', key: 'market_value', value: row => formatPortfolioCurrency(row.market_value) },
+                { label: '浮盈亏', key: 'unrealized_pnl', value: row => formatPortfolioCurrency(row.unrealized_pnl) },
+                { label: '持仓周期', key: 'holding_bars' }
+            ], `期末无持仓；区间持仓时间 ${formatPortfolioPct(summary.exposure_time_pct)}`);
+            renderPortfolioTable('singleBacktestTradeTable', trades.slice().reverse(), [
+                { label: '日期', key: 'date' },
+                { label: '方向', key: 'side', value: row => row.side === 'buy' ? '买入' : '卖出' },
+                { label: '股票', key: 'symbol' },
+                { label: '股数', key: 'shares' },
+                { label: '价格', key: 'price', value: row => formatMetric(row.price) },
+                { label: '金额', key: 'amount', value: row => formatPortfolioCurrency(row.amount) },
+                { label: '费用', key: 'cost', value: row => formatMetric(row.cost) },
+                { label: '原因', key: 'reason' },
+                { label: '盈亏', key: 'pnl', value: row => row.pnl == null ? '-' : formatPortfolioCurrency(row.pnl) }
+            ], '暂无成交');
+        }
+
         function toggleAnalysisPanel() {
             const mainContainer = document.getElementById('mainContainer');
             const toggleButton = document.getElementById('toggleAnalysisPanelButton');
@@ -4320,6 +4366,7 @@ SZ000651</textarea>
             document.getElementById('signalPortfolioResultPanel').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
             document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('singleBacktestDetailsPanel').style.display = 'none';
             try {
                 const job = await createSignalPortfolioJob(requestBody);
                 renderSignalPortfolioProgress(job);
@@ -4357,6 +4404,7 @@ SZ000651</textarea>
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('plotContainer').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('singleBacktestDetailsPanel').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
             document.getElementById('portfolioProgressPanel').style.display = 'block';
             scrollPortfolioPanelIntoView('portfolioProgressPanel');
@@ -4447,6 +4495,7 @@ SZ000651</textarea>
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('plotContainer').innerHTML = '';
             document.getElementById('statsContainer').style.display = 'none';
+            document.getElementById('singleBacktestDetailsPanel').style.display = 'none';
             document.getElementById('portfolioResultPanel').style.display = 'none';
             document.getElementById('optimizationProgressPanel').style.display = optimizationEnabled ? 'block' : 'none';
             
@@ -4483,6 +4532,7 @@ SZ000651</textarea>
                 const result = await response.json();
                 
                 renderBacktestStats(result);
+                renderSingleBacktestDetails(result);
                 
                 // 使用iframe显示图表
                 const iframe = document.createElement('iframe');

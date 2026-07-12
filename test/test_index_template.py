@@ -448,6 +448,34 @@ def test_index_template_keeps_optimization_results_collapsible_after_backtest():
     assert "renderBacktestStats(result)" in template
 
 
+def test_index_template_renders_single_stock_positions_and_trades():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert 'id="singleBacktestDetailsPanel"' in template
+    assert 'id="singleBacktestPositionsTable"' in template
+    assert 'id="singleBacktestTradeTable"' in template
+    assert "function renderSingleBacktestDetails(result)" in template
+    assert "renderSingleBacktestDetails(result)" in template
+    assert "期末无持仓" in template
+    assert "暂无成交" in template
+    renderer = re.search(
+        r"function renderSingleBacktestDetails\(result\) \{(.*?)\n        \}",
+        template,
+        flags=re.S,
+    )
+    assert renderer is not None
+    assert "html: renderPortfolioSymbolButton" not in renderer.group(1)
+
+
+def test_index_template_keeps_chart_visible_when_single_details_expand():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+    chart_rule = re.search(r"\.chart-card \{(.*?)\}", template, flags=re.S)
+
+    assert chart_rule is not None
+    assert "flex: 1 0 680px" in chart_rule.group(1)
+    assert "min-height: 680px" in chart_rule.group(1)
+
+
 def test_index_template_persists_current_and_historical_optimization_results():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

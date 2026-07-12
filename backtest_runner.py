@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -28,6 +28,11 @@ class BacktestResult:
     data_provider: str
     data_warnings: list[str]
     data_cache_status: str = "disabled"
+    summary: dict[str, Any] = field(default_factory=dict)
+    equity_curve: list[dict[str, Any]] = field(default_factory=list)
+    positions: list[dict[str, Any]] = field(default_factory=list)
+    trades: list[dict[str, Any]] = field(default_factory=list)
+    signal_events: list[dict[str, Any]] = field(default_factory=list)
 
     def to_api_response(self) -> dict[str, Any]:
         return {
@@ -39,6 +44,11 @@ class BacktestResult:
             "data_warnings": self.data_warnings,
             "data_cache_status": self.data_cache_status,
             "metrics": self.metrics,
+            "summary": self.summary,
+            "equity_curve": self.equity_curve,
+            "positions": self.positions,
+            "trades": self.trades,
+            "signal_events": self.signal_events,
         }
 
 
@@ -91,8 +101,12 @@ def run_single_backtest(
             end_date=end_date,
         ),
     )
-    metrics = extract_core_metrics(simulation.summary, min_trades=min_trades)
-    stats = _format_stats(simulation.summary, metrics)
+    summary = {
+        **simulation.summary,
+        "benchmark_return_pct": _benchmark_return_pct(data),
+    }
+    metrics = extract_core_metrics(summary, min_trades=min_trades)
+    stats = _format_stats(summary, metrics)
     return BacktestResult(
         plot_html=_render_plot_html(data, simulation.equity_curve, simulation.trades),
         stats=stats,
@@ -102,6 +116,11 @@ def run_single_backtest(
         data_provider=source_result.provider,
         data_warnings=source_result.warnings,
         data_cache_status=source_result.cache_status,
+        summary=summary,
+        equity_curve=simulation.equity_curve,
+        positions=simulation.positions,
+        trades=simulation.trades,
+        signal_events=simulation.signal_events,
     )
 
 
@@ -110,6 +129,13 @@ def _validate_dates(start_date: str, end_date: str) -> None:
     end = datetime.strptime(end_date, "%Y-%m-%d")
     if start >= end:
         raise ValueError("开始日期必须早于结束日期")
+
+
+def _benchmark_return_pct(data: pd.DataFrame) -> float:
+    closes = pd.to_numeric(data["Close"], errors="coerce").dropna()
+    if len(closes) < 2 or float(closes.iloc[0]) == 0:
+        return 0.0
+    return round((float(closes.iloc[-1]) / float(closes.iloc[0]) - 1) * 100, 6)
 
 
 def _render_plot_html(
@@ -170,8 +196,8 @@ def _format_stats(summary: dict[str, Any], metrics: dict[str, Any]) -> dict[str,
     return {
         "策略收益率": f"{float(summary.get('total_return_pct', 0)):.2f}%",
         "最大回撤": f"{float(summary.get('max_drawdown_pct', 0)):.2f}%",
-        "基准收益率": "0.00%",
-        "持仓时间": f"{float(summary.get('final_gross_exposure', 0)) * 100:.2f}%",
+        "基准收益率": f"{float(summary.get('benchmark_return_pct', 0)):.2f}%",
+        "持仓时间": f"{float(summary.get('exposure_time_pct', 0)):.2f}%",
         "年复合增长率": f"{float(summary.get('annual_return_pct', 0)):.2f}%",
         "交易次数": int(summary.get("trades", 0)),
         "交易胜率": f"{float(summary.get('win_rate_pct', 0)):.2f}%",
