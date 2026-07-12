@@ -380,6 +380,14 @@ def test_index_template_contains_risk_and_a_share_rule_controls():
     assert "strategy_params" in template
 
 
+def test_signal_portfolio_diagnostics_show_entry_observation_period():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "观察期起点" in template
+    assert "观察期要求" in template
+    assert "观察期拦截" in template
+
+
 def test_strategy_parameters_remain_source_of_truth_for_risk_values():
     template = Path("templates/index.html").read_text(encoding="utf-8")
     collect_match = re.search(

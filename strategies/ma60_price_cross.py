@@ -15,7 +15,8 @@ from strategy_engine import (
 
 MA_PERIOD = 60
 CROSSING_LOOKBACK_BARS = 250
-PORTFOLIO_PRIORITY_HISTORY_BARS = MA_PERIOD + CROSSING_LOOKBACK_BARS
+PORTFOLIO_PRIORITY_HISTORY_BARS = CROSSING_LOOKBACK_BARS
+PORTFOLIO_INDICATOR_WARMUP_BARS = MA_PERIOD
 ATR_PERIOD = 14
 MA_SLOPE_LOOKBACK_BARS = 20
 ENTRY_ATR_MULTIPLIER = 0.5
@@ -138,8 +139,8 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
         else "breakout"
     )
     cross_count = count_ma_crosses(
-        context.history["Close"].astype(float),
-        context.history["ma_value"].astype(float),
+        context.entry_history["Close"].astype(float),
+        context.entry_history["ma_value"].astype(float),
     )
     return StrategyDecision(
         entry=EntryIntent(
@@ -170,7 +171,7 @@ def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="前一日站上 MA60 且 MA60 向上时布置 0.5 ATR 上轨买入条件单，次日盘中触及即成交；持仓后每日更新 0.25 ATR 下轨保护价，次日盘中触及即卖出；卖出后冷却 10 日；组合中优先选择历史交叉次数较少的股票。",
+    description="前一日站上 MA60 且 MA60 向上时布置 0.5 ATR 上轨买入条件单，次日盘中触及即成交；持仓后每日更新 0.25 ATR 下轨保护价，次日盘中触及即卖出；卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易，之后优先选择观察期内交叉次数较少的股票。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(
@@ -188,4 +189,5 @@ STRATEGY_DEFINITION = StrategyDefinition(
     evaluate=evaluate_ma60_price_cross,
     min_history_bars=ma60_price_cross_min_history_bars,
     portfolio_priority_history_bars=PORTFOLIO_PRIORITY_HISTORY_BARS,
+    portfolio_indicator_warmup_bars=PORTFOLIO_INDICATOR_WARMUP_BARS,
 )

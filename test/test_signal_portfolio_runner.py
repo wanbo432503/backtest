@@ -163,6 +163,27 @@ def test_ma60_portfolio_preloads_history_before_backtest_start():
     )
 
 
+def test_ma60_portfolio_observes_first_year_before_trading():
+    frame = _frame()
+    request = _request(
+        "ma60_price_cross",
+        market_filter={"enabled": False},
+    )
+
+    result = run_signal_portfolio_with_data(
+        request,
+        {"SH603019": frame},
+    )
+
+    buys = [trade for trade in result.trades if trade["side"] == "buy"]
+    assert buys
+    assert pd.Timestamp(buys[0]["date"]) >= frame.index[250]
+    assert result.scan_diagnostics["entry_observation_start_date"] == "2024-01-02"
+    assert result.scan_diagnostics["entry_observation_bars_required"] == 250
+    assert result.scan_diagnostics["indicator_warmup_bars"] == 60
+    assert result.scan_diagnostics["insufficient_entry_history_count"] > 0
+
+
 def test_signal_portfolio_result_preserves_scan_context_and_normalized_config():
     request = _request("rsi_risk_control", {"rsi_period": 8})
 

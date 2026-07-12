@@ -33,6 +33,8 @@ def run_signal_portfolio_backtest(
         {
             "history_data_start_date": data_start_date,
             "entry_history_bars": definition.portfolio_priority_history_bars,
+            "indicator_warmup_bars": definition.portfolio_indicator_warmup_bars,
+            "entry_observation_start_date": normalized.start_date,
         }
     )
     return run_signal_portfolio_with_data(
@@ -98,6 +100,11 @@ def run_signal_portfolio_with_data(
             start_date=normalized.start_date,
             end_date=normalized.end_date,
             min_entry_history_bars=definition.portfolio_priority_history_bars,
+            entry_history_start_date=(
+                normalized.start_date
+                if definition.portfolio_priority_history_bars > 0
+                else None
+            ),
         ),
         progress_callback=forward_progress,
         entry_risk_multiplier=risk_multiplier,
@@ -125,6 +132,15 @@ def run_signal_portfolio_with_data(
             "loaded_symbols": len(data_by_symbol),
             "strategy_id": definition.strategy_id,
             "strategy_name": definition.display_name,
+            "entry_observation_start_date": (
+                normalized.start_date
+                if definition.portfolio_priority_history_bars > 0
+                else None
+            ),
+            "entry_observation_bars_required": (
+                definition.portfolio_priority_history_bars
+            ),
+            "indicator_warmup_bars": definition.portfolio_indicator_warmup_bars,
             "traded_symbols": len(
                 {trade["symbol"] for trade in simulation.trades}
             ),
@@ -161,7 +177,10 @@ def _portfolio_data_start_date(
     start_date: str,
     definition: StrategyDefinition,
 ) -> str:
-    history_bars = definition.portfolio_priority_history_bars
+    history_bars = (
+        definition.portfolio_priority_history_bars
+        + definition.portfolio_indicator_warmup_bars
+    )
     if history_bars <= 0:
         return start_date
     warmup_months = ceil(history_bars / 250 * 12 * 1.2)

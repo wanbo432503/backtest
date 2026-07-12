@@ -149,6 +149,30 @@ def test_entry_requires_configured_history_bars_before_creating_signal():
     assert result.diagnostics["insufficient_entry_history_count"] == 1
 
 
+def test_entry_history_gate_counts_from_user_start_not_hidden_preload():
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is None
+        else StrategyDecision()
+    )
+    data = _data(opens=(10, 10, 10, 10, 10, 11))
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": data},
+        _simulation(
+            start_date="2026-01-03",
+            entry_history_start_date="2026-01-03",
+            min_entry_history_bars=3,
+        ),
+    )
+
+    assert [event["date"] for event in result.signal_events] == ["2026-01-05"]
+    assert result.trades[0]["date"] == "2026-01-06"
+    assert result.diagnostics["insufficient_entry_history_count"] == 2
+
+
 def test_stop_next_bar_only_fills_when_next_high_reaches_trigger():
     definition = _definition(
         lambda context: StrategyDecision(

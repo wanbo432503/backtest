@@ -86,6 +86,27 @@ def test_count_ma_crosses_counts_upward_and_downward_transitions():
     assert count_ma_crosses(close, ma, lookback_bars=2) == 2
 
 
+def test_cross_count_priority_excludes_hidden_preload_history():
+    close = [9.0, 11.0] * 40 + [9.0] * 9 + [11.0]
+    frame = _frame(close, [10.0] * len(close))
+    frame["atr_value"] = 0.4
+    frame["ma_slope_return"] = 0.02
+    observation_start = frame.index[80]
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+            entry_history_start_date=observation_start,
+        )
+    )
+
+    assert decision.entry is not None
+    assert decision.entry.metadata["ma_cross_count"] == 1
+
+
 def test_ma60_frame_prepares_atr_and_slope_filters():
     prepared = STRATEGY_DEFINITION.prepare_frame(
         _frame([float(value) for value in range(100, 200)]),

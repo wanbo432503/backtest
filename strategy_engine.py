@@ -71,10 +71,18 @@ class StrategyBarContext:
     position: SimulationPosition | None = None
     state: Mapping[str, Any] = field(default_factory=dict)
     bars_since_exit: int | None = None
+    entry_history_start_date: pd.Timestamp | None = None
 
     @property
     def history(self) -> pd.DataFrame:
         return self.frame.iloc[: self.bar_index + 1]
+
+    @property
+    def entry_history(self) -> pd.DataFrame:
+        history = self.history
+        if self.entry_history_start_date is None:
+            return history
+        return history.loc[history.index >= self.entry_history_start_date]
 
     @property
     def current(self) -> pd.Series:
@@ -115,6 +123,7 @@ class StrategyDefinition:
         "signal_portfolio",
     )
     portfolio_priority_history_bars: int = 0
+    portfolio_indicator_warmup_bars: int = 0
 
 
 @dataclass

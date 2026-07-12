@@ -36,6 +36,7 @@ class SimulationConfig:
     start_date: str | None = None
     end_date: str | None = None
     min_entry_history_bars: int = 0
+    entry_history_start_date: str | None = None
 
 
 @dataclass
@@ -124,6 +125,11 @@ def run_strategy_simulation(
         "insufficient_entry_history_count": 0,
         "drawdown_entry_stop": False,
     }
+    entry_history_start_date = (
+        pd.Timestamp(simulation_config.entry_history_start_date)
+        if simulation_config.entry_history_start_date
+        else None
+    )
 
     for day_index, date in enumerate(calendar):
         _emit(
@@ -307,6 +313,7 @@ def run_strategy_simulation(
                     if symbol in last_exit_day_index
                     else None
                 ),
+                entry_history_start_date=entry_history_start_date,
             )
             try:
                 decision = definition.evaluate(context)
@@ -326,7 +333,17 @@ def run_strategy_simulation(
                 and symbol not in positions
                 and symbol not in pending_entries
             ):
-                if location + 1 < simulation_config.min_entry_history_bars:
+                observed_bars = (
+                    location + 1
+                    if entry_history_start_date is None
+                    else int(
+                        (
+                            (frame.index >= entry_history_start_date)
+                            & (frame.index <= date)
+                        ).sum()
+                    )
+                )
+                if observed_bars < simulation_config.min_entry_history_bars:
                     diagnostics["insufficient_entry_history_count"] += 1
                     continue
                 pending_entries[symbol] = _PendingEntry(
