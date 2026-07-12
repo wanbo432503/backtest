@@ -37,10 +37,19 @@ def test_index_template_contains_optimization_controls():
 
 def test_index_template_contains_multi_stock_signal_portfolio_mode():
     template = Path("templates/index.html").read_text(encoding="utf-8")
+    soup = BeautifulSoup(template, "html.parser")
 
     assert 'id="signalPortfolioBacktestPanel"' in template
     assert 'id="signalPortfolioBacktestForm"' in template
     assert 'id="signalPortfolioResultPanel"' in template
+    result_panel = soup.find(id="signalPortfolioResultPanel")
+    assert result_panel.name == "details"
+    assert result_panel.find("summary", recursive=False).get_text(
+        " ", strip=True
+    ).endswith("多股票信号组合结果")
+    assert "open" not in result_panel.attrs
+    assert ".collapsible-result-panel > summary.card-header::after" in template
+    assert "signalResultPanel.open = true" in template
     assert "function collectSignalPortfolioRequest()" in template
     assert "function renderSignalPortfolioResult(result)" in template
     assert "fetchJson('/signal-portfolio-backtest/jobs'" in template
