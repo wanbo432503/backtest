@@ -116,6 +116,14 @@ def run_signal_portfolio_with_data(
                 {trade["symbol"] for trade in simulation.trades}
             ),
             "providers": providers or {},
+            "breadth_blocked_signal_count": sum(
+                event.get("market_risk_multiplier") == 0
+                for event in signal_events
+            ),
+            "breadth_partial_signal_count": sum(
+                0 < event.get("market_risk_multiplier", 1) < 1
+                for event in signal_events
+            ),
         }
     )
     return SignalPortfolioBacktestResult(

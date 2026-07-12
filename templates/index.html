@@ -4082,6 +4082,8 @@ SZ000651</textarea>
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
                 `策略 ${diagnostics.strategy_name ?? diagnostics.strategy_id ?? '-'}`,
                 `平均市场宽度 ${diagnostics.average_market_breadth_pct == null ? '-' : formatPortfolioPct(diagnostics.average_market_breadth_pct)}`,
+                `宽度拦截 ${diagnostics.breadth_blocked_signal_count ?? '-'}`,
+                `半风险信号 ${diagnostics.breadth_partial_signal_count ?? '-'}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
                 `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
             ].join(' | ');

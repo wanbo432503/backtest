@@ -33,9 +33,6 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stock_search import search_stocks
-from backtesting import Backtest, Strategy
-from backtesting.lib import crossover
-from backtesting.test import GOOG
 
 # ============================================================================
 # 颜色和格式化
@@ -193,6 +190,24 @@ def test_stock_search(results: TestResults, verbose: bool = False):
 # 测试模块 2: 策略回测功能
 # ============================================================================
 
+def sample_ohlcv_data(periods: int = 320) -> pd.DataFrame:
+    index = pd.bdate_range("2024-01-02", periods=periods)
+    close = pd.Series(
+        [100 + index * 0.08 + (index % 20 - 10) * 0.15 for index in range(periods)],
+        index=index,
+        dtype="float64",
+    )
+    return pd.DataFrame(
+        {
+            "Open": close * 0.999,
+            "High": close * 1.01,
+            "Low": close * 0.99,
+            "Close": close,
+            "Volume": 1_000_000.0,
+        },
+        index=index,
+    )
+
 def test_strategy_backtest(results: TestResults, verbose: bool = False):
     """测试策略回测功能"""
     print_header("📈 测试 2: 策略回测功能")
@@ -209,12 +224,7 @@ def test_strategy_backtest(results: TestResults, verbose: bool = False):
         library.get("ma_breakout_atr_risk_control"),
     ]
     
-    # 获取测试数据
-    try:
-        data = GOOG.copy()
-    except Exception as e:
-        results.add_skip("获取测试数据", str(e))
-        return
+    data = sample_ohlcv_data()
     
     for definition in test_strategies:
         test_name = f"回测 {definition.display_name}"
@@ -239,17 +249,17 @@ def test_strategy_backtest(results: TestResults, verbose: bool = False):
                 results.add_fail(test_name, "回测结果为空")
                 continue
             
-            # 检查关键指标
-            if 'Return [%]' not in stats:
+            summary = simulation.summary
+            if "total_return_pct" not in summary:
                 results.add_fail(test_name, "缺少收益率指标")
                 continue
             
             if verbose:
-                print(f"  {strategy_name}:")
-                print(f"    收益率: {stats['Return [%]']:.2f}%")
-                print(f"    最大回撤: {stats['Max. Drawdown [%]']:.2f}%")
-                print(f"    夏普比: {stats['Sharpe Ratio']:.2f}")
-                print(f"    交易次数: {stats['# Trades']:.0f}")
+                print(f"  {definition.strategy_id}:")
+                print(f"    收益率: {summary['total_return_pct']:.2f}%")
+                print(f"    最大回撤: {summary['max_drawdown_pct']:.2f}%")
+                print(f"    夏普比: {summary['sharpe']:.2f}")
+                print(f"    交易次数: {summary['trades']:.0f}")
             
             results.add_pass(test_name)
         
@@ -269,45 +279,44 @@ def bollinger_bands(price_series: pd.Series, n=20, k=2):
     lower_band = sma - (std * k)
     return upper_band, sma, lower_band
 
-class BollingerBandsStrategy(Strategy):
-    """布林带交易策略"""
-    bb_period = 20
-    bb_std = 2
-
-    def init(self):
-        self.bb_bands = self.I(bollinger_bands, self.data.Close, self.bb_period, self.bb_std)
-
-    def next(self):
-        upper_band = self.bb_bands[0]
-        lower_band = self.bb_bands[2]
-
-        if crossover(self.data.Close, lower_band):
-            if not self.position:
-                self.buy()
-        elif crossover(self.data.Close, upper_band):
-            if self.position:
-                self.position.close()
-
 def test_bollinger_bands_strategy(results: TestResults, verbose: bool = False):
-    """测试布林带策略"""
-    print_header("🎯 测试 3: 自定义策略 - 布林带")
+    """测试统一策略库中的布林带策略"""
+    print_header("🎯 测试 3: 统一策略 - 布林带")
     
     test_name = "回测布林带策略"
     try:
-        data = GOOG.copy()
-        bt = Backtest(data, BollingerBandsStrategy, cash=10000, commission=0.002)
-        stats = bt.run()
+        from optimization_models import AShareTradingConfig
+        from strategy_library import get_strategy_library
+        from strategy_simulator import SimulationConfig, run_strategy_simulation
+
+        library = get_strategy_library()
+        definition = library.get("boll_macd_breakout")
+        simulation = run_strategy_simulation(
+            definition,
+            library.validate_config(definition.strategy_id),
+            {"TEST": sample_ohlcv_data()},
+            SimulationConfig(
+                initial_cash=10000,
+                trading=AShareTradingConfig(
+                    lot_size=1,
+                    limit_up_down_filter=False,
+                    volume_filter=False,
+                    min_commission=0,
+                ),
+            ),
+        )
+        stats = simulation.summary
         
-        if stats is None or len(stats) == 0:
+        if not simulation.equity_curve:
             results.add_fail(test_name, "回测结果为空")
             return
         
         if verbose:
             print(f"  布林带策略回测结果:")
-            print(f"    收益率: {stats['Return [%]']:.2f}%")
-            print(f"    最大回撤: {stats['Max. Drawdown [%]']:.2f}%")
-            print(f"    交易次数: {stats['# Trades']:.0f}")
-            print(f"    赢率: {stats.get('Win Rate [%]', 'N/A')}%")
+            print(f"    收益率: {stats['total_return_pct']:.2f}%")
+            print(f"    最大回撤: {stats['max_drawdown_pct']:.2f}%")
+            print(f"    交易次数: {stats['trades']:.0f}")
+            print(f"    赢率: {stats['win_rate_pct']}%")
         
         results.add_pass(test_name)
     
@@ -394,6 +403,8 @@ def test_data_integrity(results: TestResults, verbose: bool = False):
         "strategies/ma_trend_risk_control.py",
         "strategies/volume_breakout_risk_control.py",
         "strategies/ma_breakout_atr_risk_control.py",
+        "strategies/boll_macd_breakout.py",
+        "strategies/trend_pullback_pin_bar.py",
     ]
     
     for strategy_file in strategy_files:
@@ -411,10 +422,7 @@ def test_data_integrity(results: TestResults, verbose: bool = False):
     # 测试 2: 验证配置文件
     print_section("验证配置文件")
     
-    config_files = [
-        "requirements.txt",
-        "strategies.json",
-    ]
+    config_files = ["requirements.txt"]
     
     for config_file in config_files:
         test_name = f"配置文件: {config_file}"

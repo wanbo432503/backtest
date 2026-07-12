@@ -71,6 +71,8 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert 'id="signalMaxPositionPct" value="10"' in template
     assert 'id="signalTargetExposurePct" value="85"' in template
     assert "平均市场宽度" in template
+    assert "宽度拦截" in template
+    assert "半风险信号" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

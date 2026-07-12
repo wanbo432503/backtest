@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 yfinance
-backtesting
+bokeh
 pandas
 jinja2
 python-multipart

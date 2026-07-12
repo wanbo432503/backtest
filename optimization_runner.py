@@ -201,6 +201,7 @@ def run_train_validate(
         data_provider=config.data_provider or request.data_provider,
         strategy_params=params,
         min_trades=config.min_trades,
+        trading_config=request.a_share_config,
     )
     validate_result = run_single_backtest(
         symbol=symbol,
@@ -213,6 +214,7 @@ def run_train_validate(
         data_provider=config.data_provider or request.data_provider,
         strategy_params=params,
         min_trades=config.min_trades,
+        trading_config=request.a_share_config,
     )
 
     return {

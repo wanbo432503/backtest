@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 from pydantic import BaseModel, ConfigDict
 
 from optimization_models import AShareTradingConfig
@@ -275,6 +276,26 @@ def test_risk_budget_caps_position_size():
     assert result.trades[0]["shares"] == 50
 
 
+def test_entry_overlay_is_frozen_on_signal_date():
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": _data(opens=(10, 10))},
+        _simulation(initial_cash=10_000),
+        entry_risk_multiplier=lambda symbol, date, row, intent: (
+            0.5 if date == pd.Timestamp("2026-01-01") else 1.0
+        ),
+    )
+
+    assert result.trades[0]["amount"] == 5_000
+
+
 def test_drawdown_gate_is_evaluated_before_pending_entries():
     def evaluator(context):
         if context.symbol == "SH603019" and context.bar_index == 0:
@@ -354,6 +375,25 @@ def test_strategy_state_is_replaced_without_mutating_prior_mapping():
     assert result.diagnostics["strategy_states"]["SH603019"] == {"count": 3}
 
 
+def test_context_reports_completed_exit_cooldown_for_reentry_rules():
+    def evaluator(context):
+        if context.position is not None:
+            return StrategyDecision(exit=ExitIntent("rotate"))
+        if context.bars_since_exit is None or context.bars_since_exit > 2:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        return StrategyDecision()
+
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SH603019": _data(opens=(10, 10, 10, 10, 10, 10, 10))},
+        _simulation(),
+    )
+
+    buys = [trade for trade in result.trades if trade["side"] == "buy"]
+    assert [trade["date"] for trade in buys] == ["2026-01-02", "2026-01-07"]
+
+
 def test_future_price_changes_do_not_change_earlier_fills():
     definition = _definition(
         lambda context: StrategyDecision(
@@ -382,3 +422,78 @@ def test_future_price_changes_do_not_change_earlier_fills():
 
     assert first.trades[0] == second.trades[0]
     assert first.equity_curve[:2] == second.equity_curve[:2]
+
+
+def test_fill_day_close_does_not_change_later_entry_size():
+    def evaluator(context):
+        if context.symbol == "SH603019" and context.bar_index == 0:
+            return StrategyDecision(
+                entry=EntryIntent("next_open", suggested_position_pct=0.5)
+            )
+        if context.symbol == "SZ002241" and context.bar_index == 1:
+            return StrategyDecision(
+                entry=EntryIntent("next_open", suggested_position_pct=0.25)
+            )
+        return StrategyDecision()
+
+    first_symbol = _data(opens=(100, 100, 100), closes=(100, 100, 100))
+    changed_close = first_symbol.copy()
+    changed_close.loc[pd.Timestamp("2026-01-03"), "Close"] = 1_000
+    second_symbol = _data(opens=(10, 10, 10), closes=(10, 10, 10))
+
+    original = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SH603019": first_symbol, "SZ002241": second_symbol},
+        _simulation(initial_cash=10_000, max_positions=2),
+    )
+    changed = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SH603019": changed_close, "SZ002241": second_symbol},
+        _simulation(initial_cash=10_000, max_positions=2),
+    )
+
+    original_buy = [trade for trade in original.trades if trade["symbol"] == "SZ002241"]
+    changed_buy = [trade for trade in changed.trades if trade["symbol"] == "SZ002241"]
+    assert original_buy == changed_buy
+
+
+def test_strategy_preparation_error_includes_strategy_and_symbol_context():
+    definition = _definition(lambda context: StrategyDecision())
+    definition = StrategyDefinition(
+        **{
+            **definition.__dict__,
+            "prepare_frame": lambda data, config: (_ for _ in ()).throw(
+                RuntimeError("indicator failed")
+            ),
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="strategy 'fake'.*SH603019.*preparation",
+    ):
+        run_strategy_simulation(
+            definition,
+            FakeConfig(),
+            {"SH603019": _data()},
+            _simulation(),
+        )
+
+
+def test_strategy_evaluation_error_includes_strategy_symbol_and_date_context():
+    definition = _definition(
+        lambda context: (_ for _ in ()).throw(RuntimeError("decision failed"))
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="strategy 'fake'.*SH603019.*2026-01-01.*evaluation",
+    ):
+        run_strategy_simulation(
+            definition,
+            FakeConfig(),
+            {"SH603019": _data()},
+            _simulation(),
+        )

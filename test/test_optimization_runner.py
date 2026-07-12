@@ -6,8 +6,10 @@ from optimization_models import OptimizationConfig, OptimizationRequest, Strateg
 from optimization_runner import (
     expand_search_space,
     run_optimization,
+    run_train_validate,
     score_backtest_result,
 )
+from optimization_models import AShareTradingConfig
 from strategy_library import get_strategy_library
 
 
@@ -62,6 +64,37 @@ def test_score_backtest_result_reads_core_score():
     )
 
     assert score_backtest_result(result) == 3.5
+
+
+def test_train_validate_passes_requested_a_share_rules_to_both_runs(monkeypatch):
+    calls = []
+
+    def fake_run_single_backtest(**kwargs):
+        calls.append(kwargs)
+        return _fake_result(kwargs["symbol"], score=1, trades=8)
+
+    monkeypatch.setattr("optimization_runner.run_single_backtest", fake_run_single_backtest)
+    trading = AShareTradingConfig(lot_size=200, slippage_pct=0.15)
+    request = OptimizationRequest(
+        start_date="2025-01-01",
+        end_date="2026-01-01",
+        a_share_config=trading,
+        optimization_config=OptimizationConfig(
+            symbols=["SH603019"],
+            strategies=[StrategyParamConfig(strategy_name="rsi_risk_control")],
+        ),
+    )
+
+    run_train_validate(
+        "SH603019",
+        request.optimization_config.strategies[0],
+        {},
+        request,
+        get_strategy_library(),
+    )
+
+    assert len(calls) == 2
+    assert all(call["trading_config"] == trading for call in calls)
 
 
 def test_run_optimization_marks_low_trade_results_filtered(monkeypatch):

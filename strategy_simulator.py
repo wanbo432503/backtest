@@ -66,6 +66,7 @@ class _PendingEntry:
     symbol: str
     created_date: pd.Timestamp
     intent: EntryIntent
+    risk_multiplier: float = 1.0
     attempts: int = 0
 
 
@@ -83,10 +84,17 @@ def run_strategy_simulation(
 ) -> SimulationResult:
     if not data_by_symbol:
         raise ValueError("strategy simulation requires at least one symbol")
-    frames = {
-        symbol: definition.prepare_frame(_normalized_frame(data), strategy_config)
-        for symbol, data in data_by_symbol.items()
-    }
+    frames = {}
+    for symbol, data in data_by_symbol.items():
+        try:
+            frames[symbol] = definition.prepare_frame(
+                _normalized_frame(data),
+                strategy_config,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"strategy '{definition.strategy_id}' symbol {symbol} preparation failed: {exc}"
+            ) from exc
     calendar = build_trading_calendar(frames)
     if simulation_config.start_date:
         calendar = [date for date in calendar if date >= pd.Timestamp(simulation_config.start_date)]
@@ -101,6 +109,7 @@ def run_strategy_simulation(
     positions: dict[str, _Position] = {}
     pending_entries: dict[str, _PendingEntry] = {}
     pending_exits: dict[str, str] = {}
+    last_exit_day_index: dict[str, int] = {}
     strategy_states: dict[str, dict[str, Any]] = {
         symbol: {} for symbol in frames
     }
@@ -163,8 +172,14 @@ def run_strategy_simulation(
             bucket["round_trips"] = int(bucket["round_trips"]) + 1
             positions.pop(symbol)
             pending_exits.pop(symbol, None)
+            last_exit_day_index[symbol] = day_index
 
-        equity_before_entries = _portfolio_value(date, cash, positions, frames)
+        equity_before_entries = _portfolio_value_at_execution(
+            date,
+            cash,
+            positions,
+            frames,
+        )
         peak_equity = max(peak_equity, equity_before_entries)
         drawdown_pct = (
             (equity_before_entries / peak_equity - 1) * 100
@@ -220,13 +235,9 @@ def run_strategy_simulation(
                 pending_entries.pop(symbol, None)
                 continue
 
-            equity = _portfolio_value(date, cash, positions, frames)
-            gross = _gross_exposure(date, positions, frames)
-            multiplier = (
-                float(entry_risk_multiplier(symbol, date, row, pending.intent))
-                if entry_risk_multiplier is not None
-                else 1.0
-            )
+            equity = _portfolio_value_at_execution(date, cash, positions, frames)
+            gross = _gross_exposure_at_execution(date, positions, frames)
+            multiplier = pending.risk_multiplier
             price = apply_slippage(raw_price, "buy", simulation_config.trading.slippage_pct)
             suggested_budget = equity * pending.intent.suggested_position_pct * multiplier
             position_cap = equity * simulation_config.max_position_pct
@@ -288,8 +299,19 @@ def run_strategy_simulation(
                 config=strategy_config,
                 position=positions[symbol].public() if symbol in positions else None,
                 state=strategy_states[symbol],
+                bars_since_exit=(
+                    day_index - last_exit_day_index[symbol]
+                    if symbol in last_exit_day_index
+                    else None
+                ),
             )
-            decision = definition.evaluate(context)
+            try:
+                decision = definition.evaluate(context)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"strategy '{definition.strategy_id}' symbol {symbol} "
+                    f"date {_date_str(date)} evaluation failed: {exc}"
+                ) from exc
             if decision.next_state is not None:
                 strategy_states[symbol] = dict(decision.next_state)
             if decision.exit is not None and symbol in positions:
@@ -303,6 +325,18 @@ def run_strategy_simulation(
                     symbol=symbol,
                     created_date=date,
                     intent=decision.entry,
+                    risk_multiplier=(
+                        float(
+                            entry_risk_multiplier(
+                                symbol,
+                                date,
+                                frame.loc[date],
+                                decision.entry,
+                            )
+                        )
+                        if entry_risk_multiplier is not None
+                        else 1.0
+                    ),
                 )
                 signals.append(
                     {
@@ -420,6 +454,25 @@ def _gross_exposure(
     return total
 
 
+def _gross_exposure_at_execution(
+    date: pd.Timestamp,
+    positions: dict[str, _Position],
+    frames: dict[str, pd.DataFrame],
+) -> float:
+    total = 0.0
+    for symbol, position in positions.items():
+        frame = frames[symbol]
+        if date in frame.index:
+            price = float(frame.loc[date, "Open"])
+        else:
+            row = _row_at(frame, date)
+            if row is None:
+                continue
+            price = float(row["Close"])
+        total += position.shares * price
+    return total
+
+
 def _portfolio_value(
     date: pd.Timestamp,
     cash: float,
@@ -427,6 +480,15 @@ def _portfolio_value(
     frames: dict[str, pd.DataFrame],
 ) -> float:
     return cash + _gross_exposure(date, positions, frames)
+
+
+def _portfolio_value_at_execution(
+    date: pd.Timestamp,
+    cash: float,
+    positions: dict[str, _Position],
+    frames: dict[str, pd.DataFrame],
+) -> float:
+    return cash + _gross_exposure_at_execution(date, positions, frames)
 
 
 def _trade(date, symbol, side, shares, price, amount, cost, reason, pnl):

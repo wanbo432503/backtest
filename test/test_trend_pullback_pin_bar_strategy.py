@@ -51,6 +51,41 @@ def test_pin_bar_definition_emits_one_bar_stop_entry_with_structural_risk():
     assert decision.entry.risk.risk_budget_pct == 0.005
 
 
+def test_pin_bar_definition_blocks_reentry_during_configured_cooldown():
+    config = TrendPullbackPinBarConfig(
+        short_ma_period=2,
+        medium_ma_period=3,
+        long_ma_period=4,
+        support_lookback=2,
+        volume_lookback=2,
+        atr_period=2,
+        cooldown_days=5,
+    )
+    frame = _pin_bar_frame()
+
+    blocked = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            config,
+            bars_since_exit=3,
+        )
+    )
+    allowed = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            config,
+            bars_since_exit=6,
+        )
+    )
+
+    assert blocked.entry is None
+    assert allowed.entry is not None
+
+
 def test_pin_bar_definition_exits_after_two_weak_trend_closes():
     config = TrendPullbackPinBarConfig(
         short_ma_period=2,

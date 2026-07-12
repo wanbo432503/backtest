@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def parse_percent(value: str | int | float | None) -> float:
-    """Parse backtesting.py percent-like values into plain percentage numbers."""
+    """Parse percent-like values into plain percentage numbers."""
     if value is None:
         return 0.0
     if isinstance(value, str):

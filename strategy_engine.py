@@ -69,6 +69,7 @@ class StrategyBarContext:
     config: BaseModel
     position: SimulationPosition | None = None
     state: Mapping[str, Any] = field(default_factory=dict)
+    bars_since_exit: int | None = None
 
     @property
     def history(self) -> pd.DataFrame:

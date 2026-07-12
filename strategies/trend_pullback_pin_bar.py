@@ -171,6 +171,12 @@ def evaluate_pin_bar(context: StrategyBarContext) -> StrategyDecision:
             )
         return StrategyDecision(next_state=next_state)
 
+    if (
+        context.bars_since_exit is not None
+        and context.bars_since_exit <= config.cooldown_days
+    ):
+        return StrategyDecision(next_state={"trend_weak_bars": 0})
+
     if not is_trend_pullback_pin_bar(current, config):
         return StrategyDecision(next_state={"trend_weak_bars": 0})
     trigger_price = float(current["High"])
