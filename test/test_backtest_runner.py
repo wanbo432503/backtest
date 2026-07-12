@@ -54,6 +54,25 @@ def test_run_single_backtest_returns_score(monkeypatch):
     )
 
 
+def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatch):
+    monkeypatch.setattr(
+        "backtest_runner.fetch_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", []),
+    )
+
+    result = run_single_backtest(
+        symbol="SH603019",
+        start_date="2025-07-03",
+        end_date="2025-10-01",
+        strategy_name="volume_divergence_rsi_long",
+        strategy_library=get_strategy_library(),
+    )
+
+    assert result.symbol == "SH603019"
+    assert "Unified Strategy Backtest" in result.plot_html
+    assert "score" in result.metrics
+
+
 def test_run_single_backtest_raises_readable_error_for_bad_data(monkeypatch):
     monkeypatch.setattr(
         "backtest_runner.fetch_ohlcv",

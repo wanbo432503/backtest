@@ -13,14 +13,14 @@ def _payload():
     }
 
 
-def test_strategy_catalog_exposes_same_seven_strategies_to_signal_portfolios():
+def test_strategy_catalog_exposes_same_eight_strategies_to_signal_portfolios():
     client = TestClient(main.app)
 
     response = client.get("/strategies")
 
     assert response.status_code == 200
     catalog = response.json()
-    assert len(catalog) == 7
+    assert len(catalog) == 8
     assert all(item["engine"] == "unified" for item in catalog)
     assert all("signal_portfolio" in item["supported_modes"] for item in catalog)
     assert all(item["class_name"] for item in catalog)

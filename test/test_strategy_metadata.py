@@ -13,6 +13,7 @@ RETAINED_STRATEGIES = {
     "ma_trend_risk_control",
     "volume_breakout_risk_control",
     "trend_pullback_pin_bar",
+    "volume_divergence_rsi_long",
 }
 
 
@@ -120,7 +121,7 @@ def test_strategies_endpoint_includes_parameter_metadata():
     )
 
 
-def test_unified_library_contains_exactly_seven_dual_mode_strategies():
+def test_unified_library_contains_exactly_eight_dual_mode_strategies():
     catalog = get_strategy_library().to_catalog()
 
     assert {item["name"] for item in catalog} == RETAINED_STRATEGIES
@@ -128,3 +129,15 @@ def test_unified_library_contains_exactly_seven_dual_mode_strategies():
         item["supported_modes"] == ["single_stock", "signal_portfolio"]
         for item in catalog
     )
+    new_strategy = next(
+        item for item in catalog
+        if item["name"] == "volume_divergence_rsi_long"
+    )
+    assert new_strategy["engine"] == "unified"
+    assert {parameter["name"] for parameter in new_strategy["parameters"]} >= {
+        "volume_multiplier",
+        "divergence_lookback",
+        "rsi_oversold",
+        "trailing_stop_pct",
+        "position_pct",
+    }

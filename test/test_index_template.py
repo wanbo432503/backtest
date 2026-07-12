@@ -24,6 +24,7 @@ def test_index_template_reads_strategy_parameter_metadata():
     assert "window.strategyMetadata" in template
     assert "strategy.parameters || []" in template
     assert "可优化参数" in template
+    assert "supported_modes.includes('signal_portfolio')" in template
 
 
 def test_index_template_contains_optimization_controls():
