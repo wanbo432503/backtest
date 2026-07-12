@@ -42,6 +42,21 @@ def _position() -> SimulationPosition:
     )
 
 
+def _filtered_signal_frame(
+    *,
+    before_previous=9.9,
+    previous=10.1,
+    current=10.3,
+    atr=0.4,
+    slope=0.02,
+) -> pd.DataFrame:
+    close = [9.0] * 77 + [before_previous, previous, current]
+    frame = _frame(close, [10.0] * len(close))
+    frame["atr_value"] = atr
+    frame["ma_slope_return"] = slope
+    return frame
+
+
 def _trading() -> AShareTradingConfig:
     return AShareTradingConfig(
         t_plus_one=True,
@@ -71,9 +86,124 @@ def test_count_ma_crosses_counts_upward_and_downward_transitions():
     assert count_ma_crosses(close, ma, lookback_bars=2) == 2
 
 
+def test_ma60_frame_prepares_atr_and_slope_filters():
+    prepared = STRATEGY_DEFINITION.prepare_frame(
+        _frame([float(value) for value in range(100, 200)]),
+        MA60PriceCrossConfig(),
+    )
+
+    assert prepared["atr_value"].iloc[-1] > 0
+    assert prepared["ma_slope_return"].iloc[-1] > 0
+
+
+def test_entry_requires_second_day_to_clear_atr_upper_band():
+    frame = _filtered_signal_frame()
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+        )
+    )
+
+    assert decision.entry is not None
+    assert decision.entry.metadata["entry_threshold"] == 10.2
+
+
+def test_entry_rejects_price_that_only_touches_ma60_buffer_zone():
+    frame = _filtered_signal_frame(previous=9.9, current=10.1)
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+        )
+    )
+
+    assert decision.entry is None
+
+
+def test_entry_rejects_non_rising_ma60():
+    frame = _filtered_signal_frame(slope=0.005)
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+        )
+    )
+
+    assert decision.entry is None
+
+
+def test_exit_uses_lower_atr_band_instead_of_raw_ma60_touch():
+    inside_band = _filtered_signal_frame(current=9.95)
+    below_band = _filtered_signal_frame(current=9.8)
+
+    held_inside = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            inside_band,
+            len(inside_band) - 1,
+            MA60PriceCrossConfig(),
+            position=_position(),
+        )
+    )
+    held_below = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            below_band,
+            len(below_band) - 1,
+            MA60PriceCrossConfig(),
+            position=_position(),
+        )
+    )
+
+    assert held_inside.exit is None
+    assert held_below.exit is not None
+
+
+def test_entry_blocks_reentry_for_ten_trading_days_and_requires_fresh_breakout():
+    frame = _filtered_signal_frame(previous=10.05, current=10.3)
+
+    blocked = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(),
+            bars_since_exit=10,
+        )
+    )
+    allowed = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(),
+            bars_since_exit=11,
+        )
+    )
+
+    assert blocked.entry is None
+    assert allowed.entry is not None
+
+
+def test_ma60_strategy_defaults_to_fifteen_percent_position():
+    assert MA60PriceCrossConfig().position_pct == 0.15
+
+
 def test_definition_emits_next_open_entry_with_hidden_cross_count_priority():
-    close = [9.0] * 57 + [11.0, 9.0, 9.0, 11.0]
+    close = [9.0] * 75 + [11.0, 9.0, 9.0, 11.0, 11.0]
     frame = _frame(close, [10.0] * len(close))
+    frame["atr_value"] = 0.4
+    frame["ma_slope_return"] = 0.02
 
     decision = STRATEGY_DEFINITION.evaluate(
         StrategyBarContext(
@@ -91,8 +221,7 @@ def test_definition_emits_next_open_entry_with_hidden_cross_count_priority():
 
 
 def test_definition_emits_next_open_exit_only_for_held_position():
-    close = [11.0] * 60 + [9.0]
-    frame = _frame(close, [10.0] * len(close))
+    frame = _filtered_signal_frame(previous=11.0, current=9.0)
 
     held = STRATEGY_DEFINITION.evaluate(
         StrategyBarContext(
@@ -113,7 +242,7 @@ def test_definition_emits_next_open_exit_only_for_held_position():
     )
 
     assert held.exit is not None
-    assert held.exit.reason == "price_crossed_below_ma60"
+    assert held.exit.reason == "price_below_ma60_atr_band"
     assert held.exit.order_type == "next_open"
     assert flat.exit is None
 
@@ -130,7 +259,7 @@ def test_ma60_preparation_is_prefix_invariant():
 
 
 def test_signal_portfolio_buys_fewer_cross_stock_first():
-    frequent = [9.0] * 52 + [
+    frequent = [9.0] * 70 + [
         11.0,
         9.0,
         11.0,
@@ -139,11 +268,13 @@ def test_signal_portfolio_buys_fewer_cross_stock_first():
         9.0,
         11.0,
         9.0,
-        11.0,
     ]
-    stable = [9.0] * 60 + [11.0]
-    frequent_frame = _frame(frequent + [11.0], [10.0] * 62)
-    stable_frame = _frame(stable + [11.0], [10.0] * 62)
+    stable = [9.0] * 78
+    frequent_frame = _frame(frequent + [11.0, 11.0, 11.0], [10.0] * 81)
+    stable_frame = _frame(stable + [11.0, 11.0, 11.0], [10.0] * 81)
+    for frame in (frequent_frame, stable_frame):
+        frame["atr_value"] = 0.4
+        frame["ma_slope_return"] = 0.02
     definition = replace(
         STRATEGY_DEFINITION,
         prepare_frame=lambda data, config: data.copy(),
