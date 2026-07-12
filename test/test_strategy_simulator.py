@@ -103,6 +103,33 @@ def test_close_signal_fills_at_next_open_without_lookahead():
     assert buy["price"] == 11
 
 
+def test_next_open_sell_uses_execution_price_not_future_close_for_limit_down():
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is not None and context.bar_index == 1:
+            return StrategyDecision(exit=ExitIntent("signal_exit"))
+        return StrategyDecision()
+
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {
+            "SZ000810": _data(
+                opens=(10, 10, 9.5),
+                highs=(10.2, 10.2, 9.6),
+                lows=(9.8, 9.8, 9.0),
+                closes=(10, 10, 9.0),
+            )
+        },
+        _simulation(trading=_trading(limit_up_down_filter=True)),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["date"] == "2026-01-03"
+    assert sell["price"] == 9.5
+
+
 def test_entry_requires_configured_history_bars_before_creating_signal():
     definition = _definition(
         lambda context: StrategyDecision(entry=EntryIntent("next_open"))
@@ -391,6 +418,37 @@ def test_same_bar_stop_and_target_uses_conservative_stop_first():
     sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
     assert sell["reason"] == "stop_loss"
     assert sell["price"] == 95
+
+
+def test_protective_stop_preserves_strategy_exit_reason():
+    definition = _definition(
+        lambda context: StrategyDecision(
+            entry=EntryIntent(
+                "next_open",
+                risk=RiskIntent(
+                    stop_price=95,
+                    stop_reason="price_below_ma60_atr_band",
+                ),
+            )
+        )
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+    data = _data(
+        opens=(100, 100, 100),
+        highs=(101, 101, 101),
+        lows=(99, 99, 94),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SZ000810": data},
+        _simulation(),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["reason"] == "price_below_ma60_atr_band"
 
 
 def test_close_decision_can_tighten_protective_stop_for_next_bar():

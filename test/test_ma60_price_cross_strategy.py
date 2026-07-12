@@ -112,19 +112,41 @@ def test_entry_requires_second_day_to_clear_atr_upper_band():
     assert decision.entry.metadata["entry_threshold"] == 10.2
 
 
-def test_entry_rejects_price_that_only_touches_ma60_buffer_zone():
+def test_entry_places_intraday_stop_order_before_upper_band_breakout():
     frame = _filtered_signal_frame(previous=9.9, current=10.1)
 
     decision = STRATEGY_DEFINITION.evaluate(
         StrategyBarContext(
-            symbol="SH603019",
+            symbol="SZ000810",
             frame=frame,
             bar_index=len(frame) - 1,
             config=MA60PriceCrossConfig(),
         )
     )
 
-    assert decision.entry is None
+    assert decision.entry is not None
+    assert decision.entry.order_type == "stop_next_bar"
+    assert decision.entry.trigger_price == 10.2
+    assert decision.entry.risk.stop_price == 9.9
+
+
+def test_position_updates_intraday_atr_exit_for_next_session():
+    frame = _filtered_signal_frame(current=10.0)
+
+    decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SZ000810",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(),
+            position=_position(),
+        )
+    )
+
+    assert decision.exit is None
+    assert decision.risk_update is not None
+    assert decision.risk_update.stop_price == 9.9
+    assert decision.risk_update.stop_reason == "price_below_ma60_atr_band"
 
 
 def test_entry_rejects_non_rising_ma60():
@@ -142,7 +164,7 @@ def test_entry_rejects_non_rising_ma60():
     assert decision.entry is None
 
 
-def test_exit_uses_lower_atr_band_instead_of_raw_ma60_touch():
+def test_exit_updates_lower_atr_band_without_using_current_close_fill():
     inside_band = _filtered_signal_frame(current=9.95)
     below_band = _filtered_signal_frame(current=9.8)
 
@@ -166,7 +188,9 @@ def test_exit_uses_lower_atr_band_instead_of_raw_ma60_touch():
     )
 
     assert held_inside.exit is None
-    assert held_below.exit is not None
+    assert held_below.exit is None
+    assert held_inside.risk_update.stop_price == 9.9
+    assert held_below.risk_update.stop_price == 9.9
 
 
 def test_entry_blocks_reentry_for_ten_trading_days_then_allows_fresh_breakout():
@@ -226,7 +250,7 @@ def test_ma60_strategy_defaults_to_fifteen_percent_position():
     assert MA60PriceCrossConfig().position_pct == 0.15
 
 
-def test_definition_emits_next_open_entry_with_hidden_cross_count_priority():
+def test_definition_emits_intraday_entry_with_hidden_cross_count_priority():
     close = [9.0] * 75 + [11.0, 9.0, 9.0, 11.0, 11.0]
     frame = _frame(close, [10.0] * len(close))
     frame["atr_value"] = 0.4
@@ -242,12 +266,12 @@ def test_definition_emits_next_open_entry_with_hidden_cross_count_priority():
     )
 
     assert decision.entry is not None
-    assert decision.entry.order_type == "next_open"
+    assert decision.entry.order_type == "stop_next_bar"
     assert decision.entry.strength == -3
     assert decision.entry.metadata["ma_cross_count"] == 3
 
 
-def test_definition_emits_next_open_exit_only_for_held_position():
+def test_definition_updates_intraday_exit_only_for_held_position():
     frame = _filtered_signal_frame(previous=11.0, current=9.0)
 
     held = STRATEGY_DEFINITION.evaluate(
@@ -268,10 +292,11 @@ def test_definition_emits_next_open_exit_only_for_held_position():
         )
     )
 
-    assert held.exit is not None
-    assert held.exit.reason == "price_below_ma60_atr_band"
-    assert held.exit.order_type == "next_open"
+    assert held.exit is None
+    assert held.risk_update is not None
+    assert held.risk_update.stop_reason == "price_below_ma60_atr_band"
     assert flat.exit is None
+    assert flat.risk_update is None
 
 
 def test_ma60_preparation_is_prefix_invariant():

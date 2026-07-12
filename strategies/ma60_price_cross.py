@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from strategy_engine import (
     EntryIntent,
-    ExitIntent,
+    RiskIntent,
     StrategyBarContext,
     StrategyDecision,
     StrategyDefinition,
@@ -97,17 +97,8 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
     config = MA60PriceCrossConfig.model_validate(context.config.model_dump())
     if context.bar_index + 1 < ma60_price_cross_min_history_bars(config):
         return StrategyDecision()
-    previous = context.previous
-    if previous is None or context.bar_index < 2:
-        return StrategyDecision()
-    before_previous = context.frame.iloc[context.bar_index - 2]
     current = context.current
     values = (
-        before_previous["Close"],
-        before_previous["ma_value"],
-        previous["Close"],
-        previous["ma_value"],
-        previous["atr_value"],
         current["Close"],
         current["ma_value"],
         current["atr_value"],
@@ -117,11 +108,6 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
         return StrategyDecision()
 
     (
-        before_previous_close,
-        before_previous_ma,
-        previous_close,
-        previous_ma,
-        previous_atr,
         current_close,
         current_ma,
         current_atr,
@@ -130,9 +116,12 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
     entry_threshold = current_ma + ENTRY_ATR_MULTIPLIER * current_atr
     exit_threshold = current_ma - EXIT_ATR_MULTIPLIER * current_atr
     if context.position is not None:
-        if current_close < exit_threshold:
-            return StrategyDecision(exit=ExitIntent("price_below_ma60_atr_band"))
-        return StrategyDecision()
+        return StrategyDecision(
+            risk_update=RiskIntent(
+                stop_price=round(exit_threshold, 6),
+                stop_reason="price_below_ma60_atr_band",
+            )
+        )
 
     if (
         context.bars_since_exit is not None
@@ -141,42 +130,28 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
         return StrategyDecision()
     if ma_slope_return < MIN_MA_SLOPE_RETURN:
         return StrategyDecision()
-    if previous_close <= previous_ma or current_close <= entry_threshold:
+    if current_close <= current_ma:
         return StrategyDecision()
-
-    previous_entry_threshold = (
-        previous_ma + ENTRY_ATR_MULTIPLIER * previous_atr
+    entry_mode = (
+        "trend_continuation"
+        if current_close > entry_threshold
+        else "breakout"
     )
-    crossed_upper_band = (
-        previous_close <= previous_entry_threshold
-        and current_close > entry_threshold
-    )
-    confirmed_ma_cross = (
-        before_previous_close <= before_previous_ma
-        and previous_close > previous_ma
-        and current_close > entry_threshold
-    )
-    trend_continuation = (
-        previous_close > previous_entry_threshold
-        and current_close > entry_threshold
-    )
-    entry_mode = "breakout"
-    if context.bars_since_exit is not None:
-        if not (crossed_upper_band or trend_continuation):
-            return StrategyDecision()
-        if trend_continuation:
-            entry_mode = "trend_continuation"
-    elif not (crossed_upper_band or confirmed_ma_cross):
-        return StrategyDecision()
     cross_count = count_ma_crosses(
         context.history["Close"].astype(float),
         context.history["ma_value"].astype(float),
     )
     return StrategyDecision(
         entry=EntryIntent(
-            order_type="next_open",
+            order_type="stop_next_bar",
             strength=-float(cross_count),
+            trigger_price=round(entry_threshold, 6),
+            expires_after_bars=1,
             suggested_position_pct=config.position_pct,
+            risk=RiskIntent(
+                stop_price=round(exit_threshold, 6),
+                stop_reason="price_below_ma60_atr_band",
+            ),
             metadata={
                 "ma_cross_count": cross_count,
                 "entry_threshold": round(entry_threshold, 6),
@@ -195,7 +170,7 @@ def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="连续两日站上 MA60、突破 0.5 ATR 上轨且 MA60 向上时次日开盘买入；跌破 0.25 ATR 下轨时卖出，冷却 10 日后连续两日站稳上轨可按趋势延续重新入场；组合中优先选择历史交叉次数较少的股票。",
+    description="前一日站上 MA60 且 MA60 向上时布置 0.5 ATR 上轨买入条件单，次日盘中触及即成交；持仓后每日更新 0.25 ATR 下轨保护价，次日盘中触及即卖出；卖出后冷却 10 日；组合中优先选择历史交叉次数较少的股票。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(

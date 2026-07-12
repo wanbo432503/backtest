@@ -30,6 +30,7 @@ class RiskIntent:
     target_price: float | None = None
     risk_per_share: float | None = None
     risk_budget_pct: float | None = None
+    stop_reason: str = "stop_loss"
 
 
 @dataclass(frozen=True)

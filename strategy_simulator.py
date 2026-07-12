@@ -153,8 +153,9 @@ def run_strategy_simulation(
             )
             if reason is None or raw_price is None:
                 continue
+            execution_row = {**row.to_dict(), "Close": raw_price}
             allowed, _ = can_sell(
-                row.to_dict(),
+                execution_row,
                 _previous_close(frames[symbol], date),
                 position.holding_bars,
                 simulation_config.trading,
@@ -428,7 +429,7 @@ def _exit_for_bar(
         stop = position.risk.stop_price
         target = position.risk.target_price
         if stop is not None and float(row["Low"]) <= stop:
-            return "stop_loss", min(float(row["Open"]), stop)
+            return position.risk.stop_reason, min(float(row["Open"]), stop)
         if target is not None and float(row["High"]) >= target:
             return "take_profit", target
     if pending_reason is not None:
