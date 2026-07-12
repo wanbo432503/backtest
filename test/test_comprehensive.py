@@ -405,6 +405,7 @@ def test_data_integrity(results: TestResults, verbose: bool = False):
         "strategies/ma_breakout_atr_risk_control.py",
         "strategies/boll_macd_breakout.py",
         "strategies/trend_pullback_pin_bar.py",
+        "strategies/volume_divergence_rsi_long.py",
     ]
     
     for strategy_file in strategy_files:

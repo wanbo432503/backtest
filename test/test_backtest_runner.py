@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from dataclasses import replace
 from fastapi.testclient import TestClient
 
 import main
@@ -7,6 +8,8 @@ from analytics import calculate_score
 from backtest_runner import BacktestResult, run_single_backtest
 from market_data import DataSourceResult
 from strategy_library import get_strategy_library
+from strategy_library import StrategyLibrary
+from strategies.volume_divergence_rsi_long import STRATEGY_DEFINITION as LONG_DEFINITION
 
 
 def _sample_ohlcv(rows: int = 90) -> pd.DataFrame:
@@ -22,6 +25,25 @@ def _sample_ohlcv(rows: int = 90) -> pd.DataFrame:
         },
         index=dates,
     )
+
+
+def _prepared_long_trade_frame(data, config):
+    frame = data.copy()
+    frame["ma_value"] = 100.0
+    frame["average_volume"] = 1_000_000.0
+    frame["volume_confirmed"] = False
+    frame["macd_dif"] = -1.0
+    frame["bottom_divergence"] = False
+    frame["bottom_divergence_recent"] = False
+    frame["rsi"] = 50.0
+    previous, signal, fill, stop = frame.index[59:63]
+    frame.loc[previous, ["Close", "ma_value", "rsi"]] = [99, 100, 29]
+    frame.loc[signal, ["Open", "High", "Low", "Close", "ma_value", "Volume", "volume_confirmed", "bottom_divergence_recent", "rsi"]] = [
+        100, 102, 99, 101, 100, 1_300_000, True, True, 31,
+    ]
+    frame.loc[fill, ["Open", "High", "Low", "Close"]] = [99, 106, 98.5, 105]
+    frame.loc[stop, ["Open", "High", "Low", "Close"]] = [104, 105, 103, 104]
+    return frame
 
 
 def test_run_single_backtest_returns_score(monkeypatch):
@@ -71,6 +93,29 @@ def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatc
     assert result.symbol == "SH603019"
     assert "Unified Strategy Backtest" in result.plot_html
     assert "score" in result.metrics
+
+
+def test_new_strategy_single_stock_path_fills_and_applies_trailing_stop(monkeypatch):
+    monkeypatch.setattr(
+        "backtest_runner.fetch_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", []),
+    )
+    definition = replace(
+        LONG_DEFINITION,
+        prepare_frame=_prepared_long_trade_frame,
+    )
+
+    result = run_single_backtest(
+        symbol="SH603019",
+        start_date="2025-07-03",
+        end_date="2025-10-01",
+        strategy_name=definition.strategy_id,
+        strategy_library=StrategyLibrary([definition]),
+        initial_cash=100_000,
+    )
+
+    assert result.metrics["trades"] == 1
+    assert result.stats["交易次数"] == 1
 
 
 def test_run_single_backtest_raises_readable_error_for_bad_data(monkeypatch):

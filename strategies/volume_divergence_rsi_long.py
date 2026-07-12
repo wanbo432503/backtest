@@ -109,11 +109,28 @@ def has_macd_bottom_divergence(
     first_low_index = first_prices.idxmin()
     second_low_index = second_prices.idxmin()
     return (
-        float(price_window.loc[second_low_index])
+        second_low_index == price_window.index[-1]
+        and float(price_window.loc[second_low_index])
         < float(price_window.loc[first_low_index])
         and float(dif_window.loc[second_low_index])
         > float(dif_window.loc[first_low_index])
     )
+
+
+def calculate_bottom_divergence_events(
+    close: pd.Series,
+    dif: pd.Series,
+    *,
+    lookback: int,
+) -> pd.Series:
+    events = pd.Series(False, index=close.index)
+    for row_index in range(lookback - 1, len(close)):
+        events.iloc[row_index] = has_macd_bottom_divergence(
+            close.iloc[: row_index + 1],
+            dif.iloc[: row_index + 1],
+            lookback=lookback,
+        )
+    return events
 
 
 def prepare_volume_divergence_rsi_long_frame(
@@ -136,15 +153,11 @@ def prepare_volume_divergence_rsi_long_frame(
         resolved.macd_fast_period,
         resolved.macd_slow_period,
     )
-    macd_series = frame["macd_dif"]
-    divergence = pd.Series(False, index=frame.index)
-    for row_index in range(resolved.divergence_lookback - 1, len(frame)):
-        prefix = frame.iloc[: row_index + 1]
-        divergence.iloc[row_index] = has_macd_bottom_divergence(
-            prefix["Close"],
-            prefix["macd_dif"],
-            lookback=resolved.divergence_lookback,
-        )
+    divergence = calculate_bottom_divergence_events(
+        frame["Close"],
+        frame["macd_dif"],
+        lookback=resolved.divergence_lookback,
+    )
     frame["bottom_divergence"] = divergence
     frame["bottom_divergence_recent"] = (
         divergence.astype(int)
@@ -267,8 +280,7 @@ def volume_divergence_rsi_long_min_history(config: BaseModel) -> int:
     return max(
         resolved.ma_period + 1,
         resolved.volume_lookback + 1,
-        resolved.macd_slow_period,
-        resolved.divergence_lookback,
+        resolved.macd_slow_period + resolved.divergence_lookback - 1,
         resolved.rsi_period + 2,
     )
 

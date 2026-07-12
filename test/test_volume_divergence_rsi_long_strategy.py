@@ -83,11 +83,23 @@ def test_config_rejects_invalid_periods_and_profit_lock_order():
 
 def test_macd_bottom_divergence_compares_lower_price_low_with_higher_dif_low():
     module = _strategy_module()
-    close = pd.Series([14, 10, 13, 12, 9, 11], dtype="float64")
-    dif = pd.Series([-1, -2, -1.2, -0.8, -1, -0.5], dtype="float64")
+    close = pd.Series([14, 10, 13, 12, 11, 9], dtype="float64")
+    dif = pd.Series([-1, -2, -1.2, -0.8, -0.5, -1], dtype="float64")
 
     assert module.has_macd_bottom_divergence(close, dif, lookback=6) is True
     assert module.has_macd_bottom_divergence(close, dif * -1, lookback=6) is False
+
+
+def test_divergence_event_expires_without_being_refreshed_by_same_lows():
+    module = _strategy_module()
+    close = pd.Series([14, 10, 13, 12, 11, 9, 10, 11, 12, 13], dtype="float64")
+    dif = pd.Series([-1, -2, -1.2, -0.8, -0.5, -1, -0.7, -0.5, -0.3, 0], dtype="float64")
+
+    events = module.calculate_bottom_divergence_events(close, dif, lookback=6)
+    recent = events.astype(int).rolling(3, min_periods=1).max().astype(bool)
+
+    assert events.tolist() == [False, False, False, False, False, True, False, False, False, False]
+    assert recent.tolist()[-5:] == [True, True, True, False, False]
 
 
 def test_rsi_handles_one_direction_price_runs():
@@ -124,6 +136,15 @@ def test_indicator_preparation_is_prefix_invariant():
     full = module.STRATEGY_DEFINITION.prepare_frame(changed, config).iloc[:70]
 
     pd.testing.assert_frame_equal(prefix, full)
+
+
+def test_minimum_history_combines_macd_warmup_and_divergence_window():
+    module = _strategy_module()
+    config = _config(macd_slow_period=4, divergence_lookback=6)
+
+    minimum = module.STRATEGY_DEFINITION.min_history_bars(config)
+
+    assert minimum == 9
 
 
 def test_strict_signal_emits_next_open_entry_with_ten_percent_size_and_stop():
