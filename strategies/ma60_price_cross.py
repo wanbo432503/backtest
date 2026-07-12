@@ -156,9 +156,16 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
         and previous_close > previous_ma
         and current_close > entry_threshold
     )
+    trend_continuation = (
+        previous_close > previous_entry_threshold
+        and current_close > entry_threshold
+    )
+    entry_mode = "breakout"
     if context.bars_since_exit is not None:
-        if not crossed_upper_band:
+        if not (crossed_upper_band or trend_continuation):
             return StrategyDecision()
+        if trend_continuation:
+            entry_mode = "trend_continuation"
     elif not (crossed_upper_band or confirmed_ma_cross):
         return StrategyDecision()
     cross_count = count_ma_crosses(
@@ -174,6 +181,7 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
                 "ma_cross_count": cross_count,
                 "entry_threshold": round(entry_threshold, 6),
                 "ma_slope_return": round(ma_slope_return, 8),
+                "entry_mode": entry_mode,
             },
         )
     )
@@ -187,7 +195,7 @@ def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="连续两日站上 MA60、突破 0.5 ATR 上轨且 MA60 向上时次日开盘买入；跌破 0.25 ATR 下轨时卖出，卖出后冷却 10 日；组合中优先选择历史交叉次数较少的股票。",
+    description="连续两日站上 MA60、突破 0.5 ATR 上轨且 MA60 向上时次日开盘买入；跌破 0.25 ATR 下轨时卖出，冷却 10 日后连续两日站稳上轨可按趋势延续重新入场；组合中优先选择历史交叉次数较少的股票。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(

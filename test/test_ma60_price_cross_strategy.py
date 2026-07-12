@@ -169,7 +169,7 @@ def test_exit_uses_lower_atr_band_instead_of_raw_ma60_touch():
     assert held_below.exit is not None
 
 
-def test_entry_blocks_reentry_for_ten_trading_days_and_requires_fresh_breakout():
+def test_entry_blocks_reentry_for_ten_trading_days_then_allows_fresh_breakout():
     frame = _filtered_signal_frame(previous=10.05, current=10.3)
 
     blocked = STRATEGY_DEFINITION.evaluate(
@@ -193,6 +193,33 @@ def test_entry_blocks_reentry_for_ten_trading_days_and_requires_fresh_breakout()
 
     assert blocked.entry is None
     assert allowed.entry is not None
+
+
+def test_reentry_accepts_persistent_trend_after_cooldown_and_slope_confirmation():
+    frame = _filtered_signal_frame(previous=10.3, current=10.4)
+
+    blocked = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH601288",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(),
+            bars_since_exit=10,
+        )
+    )
+    continuation = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH601288",
+            frame,
+            len(frame) - 1,
+            MA60PriceCrossConfig(),
+            bars_since_exit=11,
+        )
+    )
+
+    assert blocked.entry is None
+    assert continuation.entry is not None
+    assert continuation.entry.metadata["entry_mode"] == "trend_continuation"
 
 
 def test_ma60_strategy_defaults_to_fifteen_percent_position():

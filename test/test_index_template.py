@@ -396,6 +396,22 @@ def test_strategy_parameters_remain_source_of_truth_for_risk_values():
     assert "riskInput.disabled = !paramInput;" in template
 
 
+def test_single_stock_risk_controls_hide_when_selected_strategy_does_not_support_them():
+    template = Path("templates/index.html").read_text(encoding="utf-8")
+
+    for param_name in [
+        "stop_loss_pct",
+        "take_profit_pct",
+        "position_pct",
+        "max_holding_bars",
+        "cooldown_bars",
+    ]:
+        assert f'data-strategy-risk-param="{param_name}"' in template
+    assert 'id="strategyRiskDescription"' in template
+    assert "riskControl.hidden = !paramInput;" in template
+    assert "optimizationRiskControl.hidden = !optimizationEnabled;" in template
+
+
 def test_index_template_aligns_a_share_rule_number_inputs_in_three_rows():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 

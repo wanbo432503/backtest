@@ -1174,30 +1174,31 @@ SZ000651</textarea>
                                 </div>
                             </details>
 
-                            <details class="config-panel border rounded p-2 mb-3">
+                            <details class="config-panel border rounded p-2 mb-3" id="singleStockRiskSettings">
                                 <summary><i class="fas fa-shield-alt"></i> 风控设置</summary>
+                                <div class="form-text mt-2" id="strategyRiskDescription"></div>
                                 <div class="compact-row mt-2">
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-strategy-risk-param="stop_loss_pct">
                                         <label for="stopLossPct" class="form-label">止损比例</label>
                                         <input type="number" class="form-control" id="stopLossPct" min="0" max="30" step="0.5" value="5">
                                     </div>
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-strategy-risk-param="take_profit_pct">
                                         <label for="takeProfitPct" class="form-label">止盈比例</label>
                                         <input type="number" class="form-control" id="takeProfitPct" min="0" max="80" step="0.5" value="12">
                                     </div>
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-strategy-risk-param="position_pct">
                                         <label for="positionPct" class="form-label">仓位比例</label>
                                         <input type="number" class="form-control" id="positionPct" min="0.05" max="1" step="0.05" value="0.95">
                                     </div>
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-strategy-risk-param="max_holding_bars">
                                         <label for="maxHoldingBars" class="form-label">最大持仓周期</label>
                                         <input type="number" class="form-control" id="maxHoldingBars" min="1" max="500" step="1" value="120">
                                     </div>
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-strategy-risk-param="cooldown_bars">
                                         <label for="cooldownBars" class="form-label">冷却期</label>
                                         <input type="number" class="form-control" id="cooldownBars" min="0" max="60" step="1" value="3">
                                     </div>
-                                    <div class="mb-3">
+                                    <div class="mb-3" data-optimization-risk-control>
                                         <label for="maxAccountDrawdownPct" class="form-label">最大回撤停止开仓</label>
                                         <input type="number" class="form-control" id="maxAccountDrawdownPct" min="1" max="80" step="1" value="30">
                                     </div>
@@ -3101,6 +3102,10 @@ SZ000651</textarea>
                 if (!riskInput) {
                     return;
                 }
+                const riskControl = riskInput.closest('[data-strategy-risk-param]');
+                if (riskControl) {
+                    riskControl.hidden = !paramInput;
+                }
                 riskInput.disabled = !paramInput;
                 if (!paramInput) {
                     return;
@@ -3111,6 +3116,17 @@ SZ000651</textarea>
                         riskInput.setAttribute(attribute, paramInput.getAttribute(attribute));
                     }
                 });
+            });
+            const strategy = selectedStrategy(document.getElementById('strategy').value);
+            const description = document.getElementById('strategyRiskDescription');
+            if (description) {
+                description.textContent = strategy
+                    ? `当前策略实际规则：${strategy.description}`
+                    : '';
+            }
+            const optimizationEnabled = document.getElementById('enableOptimization').checked;
+            document.querySelectorAll('[data-optimization-risk-control]').forEach(optimizationRiskControl => {
+                optimizationRiskControl.hidden = !optimizationEnabled;
             });
         }
 
@@ -3248,6 +3264,7 @@ SZ000651</textarea>
             document.getElementById('submitBacktestButton').innerHTML = enabled
                 ? '<i class="fas fa-ranking-star"></i> 开始优化'
                 : '<i class="fas fa-play"></i> 开始回测';
+            syncRiskControlsFromStrategyParams();
         }
 
         function collectOptimizationSymbol() {
