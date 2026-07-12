@@ -1,6 +1,8 @@
+from dataclasses import replace
+from pathlib import Path
+
 import pandas as pd
 import pytest
-from dataclasses import replace
 from fastapi.testclient import TestClient
 
 import main
@@ -67,7 +69,7 @@ def test_run_single_backtest_returns_score(monkeypatch):
 
     assert result.data_provider == "test"
     assert "<html" in result.plot_html.lower()
-    assert "Unified Strategy Backtest" in result.plot_html
+    assert "Volume" in result.plot_html
     assert "综合评分" in result.stats
     assert "score" in result.metrics
     assert result.metrics["score"] == calculate_score(
@@ -116,22 +118,71 @@ def test_single_stats_use_full_period_exposure_not_final_position():
     assert stats["持仓时间"] == "37.50%"
 
 
-def test_plot_root_layout_stretches_to_iframe_width(monkeypatch):
+def test_plot_html_uses_native_backtesting_sections():
+    data = _sample_ohlcv(40)
+    equity_curve = [
+        {
+            "date": date.strftime("%Y-%m-%d"),
+            "equity": 10_000 + index * 20 - max(0, index - 25) * 30,
+        }
+        for index, date in enumerate(data.index)
+    ]
+    trades = [
+        {
+            "date": data.index[5].strftime("%Y-%m-%d"),
+            "side": "buy",
+            "shares": 50,
+            "price": float(data.iloc[5]["Open"]),
+            "cost": 5,
+            "reason": "signal",
+            "pnl": None,
+        },
+        {
+            "date": data.index[30].strftime("%Y-%m-%d"),
+            "side": "sell",
+            "shares": 50,
+            "price": float(data.iloc[30]["Open"]),
+            "cost": 5,
+            "reason": "signal_exit",
+            "pnl": 240,
+        },
+    ]
+
+    html = backtest_runner._render_backtesting_plot_html(
+        data,
+        equity_curve,
+        trades,
+        initial_cash=10_000,
+    )
+
+    assert "Equity" in html
+    assert "Profit / Loss" in html
+    assert "Trades (1)" in html
+    assert "Volume" in html
+
+
+def test_plot_html_calls_backtesting_plot(monkeypatch):
     captured = {}
 
-    def fake_file_html(model, resources, title):
-        captured["model"] = model
-        return "<html>plot</html>"
+    def fake_plot(self, **kwargs):
+        captured.update(kwargs)
+        Path(kwargs["filename"]).write_text("<html>native backtesting plot</html>")
 
-    monkeypatch.setattr(backtest_runner, "file_html", fake_file_html)
+    monkeypatch.setattr(backtest_runner.Backtest, "plot", fake_plot)
 
-    backtest_runner._render_plot_html(
+    html = backtest_runner._render_backtesting_plot_html(
         _sample_ohlcv(),
         [{"date": "2025-07-03", "equity": 10_000}],
         [],
+        initial_cash=10_000,
     )
 
-    assert captured["model"].sizing_mode == "stretch_width"
+    assert html == "<html>native backtesting plot</html>"
+    assert captured["open_browser"] is False
+    assert captured["plot_equity"] is True
+    assert captured["plot_pl"] is True
+    assert captured["plot_volume"] is True
+    assert captured["plot_trades"] is True
 
 
 def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatch):
@@ -149,7 +200,7 @@ def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatc
     )
 
     assert result.symbol == "SH603019"
-    assert "Unified Strategy Backtest" in result.plot_html
+    assert "Volume" in result.plot_html
     assert "score" in result.metrics
 
 
@@ -250,7 +301,7 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
     assert payload["data_provider"] == "test"
     assert payload["data_warnings"] == ["source warning"]
     assert "综合评分" in payload["stats"]
-    assert "Unified Strategy Backtest" in payload["plot_html"]
+    assert "Volume" in payload["plot_html"]
 
 
 def test_backtest_api_passes_strategy_params_to_runner(monkeypatch):

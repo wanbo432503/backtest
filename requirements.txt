@@ -2,6 +2,7 @@ fastapi
 uvicorn
 yfinance
 bokeh
+backtesting==0.6.5
 pandas
 jinja2
 python-multipart
