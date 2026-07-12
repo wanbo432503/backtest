@@ -51,31 +51,26 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert "自动扫描模式：忽略下方固定股票池" in template
     assert "股票池来源" in template
     assert "计划扫描" in template
-    assert "回调 Pin Bar" in template
-    assert "MA20 &gt; MA60 &gt; MA120" in template
-    assert "次日突破最高价买入" in template
-    assert 'id="signalConfirmationBars"' not in template
-    assert "readNumber('signalConfirmationBars'" not in template
-    assert 'id="signalTakeProfitPct"' not in template
-    assert 'id="signalStopLossPct"' not in template
-    assert "strategy_name: 'trend_pullback_pin_bar'" in template
-    assert 'id="signalShortMa"' in template
-    assert 'id="signalRewardRiskRatio"' in template
-    assert 'id="signalRiskPerTradePct"' in template
-    assert 'id="signalMaDistancePct" value="2"' in template
-    assert 'id="signalVolumeMultiplier" value="1.3"' in template
-    assert 'id="signalRewardRiskRatio" value="2.5"' in template
-    assert 'id="signalMaxEntryGapPct" value="2"' in template
+    assert 'id="signalStrategy"' in template
+    assert 'id="signalStrategyParamContainer"' in template
+    assert "supported_modes.includes('signal_portfolio')" in template
+    assert "renderStrategyParameterControls" in template
+    assert "collectParameterValues('signalStrategyParamContainer')" in template
+    assert "strategy: {" in template
+    assert "strategy_name: strategyName" in template
+    assert "parameters: collectParameterValues('signalStrategyParamContainer')" in template
+    assert "strategy_name: 'trend_pullback_pin_bar'" not in template
+    assert 'id="signalShortMa"' not in template
+    assert 'id="signalRewardRiskRatio"' not in template
+    assert 'id="signalRiskPerTradePct"' not in template
+    assert 'id="signalBreadthMaPeriod" value="60"' in template
     assert 'id="signalMarketBreadthPct" value="50"' in template
     assert 'id="signalMarketBreadthMinPct" value="40"' in template
     assert 'id="signalBreadthPartialRiskPct" value="50"' in template
-    assert 'id="signalCooldownDays" value="20"' in template
     assert 'id="signalMaxPositions" value="10"' in template
     assert 'id="signalMaxPositionPct" value="10"' in template
     assert 'id="signalTargetExposurePct" value="85"' in template
-    assert "平均MA60宽度" in template
-    assert "宽度拦截" in template
-    assert "半风险信号" in template
+    assert "平均市场宽度" in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

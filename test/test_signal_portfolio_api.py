@@ -13,6 +13,19 @@ def _payload():
     }
 
 
+def test_strategy_catalog_exposes_same_seven_strategies_to_signal_portfolios():
+    client = TestClient(main.app)
+
+    response = client.get("/strategies")
+
+    assert response.status_code == 200
+    catalog = response.json()
+    assert len(catalog) == 7
+    assert all(item["engine"] == "unified" for item in catalog)
+    assert all("signal_portfolio" in item["supported_modes"] for item in catalog)
+    assert all(item["class_name"] for item in catalog)
+
+
 def test_signal_portfolio_job_api_creates_and_reads_job(monkeypatch):
     client = TestClient(main.app)
     snapshot = PortfolioJobSnapshot(

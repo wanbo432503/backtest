@@ -1001,7 +1001,7 @@ SZ002241</textarea>
                         <div class="card-body">
                             <form id="signalPortfolioBacktestForm">
                                 <div class="portfolio-optimization-note mb-3">
-                                    每只股票独立扫描多头趋势中的回调 Pin Bar，次日突破形态最高价才买入；所有持仓共享现金，并按单笔风险控制仓位。
+                                    从统一策略库选择策略并配置参数；每只股票独立产生信号，所有持仓共享现金与组合风控额度。
                                 </div>
                                 <div class="compact-row">
                                     <div class="mb-3">
@@ -1031,28 +1031,27 @@ SZ000651</textarea>
                                 </div>
                                 <details class="config-panel border rounded p-2 mb-3" open>
                                     <summary><i class="fas fa-chart-line"></i> 信号参数</summary>
-                                    <div class="portfolio-optimization-note mt-2 mb-2">
-                                        MA20 &gt; MA60 &gt; MA120、股价在 MA60 上方；市场宽度低于40%禁止开仓，40%～50%使用半风险，超过50%使用完整风险。价格靠近 MA20 或前期支撑，出现放量看涨 Pin Bar 后，次日突破最高价买入。以 Pin Bar 低点/ATR 的较宽止损计算仓位，达到 R 倍目标或连续两日收盘跌破 MA20 退出，同票退出后默认冷却20日。
+                                    <div class="mt-2 mb-3">
+                                        <label for="signalStrategy" class="form-label">组合信号策略</label>
+                                        <select class="form-select" id="signalStrategy" required>
+                                            <option value="loading">正在加载策略...</option>
+                                        </select>
                                     </div>
+                                    <div class="portfolio-optimization-note mb-2" id="signalStrategyDescription">
+                                        选择策略后加载说明和参数。
+                                    </div>
+                                    <div id="signalStrategyParamContainer" class="portfolio-factor-grid mt-2">
+                                        <div class="form-text">选择策略后加载参数。</div>
+                                    </div>
+                                </details>
+                                <details class="config-panel border rounded p-2 mb-3" open>
+                                    <summary><i class="fas fa-filter"></i> 市场宽度过滤</summary>
                                     <div class="portfolio-factor-grid mt-2">
-                                        <div><label for="signalShortMa" class="form-label">短期均线</label><input type="number" class="form-control" id="signalShortMa" value="20" min="2"></div>
-                                        <div><label for="signalMediumMa" class="form-label">中期均线</label><input type="number" class="form-control" id="signalMediumMa" value="60" min="3"></div>
-                                        <div><label for="signalLongMa" class="form-label">长期均线</label><input type="number" class="form-control" id="signalLongMa" value="120" min="4"></div>
-                                        <div><label for="signalMaDistancePct" class="form-label">距MA20上限 (%)</label><input type="number" class="form-control" id="signalMaDistancePct" value="2" min="0.1" max="20" step="0.1"></div>
-                                        <div><label for="signalSupportLookback" class="form-label">支撑回看天数</label><input type="number" class="form-control" id="signalSupportLookback" value="20" min="2"></div>
-                                        <div><label for="signalSupportTolerancePct" class="form-label">支撑距离 (%)</label><input type="number" class="form-control" id="signalSupportTolerancePct" value="1" min="0.1" max="20" step="0.1"></div>
-                                        <div><label for="signalLowerShadowRatio" class="form-label">下影/实体倍数</label><input type="number" class="form-control" id="signalLowerShadowRatio" value="2.5" min="1" step="0.1"></div>
-                                        <div><label for="signalMaxBodyPct" class="form-label">实体占比上限 (%)</label><input type="number" class="form-control" id="signalMaxBodyPct" value="30" min="1" max="100" step="1"></div>
-                                        <div><label for="signalVolumeMultiplier" class="form-label">量能倍数</label><input type="number" class="form-control" id="signalVolumeMultiplier" value="1.3" min="1" max="10" step="0.1"></div>
-                                        <div><label for="signalAtrPeriod" class="form-label">ATR周期</label><input type="number" class="form-control" id="signalAtrPeriod" value="14" min="2"></div>
-                                        <div><label for="signalRewardRiskRatio" class="form-label">止盈R倍数</label><input type="number" class="form-control" id="signalRewardRiskRatio" value="2.5" min="2" max="3" step="0.5"></div>
-                                        <div><label for="signalMaxEntryGapPct" class="form-label">最大高开 (%)</label><input type="number" class="form-control" id="signalMaxEntryGapPct" value="2" min="0.1" max="20" step="0.1"></div>
-                                        <div><label for="signalRiskPerTradePct" class="form-label">单笔账户风险 (%)</label><input type="number" class="form-control" id="signalRiskPerTradePct" value="0.5" min="0.1" max="5" step="0.1"></div>
+                                        <div class="form-check align-self-end mb-2"><input class="form-check-input" type="checkbox" id="signalMarketFilterEnabled" checked><label class="form-check-label" for="signalMarketFilterEnabled">启用市场宽度过滤</label></div>
+                                        <div><label for="signalBreadthMaPeriod" class="form-label">宽度均线周期</label><input type="number" class="form-control" id="signalBreadthMaPeriod" value="60" min="2" max="250"></div>
                                         <div><label for="signalMarketBreadthMinPct" class="form-label">禁止开仓宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthMinPct" value="40" min="1" max="98" step="1"></div>
                                         <div><label for="signalMarketBreadthPct" class="form-label">完整风险宽度 (%)</label><input type="number" class="form-control" id="signalMarketBreadthPct" value="50" min="2" max="99" step="1"></div>
                                         <div><label for="signalBreadthPartialRiskPct" class="form-label">中间区间风险 (%)</label><input type="number" class="form-control" id="signalBreadthPartialRiskPct" value="50" min="1" max="100" step="1"></div>
-                                        <div><label for="signalCooldownDays" class="form-label">同票冷却天数</label><input type="number" class="form-control" id="signalCooldownDays" value="20" min="0" max="252"></div>
-                                        <div><label class="form-label">趋势退出确认</label><div class="form-control bg-light">连续 2 日跌破 MA20</div></div>
                                     </div>
                                 </details>
                                 <details class="config-panel border rounded p-2 mb-3" open>
@@ -1717,6 +1716,7 @@ SZ000651</textarea>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         window.strategyMetadata = {};
+        window.strategyCatalog = [];
         window.lastOptimizationResults = [];
         window.optimizationResultStore = { currentBatchId: null, items: [] };
         const OPTIMIZATION_STORAGE_KEY = 'backtest.optimizationResults.v1';
@@ -2126,6 +2126,7 @@ SZ000651</textarea>
         function collectSignalPortfolioRequest() {
             const mode = document.getElementById('signalUniverseMode').value;
             const symbols = collectSignalPortfolioSymbols();
+            const strategyName = document.getElementById('signalStrategy').value;
             if (mode === 'manual') {
                 if (!symbols.length) throw new Error('请至少输入1只股票');
                 if (symbols.length > 50) throw new Error('固定股票池最多50只');
@@ -2151,31 +2152,15 @@ SZ000651</textarea>
                     exclude_funds: true
                 },
                 strategy: {
-                    strategy_name: 'trend_pullback_pin_bar',
-                    short_ma_period: readNumber('signalShortMa', 20),
-                    medium_ma_period: readNumber('signalMediumMa', 60),
-                    long_ma_period: readNumber('signalLongMa', 120),
-                    ma_distance_pct: readNumber('signalMaDistancePct', 2),
-                    support_lookback: readNumber('signalSupportLookback', 20),
-                    support_tolerance_pct: readNumber('signalSupportTolerancePct', 1),
-                    lower_shadow_body_ratio: readNumber('signalLowerShadowRatio', 2.5),
-                    max_body_range_pct: readNumber('signalMaxBodyPct', 30),
-                    min_close_location_pct: 65,
-                    max_upper_shadow_range_pct: 20,
-                    volume_lookback: 20,
-                    volume_multiplier: readNumber('signalVolumeMultiplier', 1.3),
-                    atr_period: readNumber('signalAtrPeriod', 14),
-                    min_stop_distance_pct: 1.5,
-                    max_stop_distance_pct: 6,
-                    reward_risk_ratio: readNumber('signalRewardRiskRatio', 2.5),
-                    max_entry_gap_pct: readNumber('signalMaxEntryGapPct', 2),
-                    risk_per_trade_pct: readNumber('signalRiskPerTradePct', 0.5),
+                    strategy_name: strategyName,
+                    parameters: collectParameterValues('signalStrategyParamContainer')
+                },
+                market_filter: {
+                    enabled: document.getElementById('signalMarketFilterEnabled').checked,
+                    breadth_ma_period: readNumber('signalBreadthMaPeriod', 60),
                     market_breadth_min_pct: readNumber('signalMarketBreadthMinPct', 40),
                     market_breadth_threshold_pct: readNumber('signalMarketBreadthPct', 50),
-                    market_breadth_partial_risk_pct: readNumber('signalBreadthPartialRiskPct', 50),
-                    trend_exit_confirmation_days: 2,
-                    cooldown_days: readNumber('signalCooldownDays', 20),
-                    price_tick: 0.01
+                    market_breadth_partial_risk_pct: readNumber('signalBreadthPartialRiskPct', 50)
                 },
                 trading: {
                     long_only: true, t_plus_one: true, lot_size: 100,
@@ -2978,10 +2963,13 @@ SZ000651</textarea>
                 }
                 
                 const strategies = await response.json();
+                window.strategyCatalog = strategies;
                 const strategySelect = document.getElementById('strategy');
+                const signalStrategySelect = document.getElementById('signalStrategy');
                 
                 // 清空现有选项
                 strategySelect.innerHTML = '';
+                signalStrategySelect.innerHTML = '';
                 
                 // 添加策略选项
                 strategies.forEach(strategy => {
@@ -2992,12 +2980,27 @@ SZ000651</textarea>
                     option.setAttribute('data-description', strategy.description);
                     strategySelect.appendChild(option);
                 });
+
+                strategies
+                    .filter(strategy => strategy.supported_modes.includes('signal_portfolio'))
+                    .forEach(strategy => {
+                        const option = document.createElement('option');
+                        option.value = strategy.name;
+                        option.textContent = strategy.display_name;
+                        option.setAttribute('data-description', strategy.description);
+                        signalStrategySelect.appendChild(option);
+                    });
                 
                 // 默认选择第一个策略
                 if (strategies.length > 0) {
                     strategySelect.value = strategies[0].name;
                     updateStrategyDescription();
                     renderStrategyParamControls();
+                }
+                if (signalStrategySelect.options.length > 0) {
+                    const pinBar = strategies.find(strategy => strategy.name === 'trend_pullback_pin_bar');
+                    signalStrategySelect.value = pinBar ? pinBar.name : signalStrategySelect.options[0].value;
+                    renderSignalStrategyControls();
                 }
                 
             } catch (error) {
@@ -3099,41 +3102,65 @@ SZ000651</textarea>
             }
         }
 
-        function renderStrategyParamControls() {
-            const strategyName = document.getElementById('strategy').value;
-            const params = window.strategyMetadata[strategyName] || [];
-            const container = document.getElementById('strategyParamContainer');
+        function renderStrategyParameterControls(container, strategy, prefix, options = {}) {
+            const params = strategy ? strategy.parameters || [] : [];
             if (!params.length) {
                 container.innerHTML = '<div class="form-text">该策略暂无可配置参数。</div>';
-                syncRiskControlsFromStrategyParams();
                 return;
             }
             container.innerHTML = params.map(param => `
                 <div class="param-row" data-param-name="${escapeHtml(param.name)}" data-param-type="${escapeHtml(param.type)}">
                     <div>
-                        <label for="strategyParam_${escapeHtml(param.name)}" class="form-label">${escapeHtml(param.label || param.name)}</label>
+                        <label for="${escapeHtml(prefix)}_${escapeHtml(param.name)}" class="form-label">${escapeHtml(param.label || param.name)}</label>
                         <input
-                            type="${param.type === 'str' ? 'text' : 'number'}"
+                            type="${param.type === 'str' ? 'text' : param.type === 'bool' ? 'checkbox' : 'number'}"
                             class="form-control strategy-param-input"
-                            id="strategyParam_${escapeHtml(param.name)}"
+                            id="${escapeHtml(prefix)}_${escapeHtml(param.name)}"
                             data-param-name="${escapeHtml(param.name)}"
                             data-param-type="${escapeHtml(param.type)}"
-                            value="${escapeHtml(param.default)}"
+                            ${param.type === 'bool' ? (param.default ? 'checked' : '') : `value="${escapeHtml(param.default)}"`}
                             ${param.min_value !== null && param.min_value !== undefined ? `min="${escapeHtml(param.min_value)}"` : ''}
                             ${param.max_value !== null && param.max_value !== undefined ? `max="${escapeHtml(param.max_value)}"` : ''}
                             ${param.step !== null && param.step !== undefined ? `step="${escapeHtml(param.step)}"` : ''}
                         >
                     </div>
-                    <div class="small text-muted">${escapeHtml((param.search_values || []).join('/'))}</div>
-                    <div class="form-check">
+                    ${options.showSearchValues ? `<div class="small text-muted">${escapeHtml((param.search_values || []).join('/'))}</div>` : ''}
+                    ${options.optimize ? `<div class="form-check">
                         <input class="form-check-input strategy-param-optimize" type="checkbox"
                             id="optimizeParam_${escapeHtml(param.name)}"
                             data-param-name="${escapeHtml(param.name)}"
                             ${param.search_values && param.search_values.length ? 'checked' : ''}>
-                    </div>
+                    </div>` : ''}
                 </div>
             `).join('');
+        }
+
+        function selectedStrategy(strategyName) {
+            return window.strategyCatalog.find(strategy => strategy.name === strategyName);
+        }
+
+        function renderStrategyParamControls() {
+            const strategyName = document.getElementById('strategy').value;
+            renderStrategyParameterControls(
+                document.getElementById('strategyParamContainer'),
+                selectedStrategy(strategyName),
+                'strategyParam',
+                { optimize: true, showSearchValues: true }
+            );
             syncRiskControlsFromStrategyParams();
+        }
+
+        function renderSignalStrategyControls() {
+            const select = document.getElementById('signalStrategy');
+            const strategy = selectedStrategy(select.value);
+            document.getElementById('signalStrategyDescription').textContent = strategy
+                ? strategy.description
+                : '选择策略后加载说明和参数。';
+            renderStrategyParameterControls(
+                document.getElementById('signalStrategyParamContainer'),
+                strategy,
+                'signalStrategyParam'
+            );
         }
 
         function collectRiskConfig() {
@@ -3167,12 +3194,17 @@ SZ000651</textarea>
             };
         }
 
-        function collectStrategyParams() {
+        function collectParameterValues(containerId) {
             const params = {};
-            document.querySelectorAll('.strategy-param-input').forEach(input => {
-                params[input.dataset.paramName] = parseParamValue(input.value, input.dataset.paramType);
+            document.getElementById(containerId).querySelectorAll('.strategy-param-input').forEach(input => {
+                const value = input.dataset.paramType === 'bool' ? input.checked : input.value;
+                params[input.dataset.paramName] = parseParamValue(value, input.dataset.paramType);
             });
             return params;
+        }
+
+        function collectStrategyParams() {
+            return collectParameterValues('strategyParamContainer');
         }
 
         function toggleOptimizationControls() {
@@ -4048,9 +4080,8 @@ SZ000651</textarea>
                 `计划扫描 ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
-                `平均MA60宽度 ${diagnostics.average_market_breadth_pct == null ? '-' : formatPortfolioPct(diagnostics.average_market_breadth_pct)}`,
-                `宽度拦截 ${diagnostics.breadth_blocked_signal_count ?? '-'}`,
-                `半风险信号 ${diagnostics.breadth_partial_signal_count ?? '-'}`,
+                `策略 ${diagnostics.strategy_name ?? diagnostics.strategy_id ?? '-'}`,
+                `平均市场宽度 ${diagnostics.average_market_breadth_pct == null ? '-' : formatPortfolioPct(diagnostics.average_market_breadth_pct)}`,
                 `发现信号 ${diagnostics.signal_count ?? '-'}`,
                 `实际交易股票 ${diagnostics.traded_symbols ?? '-'}`
             ].join(' | ');
@@ -4082,10 +4113,9 @@ SZ000651</textarea>
             renderPortfolioTable('signalPortfolioEventTable', (result.signal_events || []).slice().reverse(), [
                 { label: '日期', key: 'date' }, { label: '股票', key: 'symbol', html: renderPortfolioSymbolButton },
                 { label: '信号评分', key: 'strength', value: row => formatMetric(row.strength) },
-                { label: '突破价', key: 'trigger_price', value: row => formatMetric(row.trigger_price) },
-                { label: 'Pin低点', key: 'pin_low', value: row => formatMetric(row.pin_low) },
-                { label: 'ATR', key: 'atr', value: row => formatMetric(row.atr) },
-                { label: 'MA60宽度', key: 'market_breadth_pct', value: row => formatPortfolioPct(row.market_breadth_pct) },
+                { label: '订单类型', key: 'order_type' },
+                { label: '触发价', key: 'trigger_price', value: row => row.trigger_price == null ? '-' : formatMetric(row.trigger_price) },
+                { label: '市场宽度', key: 'market_breadth_pct', value: row => formatPortfolioPct(row.market_breadth_pct) },
                 { label: '风险倍率', key: 'market_risk_multiplier', value: row => `${formatMetric((row.market_risk_multiplier ?? 0) * 100)}%` }
             ], '未发现入场信号');
             const warnings = result.data_warnings || [];
@@ -4232,6 +4262,7 @@ SZ000651</textarea>
             document.getElementById('strategy').addEventListener('change', updateStrategyDescription);
             document.getElementById('strategy').addEventListener('change', renderStrategyParamControls);
             document.getElementById('strategy').addEventListener('change', renderOptimizationLibrary);
+            document.getElementById('signalStrategy').addEventListener('change', renderSignalStrategyControls);
             Object.values(STRATEGY_RISK_CONTROL_IDS).forEach(controlId => {
                 document.getElementById(controlId).addEventListener('input', syncStrategyParamFromRiskControl);
             });
