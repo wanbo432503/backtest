@@ -90,6 +90,7 @@ class StrategyBarContext:
 class StrategyDecision:
     entry: EntryIntent | None = None
     exit: ExitIntent | None = None
+    risk_update: RiskIntent | None = None
     next_state: Mapping[str, Any] | None = None
 
 

@@ -355,6 +355,38 @@ def test_same_bar_stop_and_target_uses_conservative_stop_first():
     assert sell["price"] == 95
 
 
+def test_close_decision_can_tighten_protective_stop_for_next_bar():
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(
+                entry=EntryIntent(
+                    "next_open",
+                    metadata={"stop_loss_pct": 10},
+                )
+            )
+        if context.position is not None and context.bar_index == 1:
+            return StrategyDecision(risk_update=RiskIntent(stop_price=99))
+        return StrategyDecision()
+
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {
+            "SH603019": _data(
+                opens=(100, 100, 100),
+                highs=(101, 106, 101),
+                lows=(99, 99.5, 98),
+                closes=(100, 105, 100),
+            )
+        },
+        _simulation(),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["date"] == "2026-01-03"
+    assert sell["price"] == 99
+
+
 def test_strategy_state_is_replaced_without_mutating_prior_mapping():
     seen_states = []
 

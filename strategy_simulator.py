@@ -314,6 +314,8 @@ def run_strategy_simulation(
                 ) from exc
             if decision.next_state is not None:
                 strategy_states[symbol] = dict(decision.next_state)
+            if decision.risk_update is not None and symbol in positions:
+                positions[symbol].risk = decision.risk_update
             if decision.exit is not None and symbol in positions:
                 pending_exits[symbol] = decision.exit.reason
             if (
