@@ -162,7 +162,8 @@ def _render_plot_html(
         line_width=2,
         color="#0d6efd",
     )
-    return file_html(column(price_plot, equity_plot), CDN, "Unified Strategy Backtest")
+    layout = column(price_plot, equity_plot, sizing_mode="stretch_width")
+    return file_html(layout, CDN, "Unified Strategy Backtest")
 
 
 def _format_stats(summary: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:

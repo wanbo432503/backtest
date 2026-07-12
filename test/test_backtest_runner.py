@@ -4,6 +4,7 @@ from dataclasses import replace
 from fastapi.testclient import TestClient
 
 import main
+import backtest_runner
 from analytics import calculate_score
 from backtest_runner import BacktestResult, run_single_backtest
 from market_data import DataSourceResult
@@ -74,6 +75,24 @@ def test_run_single_backtest_returns_score(monkeypatch):
         result.metrics["sharpe"],
         result.metrics["max_drawdown_pct"],
     )
+
+
+def test_plot_root_layout_stretches_to_iframe_width(monkeypatch):
+    captured = {}
+
+    def fake_file_html(model, resources, title):
+        captured["model"] = model
+        return "<html>plot</html>"
+
+    monkeypatch.setattr(backtest_runner, "file_html", fake_file_html)
+
+    backtest_runner._render_plot_html(
+        _sample_ohlcv(),
+        [{"date": "2025-07-03", "equity": 10_000}],
+        [],
+    )
+
+    assert captured["model"].sizing_mode == "stretch_width"
 
 
 def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatch):
