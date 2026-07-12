@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 import pkgutil
 from collections.abc import Iterable
 from pathlib import Path
@@ -83,6 +84,40 @@ class StrategyLibrary:
                     "parameter metadata default does not match config default for "
                     f"strategy '{definition.strategy_id}': {parameter.name}"
                 )
+            StrategyLibrary._validate_number_input_grid(definition, parameter)
+
+    @staticmethod
+    def _validate_number_input_grid(definition, parameter) -> None:
+        if parameter.type not in {"int", "float"} or parameter.step is None:
+            return
+        step = float(parameter.step)
+        if step <= 0:
+            raise ValueError(
+                "number input step grid requires a positive step for "
+                f"strategy '{definition.strategy_id}': {parameter.name}"
+            )
+        base = float(parameter.min_value or 0)
+
+        def is_on_grid(value: float) -> bool:
+            steps = (float(value) - base) / step
+            return math.isclose(steps, round(steps), abs_tol=1e-9)
+
+        if not is_on_grid(float(parameter.default)):
+            raise ValueError(
+                "number input step grid excludes the default for "
+                f"strategy '{definition.strategy_id}': {parameter.name}"
+            )
+        if parameter.type != "float":
+            return
+        first_integer = math.ceil(base)
+        if (
+            parameter.max_value is None
+            or first_integer <= float(parameter.max_value)
+        ) and not is_on_grid(first_integer):
+            raise ValueError(
+                "number input step grid excludes whole numbers for "
+                f"strategy '{definition.strategy_id}': {parameter.name}"
+            )
 
 
 def build_strategy_library() -> StrategyLibrary:

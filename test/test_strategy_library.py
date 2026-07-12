@@ -19,6 +19,10 @@ class FakeConfig(BaseModel):
     position_pct: float = 0.95
 
 
+class InvalidNumberGridConfig(BaseModel):
+    threshold: float = 65
+
+
 def prepare_fake_frame(data: pd.DataFrame, config: BaseModel) -> pd.DataFrame:
     return data.copy()
 
@@ -119,3 +123,52 @@ def test_strategy_library_rejects_metadata_that_differs_from_config_model():
 
     with pytest.raises(ValueError, match="parameter metadata does not match config fields"):
         StrategyLibrary([invalid])
+
+
+def test_strategy_library_rejects_number_step_grid_that_excludes_integer_default():
+    invalid = StrategyDefinition(
+        strategy_id="invalid_number_grid",
+        display_name="Invalid number grid",
+        description="The HTML number input cannot accept its own default.",
+        config_model=InvalidNumberGridConfig,
+        parameters=(
+            StrategyParamMeta(
+                name="threshold",
+                label="Threshold",
+                type="float",
+                default=65,
+                min_value=0.1,
+                max_value=100,
+                step=1,
+            ),
+        ),
+        prepare_frame=prepare_fake_frame,
+        evaluate=evaluate_fake,
+        min_history_bars=lambda config: 1,
+    )
+
+    with pytest.raises(ValueError, match="number input step grid"):
+        StrategyLibrary([invalid])
+
+
+def test_real_strategy_float_parameters_accept_defaults_and_whole_numbers():
+    from strategy_library import get_strategy_library
+
+    for definition in get_strategy_library().list():
+        for parameter in definition.parameters:
+            if parameter.type != "float" or parameter.step is None:
+                continue
+            base = parameter.min_value or 0
+            default_steps = (float(parameter.default) - base) / parameter.step
+            assert default_steps == pytest.approx(round(default_steps)), (
+                definition.strategy_id,
+                parameter.name,
+            )
+            first_integer = max(0, int(base) + (0 if float(base).is_integer() else 1))
+            if parameter.max_value is not None and first_integer > parameter.max_value:
+                continue
+            integer_steps = (first_integer - base) / parameter.step
+            assert integer_steps == pytest.approx(round(integer_steps)), (
+                definition.strategy_id,
+                parameter.name,
+            )
