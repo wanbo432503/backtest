@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from optimization_models import AShareTradingConfig
 from portfolio_models import FactorConfig, SelectionConfig
 from tradable_universe import TradableUniversePolicy, validate_universe
+
+if TYPE_CHECKING:
+    from strategy_library import StrategyLibrary
 
 
 class SignalUniverseConfig(BaseModel):
@@ -77,74 +80,33 @@ class SignalUniverseConfig(BaseModel):
         return self
 
 
-class TrendPullbackPinBarSignalConfig(BaseModel):
+class SignalPortfolioStrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    strategy_name: Literal["trend_pullback_pin_bar"] = "trend_pullback_pin_bar"
-    short_ma_period: int = 20
-    medium_ma_period: int = 60
-    long_ma_period: int = 120
-    ma_distance_pct: float = 2.0
-    support_lookback: int = 20
-    support_tolerance_pct: float = 1.0
-    lower_shadow_body_ratio: float = 2.5
-    max_body_range_pct: float = 30.0
-    min_close_location_pct: float = 65.0
-    max_upper_shadow_range_pct: float = 20.0
-    volume_lookback: int = 20
-    volume_multiplier: float = 1.3
-    atr_period: int = 14
-    min_stop_distance_pct: float = 1.5
-    max_stop_distance_pct: float = 6.0
-    reward_risk_ratio: float = 2.5
-    max_entry_gap_pct: float = 2.0
-    risk_per_trade_pct: float = 0.5
+    strategy_name: str = "trend_pullback_pin_bar"
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class SignalMarketFilterConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    breadth_ma_period: int = Field(default=60, ge=2, le=250)
     market_breadth_min_pct: float = 40.0
     market_breadth_threshold_pct: float = 50.0
     market_breadth_partial_risk_pct: float = 50.0
-    trend_exit_confirmation_days: Literal[2] = 2
-    cooldown_days: int = 20
-    price_tick: Literal[0.01] = 0.01
 
     @model_validator(mode="after")
-    def validate_parameters(self) -> "TrendPullbackPinBarSignalConfig":
-        periods = [
-            self.short_ma_period,
-            self.medium_ma_period,
-            self.long_ma_period,
-        ]
-        if periods != sorted(periods) or len(set(periods)) != 3:
-            raise ValueError("moving-average periods must be strictly increasing")
-        if min(periods) < 2 or min(self.support_lookback, self.volume_lookback, self.atr_period) < 2:
-            raise ValueError("strategy lookback periods must be at least 2")
-        if not 0 < self.ma_distance_pct <= 20 or not 0 < self.support_tolerance_pct <= 20:
-            raise ValueError("pullback distance percentages must be within (0, 20]")
-        if self.lower_shadow_body_ratio < 1:
-            raise ValueError("lower_shadow_body_ratio must be at least 1")
-        bounded_percentages = [
-            self.max_body_range_pct,
-            self.min_close_location_pct,
-            self.max_upper_shadow_range_pct,
-            self.min_stop_distance_pct,
-            self.max_stop_distance_pct,
-            self.max_entry_gap_pct,
-            self.risk_per_trade_pct,
+    def validate_parameters(self) -> "SignalMarketFilterConfig":
+        percentages = [
             self.market_breadth_min_pct,
             self.market_breadth_threshold_pct,
             self.market_breadth_partial_risk_pct,
         ]
-        if any(value <= 0 or value > 100 for value in bounded_percentages):
-            raise ValueError("strategy percentages must be within (0, 100]")
-        if self.min_stop_distance_pct >= self.max_stop_distance_pct:
-            raise ValueError("min_stop_distance_pct must be below max_stop_distance_pct")
-        if not 1 <= self.volume_multiplier <= 10:
-            raise ValueError("volume_multiplier must be between 1 and 10")
-        if not 2 <= self.reward_risk_ratio <= 3:
-            raise ValueError("reward_risk_ratio must be between 2 and 3")
+        if any(value <= 0 or value > 100 for value in percentages):
+            raise ValueError("market breadth percentages must be within (0, 100]")
         if self.market_breadth_min_pct >= self.market_breadth_threshold_pct:
             raise ValueError("market_breadth_min_pct must be below the full-risk threshold")
-        if self.cooldown_days < 0 or self.cooldown_days > 252:
-            raise ValueError("cooldown_days must be between 0 and 252")
         return self
 
 
@@ -175,9 +137,10 @@ class SignalPortfolioBacktestRequest(BaseModel):
     initial_cash: float = 100000
     data_provider: str = "auto"
     universe: SignalUniverseConfig
-    strategy: TrendPullbackPinBarSignalConfig = Field(
-        default_factory=TrendPullbackPinBarSignalConfig
+    strategy: SignalPortfolioStrategyConfig = Field(
+        default_factory=SignalPortfolioStrategyConfig
     )
+    market_filter: SignalMarketFilterConfig = Field(default_factory=SignalMarketFilterConfig)
     trading: AShareTradingConfig = Field(default_factory=AShareTradingConfig)
     risk: SignalPortfolioRiskConfig = Field(default_factory=SignalPortfolioRiskConfig)
     selection: SelectionConfig = Field(
@@ -186,6 +149,40 @@ class SignalPortfolioBacktestRequest(BaseModel):
     factors: FactorConfig = Field(default_factory=FactorConfig)
     selection_strategy: None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_strategy_payload(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        strategy = payload.get("strategy")
+        if not isinstance(strategy, dict) or "parameters" in strategy:
+            return payload
+
+        strategy = dict(strategy)
+        breadth_fields = {
+            "market_breadth_min_pct",
+            "market_breadth_threshold_pct",
+            "market_breadth_partial_risk_pct",
+        }
+        legacy_filter = {
+            key: strategy.pop(key)
+            for key in list(strategy)
+            if key in breadth_fields
+        }
+        if legacy_filter and "market_filter" in payload:
+            raise ValueError(
+                "legacy market breadth fields cannot be combined with market_filter"
+            )
+        if legacy_filter:
+            payload["market_filter"] = legacy_filter
+        strategy_name = strategy.pop("strategy_name", "trend_pullback_pin_bar")
+        payload["strategy"] = {
+            "strategy_name": strategy_name,
+            "parameters": strategy,
+        }
+        return payload
 
     @field_validator("initial_cash")
     @classmethod
@@ -205,6 +202,28 @@ class SignalPortfolioBacktestRequest(BaseModel):
             raise ValueError("start_date must be earlier than end_date")
         self.selection.top_n = self.risk.max_positions
         return self
+
+    def normalized_for_library(
+        self,
+        library: "StrategyLibrary",
+    ) -> "SignalPortfolioBacktestRequest":
+        definition = library.get(self.strategy.strategy_name)
+        if "signal_portfolio" not in definition.supported_modes:
+            raise ValueError(
+                f"strategy '{definition.strategy_id}' does not support signal portfolios"
+            )
+        config = library.validate_config(
+            definition.strategy_id,
+            self.strategy.parameters,
+        )
+        normalized = self.model_copy(deep=True)
+        normalized.strategy.parameters = config.model_dump(mode="json")
+        normalized.selection.min_history_bars = max(
+            normalized.selection.min_history_bars,
+            definition.min_history_bars(config),
+            normalized.market_filter.breadth_ma_period,
+        )
+        return normalized
 
 
 @dataclass

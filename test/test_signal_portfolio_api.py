@@ -33,6 +33,65 @@ def test_signal_portfolio_job_api_creates_and_reads_job(monkeypatch):
     assert fetched.json()["progress"]["completed_days"] == 10
 
 
+def test_signal_portfolio_api_normalizes_nested_strategy_before_submit(monkeypatch):
+    client = TestClient(main.app)
+    snapshot = PortfolioJobSnapshot(job_id="normalized-1", status="queued")
+    submitted = []
+    monkeypatch.setattr(
+        main.signal_portfolio_job_store,
+        "submit",
+        lambda request: submitted.append(request) or snapshot,
+    )
+    payload = _payload()
+    payload["strategy"] = {
+        "strategy_name": "rsi_risk_control",
+        "parameters": {"rsi_period": 8},
+    }
+
+    response = client.post("/signal-portfolio-backtest/jobs", json=payload)
+
+    assert response.status_code == 200
+    assert submitted[0].strategy.parameters["rsi_period"] == 8
+    assert "rsi_buy" in submitted[0].strategy.parameters
+
+
+def test_signal_portfolio_api_rejects_unknown_strategy_before_submit(monkeypatch):
+    client = TestClient(main.app)
+    submitted = []
+    monkeypatch.setattr(
+        main.signal_portfolio_job_store,
+        "submit",
+        lambda request: submitted.append(request),
+    )
+    payload = _payload()
+    payload["strategy"] = {"strategy_name": "missing", "parameters": {}}
+
+    response = client.post("/signal-portfolio-backtest/jobs", json=payload)
+
+    assert response.status_code == 400
+    assert submitted == []
+
+
+def test_signal_portfolio_api_rejects_unknown_strategy_parameter(monkeypatch):
+    client = TestClient(main.app)
+    submitted = []
+    monkeypatch.setattr(
+        main.signal_portfolio_job_store,
+        "submit",
+        lambda request: submitted.append(request),
+    )
+    payload = _payload()
+    payload["strategy"] = {
+        "strategy_name": "rsi_risk_control",
+        "parameters": {"unknown_parameter": 1},
+    }
+
+    response = client.post("/signal-portfolio-backtest/jobs", json=payload)
+
+    assert response.status_code == 400
+    assert submitted == []
+
+
 def test_signal_portfolio_auto_mode_ignores_fixed_pool_symbols(monkeypatch):
     client = TestClient(main.app)
     snapshot = PortfolioJobSnapshot(job_id="signal-auto-1", status="queued")

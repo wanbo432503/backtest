@@ -221,7 +221,8 @@ async def get_portfolio_backtest_job(job_id: str):
 async def create_signal_portfolio_backtest_job(payload: dict):
     try:
         request = SignalPortfolioBacktestRequest.model_validate(payload)
-    except ValidationError as e:
+        request = request.normalized_for_library(STRATEGY_LIBRARY)
+    except (ValidationError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     snapshot = signal_portfolio_job_store.submit(request)

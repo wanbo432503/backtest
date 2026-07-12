@@ -2,87 +2,105 @@ import pytest
 from pydantic import ValidationError
 
 from signal_portfolio_models import SignalPortfolioBacktestRequest
+from strategy_library import get_strategy_library
 
 
-def test_signal_portfolio_accepts_large_manual_a_share_pool():
-    symbols = [f"SH60{index:04d}" for index in range(20)]
-    request = SignalPortfolioBacktestRequest(
-        start_date="2025-01-01",
-        end_date="2025-12-31",
-        universe={"mode": "manual", "symbols": symbols},
+def _request(**overrides):
+    payload = {
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31",
+        "universe": {"mode": "manual", "symbols": ["SZ002241"]},
+    }
+    payload.update(overrides)
+    return SignalPortfolioBacktestRequest(**payload)
+
+
+def test_signal_portfolio_uses_generic_nested_strategy_and_separate_market_filter():
+    request = _request(
+        strategy={
+            "strategy_name": "rsi_risk_control",
+            "parameters": {"rsi_period": 9},
+        },
+        market_filter={"breadth_ma_period": 80},
     )
 
-    assert len(request.universe.symbols) == 20
-    assert request.risk.max_positions == 10
-    assert request.risk.max_position_pct == 0.10
-    assert request.risk.target_gross_exposure == 0.85
+    assert request.strategy.strategy_name == "rsi_risk_control"
+    assert request.strategy.parameters == {"rsi_period": 9}
+    assert request.market_filter.breadth_ma_period == 80
+    assert request.market_filter.market_breadth_min_pct == 40
+
+
+def test_signal_portfolio_normalization_validates_and_completes_strategy_defaults():
+    request = _request(
+        strategy={
+            "strategy_name": "rsi_risk_control",
+            "parameters": {"rsi_period": 9},
+        }
+    )
+
+    normalized = request.normalized_for_library(get_strategy_library())
+
+    assert normalized.strategy.parameters["rsi_period"] == 9
+    assert "rsi_buy" in normalized.strategy.parameters
+    assert normalized.selection.min_history_bars >= 9
+    assert request.strategy.parameters == {"rsi_period": 9}
+
+
+def test_signal_portfolio_rejects_unknown_strategy_parameter_during_normalization():
+    request = _request(
+        strategy={
+            "strategy_name": "rsi_risk_control",
+            "parameters": {"not_a_parameter": 1},
+        }
+    )
+
+    with pytest.raises(ValueError, match="not_a_parameter"):
+        request.normalized_for_library(get_strategy_library())
+
+
+def test_signal_portfolio_accepts_legacy_flat_pin_bar_configuration():
+    request = _request(
+        strategy={
+            "short_ma_period": 15,
+            "market_breadth_min_pct": 35,
+            "market_breadth_threshold_pct": 55,
+            "market_breadth_partial_risk_pct": 60,
+        }
+    )
+
     assert request.strategy.strategy_name == "trend_pullback_pin_bar"
-    assert request.strategy.short_ma_period == 20
-    assert request.strategy.medium_ma_period == 60
-    assert request.strategy.long_ma_period == 120
-    assert request.strategy.ma_distance_pct == 2
-    assert request.strategy.volume_multiplier == 1.3
-    assert request.strategy.risk_per_trade_pct == 0.5
-    assert request.strategy.market_breadth_min_pct == 40
-    assert request.strategy.market_breadth_threshold_pct == 50
-    assert request.strategy.market_breadth_partial_risk_pct == 50
-    assert request.strategy.cooldown_days == 20
+    assert request.strategy.parameters["short_ma_period"] == 15
+    assert request.market_filter.market_breadth_min_pct == 35
+    assert request.market_filter.market_breadth_threshold_pct == 55
+    assert request.market_filter.market_breadth_partial_risk_pct == 60
 
 
-def test_signal_portfolio_rejects_non_a_share_manual_symbol():
-    with pytest.raises(ValidationError):
-        SignalPortfolioBacktestRequest(
-            start_date="2025-01-01",
-            end_date="2025-12-31",
-            universe={"mode": "manual", "symbols": ["AAPL"]},
+def test_signal_portfolio_rejects_ambiguous_legacy_and_nested_market_filter():
+    with pytest.raises(ValidationError, match="market_filter"):
+        _request(
+            strategy={"market_breadth_min_pct": 35},
+            market_filter={"market_breadth_min_pct": 30},
         )
-
-
-def test_signal_portfolio_requires_strictly_increasing_ma_periods():
-    with pytest.raises(ValidationError, match="strictly increasing"):
-        SignalPortfolioBacktestRequest(
-            start_date="2025-01-01",
-            end_date="2025-12-31",
-            universe={"mode": "manual", "symbols": ["SZ002241"]},
-            strategy={"short_ma_period": 60, "medium_ma_period": 20},
-        )
-
-
-def test_signal_portfolio_allows_full_market_scan_limit():
-    request = SignalPortfolioBacktestRequest(
-        start_date="2025-01-01",
-        end_date="2025-12-31",
-        universe={"mode": "auto", "symbols": [], "max_scan_symbols": 3000},
-    )
-
-    assert request.universe.max_scan_symbols == 3000
-
-
-def test_signal_portfolio_strategy_limits_reward_risk_ratio_to_two_or_three():
-    with pytest.raises(ValidationError, match="reward_risk_ratio"):
-        SignalPortfolioBacktestRequest(
-            start_date="2025-01-01",
-            end_date="2025-12-31",
-            universe={"mode": "manual", "symbols": ["SZ002241"]},
-            strategy={"reward_risk_ratio": 3.5},
-        )
-
-    request = SignalPortfolioBacktestRequest(
-        start_date="2025-01-01",
-        end_date="2025-12-31",
-        universe={"mode": "manual", "symbols": ["SZ002241"]},
-    )
-    assert request.strategy.reward_risk_ratio == 2.5
-    assert request.strategy.min_stop_distance_pct == 1.5
-    assert request.strategy.max_stop_distance_pct == 6
-    assert "take_profit_pct" not in request.strategy.model_dump()
 
 
 def test_signal_portfolio_requires_breadth_minimum_below_full_risk_threshold():
     with pytest.raises(ValidationError, match="market_breadth_min_pct"):
-        SignalPortfolioBacktestRequest(
-            start_date="2025-01-01",
-            end_date="2025-12-31",
-            universe={"mode": "manual", "symbols": ["SZ002241"]},
-            strategy={"market_breadth_min_pct": 50, "market_breadth_threshold_pct": 50},
+        _request(
+            market_filter={
+                "market_breadth_min_pct": 50,
+                "market_breadth_threshold_pct": 50,
+            }
         )
+
+
+def test_signal_portfolio_rejects_non_a_share_manual_symbol():
+    with pytest.raises(ValidationError):
+        _request(universe={"mode": "manual", "symbols": ["AAPL"]})
+
+
+def test_signal_portfolio_auto_mode_allows_full_market_scan_limit():
+    request = _request(
+        universe={"mode": "auto", "symbols": [], "max_scan_symbols": 3000}
+    )
+
+    assert request.universe.max_scan_symbols == 3000
