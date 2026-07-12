@@ -9,6 +9,7 @@ RETAINED_STRATEGIES = {
     "boll_macd_breakout",
     "macd_volume_divergence_risk_control",
     "ma_breakout_atr_risk_control",
+    "ma60_price_cross",
     "rsi_risk_control",
     "ma_trend_risk_control",
     "volume_breakout_risk_control",
@@ -121,7 +122,7 @@ def test_strategies_endpoint_includes_parameter_metadata():
     )
 
 
-def test_unified_library_contains_exactly_eight_dual_mode_strategies():
+def test_unified_library_contains_all_dual_mode_strategies():
     catalog = get_strategy_library().to_catalog()
 
     assert {item["name"] for item in catalog} == RETAINED_STRATEGIES
