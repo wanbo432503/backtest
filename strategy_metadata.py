@@ -1,22 +1,6 @@
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
-
-ParamType = Literal["int", "float", "str", "bool"]
-ParamValue = int | float | str | bool
-
-
-class StrategyParamMeta(BaseModel):
-    name: str
-    label: str
-    type: ParamType
-    default: ParamValue
-    search_values: list[ParamValue] = Field(default_factory=list)
-    min_value: float | None = None
-    max_value: float | None = None
-    step: float | None = None
-    description: str = ""
+from strategy_engine import ParamType, ParamValue, StrategyParamMeta
 
 
 class StrategyMeta(BaseModel):
