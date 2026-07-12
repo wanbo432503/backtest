@@ -3,8 +3,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from analytics import calculate_score
 from backtest_runner import BacktestResult, run_single_backtest
 from market_data import DataSourceResult
+from strategy_library import get_strategy_library
 
 
 def _sample_ohlcv(rows: int = 90) -> pd.DataFrame:
@@ -28,28 +30,28 @@ def test_run_single_backtest_returns_score(monkeypatch):
         lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", []),
     )
 
-    def fake_plot(self, filename, open_browser=False):
-        with open(filename, "w", encoding="utf-8") as file:
-            file.write("<html>plot</html>")
-
-    monkeypatch.setattr("backtest_runner.Backtest.plot", fake_plot)
-
     result = run_single_backtest(
         symbol="SH603019",
         start_date="2025-07-03",
         end_date="2025-10-01",
         interval="1d",
         strategy_name="ma_trend_risk_control",
-        strategy_registry=main.STRATEGY_REGISTRY,
+        strategy_library=get_strategy_library(),
         initial_cash=10000,
         commission=0.002,
         data_provider="auto",
     )
 
     assert result.data_provider == "test"
-    assert result.plot_html == "<html>plot</html>"
+    assert "<html" in result.plot_html.lower()
+    assert "Unified Strategy Backtest" in result.plot_html
     assert "综合评分" in result.stats
     assert "score" in result.metrics
+    assert result.metrics["score"] == calculate_score(
+        result.metrics["annual_return_pct"],
+        result.metrics["sharpe"],
+        result.metrics["max_drawdown_pct"],
+    )
 
 
 def test_run_single_backtest_raises_readable_error_for_bad_data(monkeypatch):
@@ -69,7 +71,24 @@ def test_run_single_backtest_raises_readable_error_for_bad_data(monkeypatch):
             end_date="2025-10-01",
             interval="1d",
             strategy_name="ma_trend_risk_control",
-            strategy_registry=main.STRATEGY_REGISTRY,
+            strategy_library=get_strategy_library(),
+        )
+
+
+def test_run_single_backtest_validates_strategy_parameters_before_simulation(monkeypatch):
+    monkeypatch.setattr(
+        "backtest_runner.fetch_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", []),
+    )
+
+    with pytest.raises(ValueError, match="extra_forbidden"):
+        run_single_backtest(
+            symbol="SH603019",
+            start_date="2025-07-03",
+            end_date="2025-10-01",
+            strategy_name="rsi_risk_control",
+            strategy_library=get_strategy_library(),
+            strategy_params={"unknown_parameter": 1},
         )
 
 
@@ -80,12 +99,6 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
         "backtest_runner.fetch_ohlcv",
         lambda *args, **kwargs: DataSourceResult(_sample_ohlcv(), "test", ["source warning"]),
     )
-
-    def fake_plot(self, filename, open_browser=False):
-        with open(filename, "w", encoding="utf-8") as file:
-            file.write("<html>plot</html>")
-
-    monkeypatch.setattr("backtest_runner.Backtest.plot", fake_plot)
 
     response = client.post(
         "/backtest",
@@ -110,6 +123,7 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
     assert payload["data_provider"] == "test"
     assert payload["data_warnings"] == ["source warning"]
     assert "综合评分" in payload["stats"]
+    assert "Unified Strategy Backtest" in payload["plot_html"]
 
 
 def test_backtest_api_passes_strategy_params_to_runner(monkeypatch):
@@ -145,3 +159,4 @@ def test_backtest_api_passes_strategy_params_to_runner(monkeypatch):
 
     assert response.status_code == 200
     assert captured["strategy_params"] == {"rsi_period": 6, "stop_loss_pct": 3}
+    assert captured["strategy_library"] is main.STRATEGY_LIBRARY

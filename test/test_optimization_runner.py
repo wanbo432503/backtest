@@ -8,6 +8,7 @@ from optimization_runner import (
     run_optimization,
     score_backtest_result,
 )
+from strategy_library import get_strategy_library
 
 
 def test_expand_search_space_builds_cartesian_product():
@@ -79,7 +80,7 @@ def test_run_optimization_marks_low_trade_results_filtered(monkeypatch):
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert result.top_results[0]["risk_flags"] == ["too_few_trades"]
     assert result.top_results[0]["recommended"] is False
@@ -117,7 +118,7 @@ def test_run_optimization_sorts_by_validate_score(monkeypatch):
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert result.top_results[0]["params"] == {"rsi_period": 14}
     assert result.top_results[0]["validate_score"] == 5
@@ -162,7 +163,7 @@ def test_run_optimization_uses_train_score_as_validate_tiebreaker(monkeypatch):
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert result.top_results[0]["params"] == {"rsi_period": 14}
     assert result.top_results[0]["validate_score"] == 2
@@ -199,7 +200,7 @@ def test_run_optimization_ranks_tradeable_results_before_no_trade_results(monkey
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert result.top_results[0]["params"] == {"rsi_period": 14}
     assert result.top_results[0]["validate_score"] == -1
@@ -254,7 +255,7 @@ def test_run_optimization_runs_trials_in_parallel_batches_and_sorts_top_results(
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert max_active_trials == 2
     assert [row["params"]["rsi_period"] for row in result.top_results] == [30, 20]
@@ -285,7 +286,7 @@ def test_run_optimization_emits_trial_progress(monkeypatch):
 
     run_optimization(
         request,
-        strategy_registry={"rsi_risk_control": object},
+        strategy_library=get_strategy_library(),
         progress_callback=events.append,
     )
 
@@ -319,7 +320,7 @@ def test_run_optimization_flags_negative_validation_score(monkeypatch):
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert "validation_score_negative" in result.top_results[0]["risk_flags"]
     assert result.top_results[0]["recommended"] is False
@@ -345,7 +346,7 @@ def test_run_optimization_flags_possible_overfit(monkeypatch):
         ),
     )
 
-    result = run_optimization(request, strategy_registry={"rsi_risk_control": object})
+    result = run_optimization(request, strategy_library=get_strategy_library())
 
     assert "possible_overfit" in result.top_results[0]["risk_flags"]
     assert result.top_results[0]["recommended"] is False

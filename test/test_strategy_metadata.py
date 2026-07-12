@@ -113,6 +113,11 @@ def test_strategies_endpoint_includes_parameter_metadata():
     assert set(strategies) == RETAINED_STRATEGIES
     assert "parameters" in strategies["macd_volume_divergence_risk_control"]
     assert strategies["macd_volume_divergence_risk_control"]["parameters"]
+    assert all(item["engine"] == "unified" for item in strategies.values())
+    assert all(
+        item["supported_modes"] == ["single_stock", "signal_portfolio"]
+        for item in strategies.values()
+    )
 
 
 def test_unified_library_contains_exactly_seven_dual_mode_strategies():

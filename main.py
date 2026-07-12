@@ -2,16 +2,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, ValidationError
-from backtesting import Strategy
-import io
-import base64
-import json
 import warnings
-import os
-import importlib
-import inspect
 from stock_search import search_stocks
 from market_data import normalize_symbol
 from optimization_models import AShareTradingConfig, OptimizationRequest, RiskConfig
@@ -25,7 +18,7 @@ from portfolio_selection_strategy_library import list_selection_strategies
 from portfolio_progress import PortfolioBacktestJobStore
 from signal_portfolio_models import SignalPortfolioBacktestRequest
 from signal_portfolio_runner import run_signal_portfolio_backtest
-from strategy_metadata import get_strategy_parameters
+from strategy_library import get_strategy_library, reload_strategy_library
 from backtest_runner import run_single_backtest
 from optimization_runner import run_optimization
 from universe_scan_runner import run_universe_scan
@@ -81,62 +74,24 @@ class BacktestRequest(BaseModel):
 class UniverseValidationRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list)
 
-# 策略注册表 - 存储所有可用的策略
-STRATEGY_REGISTRY = {}
-STRATEGY_CONFIG = {}
-optimization_job_store = OptimizationJobStore(run_optimization, strategy_registry=STRATEGY_REGISTRY)
+STRATEGY_LIBRARY = get_strategy_library()
+optimization_job_store = OptimizationJobStore(
+    run_optimization,
+    strategy_library=STRATEGY_LIBRARY,
+)
 
-# 加载策略配置
-def load_strategy_config():
-    """从配置文件加载策略配置"""
-    config_path = "strategies.json"
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {"strategies": {}}
 
-# 注册策略装饰器
-def register_strategy(name, display_name=None, description=None):
-    def decorator(strategy_class):
-        STRATEGY_REGISTRY[name] = strategy_class
-        # 保存策略配置信息
-        STRATEGY_CONFIG[name] = {
-            "name": name,
-            "display_name": display_name or strategy_class.__name__,
-            "description": description or getattr(strategy_class, "__doc__", "无描述"),
-            "class_name": strategy_class.__name__
-        }
-        return strategy_class
-    return decorator
-
-# 动态加载策略模块
 def load_strategy_modules():
-    """动态加载所有策略模块"""
-    strategies_dir = "strategies"
-    if os.path.exists(strategies_dir) and os.path.isdir(strategies_dir):
-        for file_name in os.listdir(strategies_dir):
-            if file_name.endswith('.py') and file_name != '__init__.py':
-                module_name = f"strategies.{file_name[:-3]}"
-                try:
-                    module = importlib.import_module(module_name)
-                    # 注册模块中的所有策略类
-                    for name, obj in inspect.getmembers(module):
-                        if (inspect.isclass(obj) and
-                            issubclass(obj, Strategy) and
-                            obj != Strategy):
-                            strategy_name = getattr(obj, "strategy_name", name.lower())
-                            display_name = getattr(obj, "display_name", None)
-                            description = getattr(obj, "description", None)
-                            register_strategy(strategy_name, display_name, description)(obj)
-                except Exception as e:
-                    print(f"加载策略模块 {module_name} 失败: {e}")
-
-load_strategy_modules()
+    """Compatibility entry point that atomically rebuilds the unified library."""
+    global STRATEGY_LIBRARY
+    STRATEGY_LIBRARY = reload_strategy_library()
+    optimization_job_store._strategy_library = STRATEGY_LIBRARY
+    return STRATEGY_LIBRARY
 
 
 @app.on_event("startup")
 def startup_event():
-    """应用启动时执行"""
+    """Validate and refresh the unified strategy library on startup."""
     load_strategy_modules()
 
 @app.get("/", response_class=HTMLResponse)
@@ -152,11 +107,12 @@ async def run_backtest(request: BacktestRequest):
             end_date=request.end_date,
             interval=request.interval,
             strategy_name=request.strategy_name,
-            strategy_registry=STRATEGY_REGISTRY,
+            strategy_library=STRATEGY_LIBRARY,
             initial_cash=request.initial_cash,
             commission=request.commission,
             data_provider=request.data_provider,
             strategy_params=request.strategy_params,
+            trading_config=request.a_share_config,
         )
         return result.to_api_response()
     except ValueError as e:
@@ -171,7 +127,7 @@ async def optimize_endpoint(payload: dict):
     request = _validate_optimization_request(payload)
 
     try:
-        result = run_optimization(request, strategy_registry=STRATEGY_REGISTRY)
+        result = run_optimization(request, strategy_library=STRATEGY_LIBRARY)
         return result.to_api_response()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"优化参数错误: {str(e)}")
@@ -328,39 +284,15 @@ async def portfolio_selection_strategies_endpoint():
 
 @app.get("/strategies")
 async def get_available_strategies():
-    """获取所有可用的策略列表"""
-    # 重新加载策略配置
-    config = load_strategy_config()
-    strategies = []
-    
-    # 合并配置文件和注册表中的策略
-    for name in STRATEGY_REGISTRY:
-        strategy_config = STRATEGY_CONFIG.get(name, {})
-        strategies.append({
-            "name": name,
-            "display_name": strategy_config.get("display_name", name),
-            "description": strategy_config.get("description", "无描述"),
-            "class_name": strategy_config.get("class_name", ""),
-            "parameters": get_strategy_parameters(name),
-        })
-    
-    return JSONResponse(content=strategies)
+    """获取统一单股/组合策略目录。"""
+    return STRATEGY_LIBRARY.to_catalog()
 
 @app.post("/reload-strategies")
 async def reload_strategies():
-    """重新加载所有策略"""
+    """Atomically rebuild and validate the unified strategy library."""
     try:
-        # 清空当前注册表
-        STRATEGY_REGISTRY.clear()
-        STRATEGY_CONFIG.clear()
-        
-        # 重新加载配置
-        config = load_strategy_config()
-        
-        # 重新加载动态策略模块
-        load_strategy_modules()
-        
-        return {"message": "策略重新加载成功", "count": len(STRATEGY_REGISTRY)}
+        library = load_strategy_modules()
+        return {"message": "策略重新加载成功", "count": len(library.list())}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"重新加载策略失败: {str(e)}")
 

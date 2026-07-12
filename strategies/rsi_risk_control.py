@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-from backtesting import Strategy
-from backtesting.test import SMA
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from strategy_engine import (
@@ -192,76 +190,3 @@ STRATEGY_DEFINITION = StrategyDefinition(
     evaluate=evaluate_rsi,
     min_history_bars=rsi_min_history_bars,
 )
-
-
-class RSIRiskControlStrategy(Strategy):
-    """RSI + trend filter strategy with fixed risk controls."""
-
-    strategy_name = "rsi_risk_control"
-    display_name = "RSI风控策略"
-    description = "RSI 上穿买入阈值且处于趋势均线上方时买入，并使用止损、止盈、持仓周期和冷却期控制风险。"
-
-    rsi_period = 14
-    rsi_buy = 30
-    rsi_sell = 70
-    trend_ma = 60
-    stop_loss_pct = 5
-    take_profit_pct = 12
-    max_holding_bars = 120
-    position_pct = 0.95
-    cooldown_bars = 3
-
-    def init(self):
-        close = self.data.Close
-        self.rsi = self.I(calculate_rsi, close, self.rsi_period)
-        self.trend = self.I(SMA, close, self.trend_ma)
-        self.entry_price = None
-        self.entry_bar = None
-        self.cooldown_remaining = 0
-
-    def next(self):
-        if len(self.data.Close) < max(self.rsi_period + 2, self.trend_ma + 1):
-            return
-
-        current_price = float(self.data.Close[-1])
-        previous_rsi = float(self.rsi[-2])
-        current_rsi = float(self.rsi[-1])
-        trend_value = float(self.trend[-1])
-
-        if self.position:
-            holding_bars = len(self.data.Close) - (self.entry_bar or len(self.data.Close))
-            reason = get_exit_reason(
-                current_price=current_price,
-                entry_price=self.entry_price,
-                previous_rsi=previous_rsi,
-                current_rsi=current_rsi,
-                close=current_price,
-                trend_ma_value=trend_value,
-                holding_bars=holding_bars,
-                rsi_sell=self.rsi_sell,
-                stop_loss_pct=self.stop_loss_pct,
-                take_profit_pct=self.take_profit_pct,
-                max_holding_bars=self.max_holding_bars,
-            )
-            if reason:
-                self.position.close()
-                self.entry_price = None
-                self.entry_bar = None
-                self.cooldown_remaining = self.cooldown_bars
-            return
-
-        if self.cooldown_remaining > 0:
-            self.cooldown_remaining -= 1
-            return
-
-        if should_enter_long(
-            previous_rsi=previous_rsi,
-            current_rsi=current_rsi,
-            close=current_price,
-            trend_ma_value=trend_value,
-            cooldown_remaining=self.cooldown_remaining,
-            rsi_buy=self.rsi_buy,
-        ):
-            self.buy(size=self.position_pct)
-            self.entry_price = current_price
-            self.entry_bar = len(self.data.Close)

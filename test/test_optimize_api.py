@@ -10,7 +10,7 @@ def test_optimize_api_returns_200_for_valid_request(monkeypatch):
     monkeypatch.setattr(
         main,
         "run_optimization",
-        lambda request, strategy_registry=None: OptimizationResult(
+        lambda request, strategy_library=None: OptimizationResult(
             objective="score",
             symbols=request.optimization_config.symbols,
             top_results=[
@@ -91,7 +91,7 @@ def test_optimize_api_accepts_user_defined_combinations_above_1000(monkeypatch):
     monkeypatch.setattr(
         main,
         "run_optimization",
-        lambda request, strategy_registry=None: OptimizationResult(
+        lambda request, strategy_library=None: OptimizationResult(
             objective="score",
             symbols=request.optimization_config.symbols,
             top_results=[],

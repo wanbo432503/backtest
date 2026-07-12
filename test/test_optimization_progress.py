@@ -4,6 +4,7 @@ import time
 from optimization_models import OptimizationConfig, OptimizationRequest, StrategyParamConfig
 from optimization_progress import OptimizationJobStore
 from optimization_runner import OptimizationResult
+from strategy_library import get_strategy_library
 
 
 def _request() -> OptimizationRequest:
@@ -21,7 +22,7 @@ def test_optimization_job_store_records_progress_and_result():
     progress_seen = Event()
     release_runner = Event()
 
-    def runner(request, progress_callback=None, strategy_registry=None):
+    def runner(request, progress_callback=None, strategy_library=None):
         progress_callback({
             "phase": "optimizing",
             "total_trials": 4,
@@ -37,7 +38,7 @@ def test_optimization_job_store_records_progress_and_result():
             top_results=[{"rank": 1, "validate_score": 2.5}],
         )
 
-    store = OptimizationJobStore(runner, strategy_registry={"rsi_risk_control": object})
+    store = OptimizationJobStore(runner, strategy_library=get_strategy_library())
     created = store.submit(_request())
 
     assert progress_seen.wait(timeout=2)
@@ -62,7 +63,7 @@ def test_optimization_job_store_records_progress_and_result():
 
 
 def test_optimization_job_store_records_runner_failure():
-    def runner(request, progress_callback=None, strategy_registry=None):
+    def runner(request, progress_callback=None, strategy_library=None):
         raise RuntimeError("optimizer boom")
 
     store = OptimizationJobStore(runner)

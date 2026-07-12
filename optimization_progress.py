@@ -9,6 +9,7 @@ from typing import Any, Callable, Literal
 
 from optimization_models import OptimizationRequest
 from optimization_runner import OptimizationResult
+from strategy_library import StrategyLibrary
 
 
 OptimizationJobStatus = Literal["queued", "running", "succeeded", "failed"]
@@ -45,11 +46,11 @@ class OptimizationJobStore:
         self,
         runner: Callable[..., OptimizationResult],
         *,
-        strategy_registry: dict[str, Any] | None = None,
+        strategy_library: StrategyLibrary | None = None,
         max_jobs: int = 1,
     ) -> None:
         self._runner = runner
-        self._strategy_registry = strategy_registry
+        self._strategy_library = strategy_library
         self._executor = ThreadPoolExecutor(max_workers=max_jobs)
         self._jobs: dict[str, OptimizationJobSnapshot] = {}
         self._lock = Lock()
@@ -89,7 +90,7 @@ class OptimizationJobStore:
         try:
             result = self._runner(
                 request,
-                strategy_registry=self._strategy_registry,
+                strategy_library=self._strategy_library,
                 progress_callback=lambda event: self.update_progress(
                     job_id,
                     phase=str(event.get("phase") or "running"),

@@ -1,13 +1,21 @@
-import os
-import tempfile
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from backtesting import Backtest, Strategy
+import pandas as pd
+from bokeh.embed import file_html
+from bokeh.layouts import column
+from bokeh.models import ColumnDataSource
+from bokeh.plotting import figure
+from bokeh.resources import CDN
 
 from analytics import extract_core_metrics
 from market_data import fetch_ohlcv, prepare_ohlcv
+from optimization_models import AShareTradingConfig
+from strategy_library import StrategyLibrary, get_strategy_library
+from strategy_simulator import SimulationConfig, run_strategy_simulation
 
 
 @dataclass
@@ -40,37 +48,53 @@ def run_single_backtest(
     end_date: str,
     interval: str = "1d",
     strategy_name: str = "macd_volume_divergence_risk_control",
-    strategy_registry: dict[str, type[Strategy]] | None = None,
+    strategy_library: StrategyLibrary | None = None,
     initial_cash: float = 10000,
     commission: float = 0.002,
     data_provider: str = "auto",
     strategy_params: dict[str, Any] | None = None,
     min_trades: int = 5,
+    trading_config: AShareTradingConfig | None = None,
 ) -> BacktestResult:
     _validate_dates(start_date, end_date)
-    registry = strategy_registry or {}
+    library = strategy_library or get_strategy_library()
+    definition = library.get(strategy_name)
+    config = library.validate_config(strategy_name, strategy_params)
 
     source_result = fetch_ohlcv(symbol, start_date, end_date, interval, data_provider)
     data = source_result.data
     if data.empty:
         raise ValueError("无法获取数据，请检查股票代码和时间区间")
-
     data = prepare_ohlcv(data)
     if len(data) < 50:
         raise ValueError("数据点太少，无法进行有意义的回测")
 
-    strategy_class = registry.get(strategy_name)
-    if not strategy_class:
-        raise ValueError(f"策略 '{strategy_name}' 不存在")
-
-    bt = Backtest(data, strategy_class, cash=initial_cash, commission=commission)
-    raw_stats = bt.run(**(strategy_params or {}))
-    plot_html = _render_plot_html(bt)
-    metrics = extract_core_metrics(raw_stats, min_trades=min_trades)
-    stats = _format_stats(raw_stats, metrics)
-
+    trading = trading_config or AShareTradingConfig(
+        buy_commission_pct=commission * 100,
+        sell_commission_pct=commission * 100,
+        stamp_tax_pct=0,
+        min_commission=0,
+        slippage_pct=0,
+    )
+    simulation = run_strategy_simulation(
+        definition,
+        config,
+        {symbol: data},
+        SimulationConfig(
+            initial_cash=initial_cash,
+            max_positions=1,
+            max_position_pct=1,
+            target_gross_exposure=1,
+            max_drawdown_stop_pct=None,
+            trading=trading,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+    )
+    metrics = extract_core_metrics(simulation.summary, min_trades=min_trades)
+    stats = _format_stats(simulation.summary, metrics)
     return BacktestResult(
-        plot_html=plot_html,
+        plot_html=_render_plot_html(data, simulation.equity_curve, simulation.trades),
         stats=stats,
         metrics=metrics,
         symbol=symbol,
@@ -88,28 +112,68 @@ def _validate_dates(start_date: str, end_date: str) -> None:
         raise ValueError("开始日期必须早于结束日期")
 
 
-def _render_plot_html(backtest: Backtest) -> str:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as tmp_file:
-        temp_filename = tmp_file.name
+def _render_plot_html(
+    data: pd.DataFrame,
+    equity_curve: list[dict[str, Any]],
+    trades: list[dict[str, Any]],
+) -> str:
+    price_source = ColumnDataSource(
+        {
+            "date": pd.DatetimeIndex(data.index),
+            "close": data["Close"].astype(float).to_list(),
+        }
+    )
+    price_plot = figure(
+        title="Unified Strategy Backtest — Price and Trades",
+        x_axis_type="datetime",
+        height=360,
+        sizing_mode="stretch_width",
+    )
+    price_plot.line("date", "close", source=price_source, line_width=2, legend_label="Close")
+    for side, color, marker in (("buy", "#198754", "triangle"), ("sell", "#dc3545", "inverted_triangle")):
+        rows = [trade for trade in trades if trade["side"] == side]
+        if not rows:
+            continue
+        source = ColumnDataSource(
+            {
+                "date": [pd.Timestamp(row["date"]) for row in rows],
+                "price": [float(row["price"]) for row in rows],
+            }
+        )
+        price_plot.scatter(
+            "date",
+            "price",
+            source=source,
+            marker=marker,
+            size=12,
+            color=color,
+            legend_label=side.title(),
+        )
+    equity_plot = figure(
+        title="Equity Curve",
+        x_axis_type="datetime",
+        height=260,
+        sizing_mode="stretch_width",
+        x_range=price_plot.x_range,
+    )
+    equity_plot.line(
+        [pd.Timestamp(point["date"]) for point in equity_curve],
+        [float(point["equity"]) for point in equity_curve],
+        line_width=2,
+        color="#0d6efd",
+    )
+    return file_html(column(price_plot, equity_plot), CDN, "Unified Strategy Backtest")
 
-    try:
-        backtest.plot(filename=temp_filename, open_browser=False)
-        with open(temp_filename, "r", encoding="utf-8") as file:
-            return file.read()
-    finally:
-        if os.path.exists(temp_filename):
-            os.unlink(temp_filename)
 
-
-def _format_stats(raw_stats, metrics: dict[str, Any]) -> dict[str, Any]:
+def _format_stats(summary: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
     return {
-        "策略收益率": f"{raw_stats['Return [%]']:.2f}%",
-        "最大回撤": f"{raw_stats['Max. Drawdown [%]']:.2f}%",
-        "基准收益率": f"{raw_stats['Buy & Hold Return [%]']:.2f}%",
-        "持仓时间": f"{raw_stats['Exposure Time [%]']:.2f}%",
-        "年复合增长率": f"{raw_stats['CAGR [%]']:.2f}%",
-        "交易次数": int(raw_stats["# Trades"]),
-        "交易胜率": f"{raw_stats['Win Rate [%]']:.2f}%",
-        "夏普比率": f"{raw_stats['Sharpe Ratio']:.2f}",
-        "综合评分": f"{metrics['score']:.2f}",
+        "策略收益率": f"{float(summary.get('total_return_pct', 0)):.2f}%",
+        "最大回撤": f"{float(summary.get('max_drawdown_pct', 0)):.2f}%",
+        "基准收益率": "0.00%",
+        "持仓时间": f"{float(summary.get('final_gross_exposure', 0)) * 100:.2f}%",
+        "年复合增长率": f"{float(summary.get('annual_return_pct', 0)):.2f}%",
+        "交易次数": int(summary.get("trades", 0)),
+        "交易胜率": f"{float(summary.get('win_rate_pct', 0)):.2f}%",
+        "夏普比率": f"{float(summary.get('sharpe', 0)):.2f}",
+        "综合评分": f"{float(metrics.get('score', 0)):.2f}",
     }

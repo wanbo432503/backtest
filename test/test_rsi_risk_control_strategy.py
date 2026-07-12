@@ -210,12 +210,6 @@ def test_rsi_risk_control_strategy_is_available_via_api(monkeypatch):
         ),
     )
 
-    def fake_plot(self, filename, open_browser=False):
-        with open(filename, "w", encoding="utf-8") as file:
-            file.write("<html>plot</html>")
-
-    monkeypatch.setattr(backtest_runner.Backtest, "plot", fake_plot)
-
     response = client.post(
         "/backtest",
         json={

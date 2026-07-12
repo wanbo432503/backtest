@@ -2,16 +2,13 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
 import pandas as pd
-from backtesting import Strategy
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from strategy_engine import (
     EntryIntent,
     ExitIntent,
     RiskIntent,
-    SimulationPosition,
     StrategyBarContext,
     StrategyDecision,
     StrategyDefinition,
@@ -274,66 +271,3 @@ STRATEGY_DEFINITION = StrategyDefinition(
     evaluate=evaluate_pin_bar,
     min_history_bars=pin_bar_min_history_bars,
 )
-
-
-class TrendPullbackPinBarStrategy(Strategy):
-    """Temporary Backtesting.py wrapper around the unified Pin Bar definition."""
-
-    strategy_name = STRATEGY_DEFINITION.strategy_id
-    display_name = STRATEGY_DEFINITION.display_name
-    description = STRATEGY_DEFINITION.description
-
-    for _field_name, _field in TrendPullbackPinBarConfig.model_fields.items():
-        locals()[_field_name] = _field.default
-
-    def init(self):
-        self._strategy_state = {}
-
-    def next(self):
-        raw = pd.DataFrame(
-            {
-                "Open": np.asarray(self.data.Open, dtype=float),
-                "High": np.asarray(self.data.High, dtype=float),
-                "Low": np.asarray(self.data.Low, dtype=float),
-                "Close": np.asarray(self.data.Close, dtype=float),
-                "Volume": np.asarray(self.data.Volume, dtype=float),
-            }
-        )
-        config = TrendPullbackPinBarConfig(
-            **{
-                name: getattr(self, name)
-                for name in TrendPullbackPinBarConfig.model_fields
-            }
-        )
-        frame = prepare_pin_bar_frame(raw, config)
-        position = None
-        if self.position:
-            trade = self.trades[-1]
-            position = SimulationPosition(
-                symbol="single",
-                shares=int(abs(self.position.size)),
-                entry_date=str(trade.entry_time),
-                entry_price=float(trade.entry_price),
-                holding_bars=max(0, len(frame) - int(trade.entry_bar) - 1),
-            )
-        decision = evaluate_pin_bar(
-            StrategyBarContext(
-                symbol="single",
-                frame=frame,
-                bar_index=len(frame) - 1,
-                config=config,
-                position=position,
-                state=self._strategy_state,
-            )
-        )
-        self._strategy_state = dict(decision.next_state or self._strategy_state)
-        if decision.exit and self.position:
-            self.position.close()
-        elif decision.entry and not self.position:
-            risk = decision.entry.risk
-            self.buy(
-                size=min(0.95, decision.entry.suggested_position_pct),
-                stop=decision.entry.trigger_price,
-                sl=risk.stop_price if risk else None,
-                tp=risk.target_price if risk else None,
-            )

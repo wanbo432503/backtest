@@ -196,17 +196,17 @@ def test_stock_search(results: TestResults, verbose: bool = False):
 def test_strategy_backtest(results: TestResults, verbose: bool = False):
     """测试策略回测功能"""
     print_header("📈 测试 2: 策略回测功能")
-    
-    from strategies.ma_trend_risk_control import MATrendRiskControlStrategy
-    from strategies.rsi_risk_control import RSIRiskControlStrategy
-    from strategies.volume_breakout_risk_control import VolumeBreakoutRiskControlStrategy
-    from strategies.ma_breakout_atr_risk_control import MABreakoutATRRiskControlStrategy
-    
+
+    from optimization_models import AShareTradingConfig
+    from strategy_library import get_strategy_library
+    from strategy_simulator import SimulationConfig, run_strategy_simulation
+
+    library = get_strategy_library()
     test_strategies = [
-        ("均线趋势风控策略", MATrendRiskControlStrategy),
-        ("RSI风控策略", RSIRiskControlStrategy),
-        ("放量突破风控策略", VolumeBreakoutRiskControlStrategy),
-        ("均线突破ATR风控策略", MABreakoutATRRiskControlStrategy),
+        library.get("ma_trend_risk_control"),
+        library.get("rsi_risk_control"),
+        library.get("volume_breakout_risk_control"),
+        library.get("ma_breakout_atr_risk_control"),
     ]
     
     # 获取测试数据
@@ -216,15 +216,26 @@ def test_strategy_backtest(results: TestResults, verbose: bool = False):
         results.add_skip("获取测试数据", str(e))
         return
     
-    for strategy_name, strategy_class in test_strategies:
-        test_name = f"回测 {strategy_name}"
+    for definition in test_strategies:
+        test_name = f"回测 {definition.display_name}"
         try:
-            # 运行回测
-            bt = Backtest(data, strategy_class, cash=10000, commission=0.001)
-            stats = bt.run()
+            simulation = run_strategy_simulation(
+                definition,
+                library.validate_config(definition.strategy_id),
+                {"TEST": data},
+                SimulationConfig(
+                    initial_cash=10000,
+                    trading=AShareTradingConfig(
+                        lot_size=1,
+                        limit_up_down_filter=False,
+                        volume_filter=False,
+                        min_commission=0,
+                    ),
+                ),
+            )
             
             # 验证结果
-            if stats is None or len(stats) == 0:
+            if not simulation.equity_curve:
                 results.add_fail(test_name, "回测结果为空")
                 continue
             

@@ -4,10 +4,9 @@ from itertools import product
 from math import prod
 from typing import Any, Callable, Iterable
 
-from backtesting import Strategy
-
 from backtest_runner import BacktestResult, run_single_backtest
 from optimization_models import OptimizationRequest, StrategyParamConfig
+from strategy_library import StrategyLibrary, get_strategy_library
 
 
 OVERFIT_SCORE_GAP = 5
@@ -84,9 +83,10 @@ def score_backtest_result(result: BacktestResult) -> float:
 
 def run_optimization(
     request: OptimizationRequest,
-    strategy_registry: dict[str, type[Strategy]] | None = None,
+    strategy_library: StrategyLibrary | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> OptimizationResult:
+    library = strategy_library or get_strategy_library()
     config = request.optimization_config
     strategies = config.strategies or request.strategies
     warnings = []
@@ -136,7 +136,7 @@ def run_optimization(
                     strategy_config=strategy_config,
                     params=params,
                     request=request,
-                    strategy_registry=strategy_registry,
+                    strategy_library=library,
                 ): (symbol, strategy_config)
                 for symbol, strategy_config, params in batch
             }
@@ -187,7 +187,7 @@ def run_train_validate(
     strategy_config: StrategyParamConfig,
     params: dict[str, Any],
     request: OptimizationRequest,
-    strategy_registry: dict[str, type[Strategy]] | None = None,
+    strategy_library: StrategyLibrary | None = None,
 ) -> dict[str, Any]:
     config = request.optimization_config
     train_result = run_single_backtest(
@@ -196,7 +196,7 @@ def run_train_validate(
         end_date=config.train_end_date or request.end_date,
         interval=config.interval or request.interval,
         strategy_name=strategy_config.strategy_name,
-        strategy_registry=strategy_registry,
+        strategy_library=strategy_library,
         initial_cash=request.initial_cash,
         data_provider=config.data_provider or request.data_provider,
         strategy_params=params,
@@ -208,7 +208,7 @@ def run_train_validate(
         end_date=config.validate_end_date or request.end_date,
         interval=config.interval or request.interval,
         strategy_name=strategy_config.strategy_name,
-        strategy_registry=strategy_registry,
+        strategy_library=strategy_library,
         initial_cash=request.initial_cash,
         data_provider=config.data_provider or request.data_provider,
         strategy_params=params,
