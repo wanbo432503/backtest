@@ -197,7 +197,7 @@ def test_install_script_installs_all_dependencies_into_current_environment():
         in content
     )
     assert (
-        '"${PYTHON_BIN}" -m pip install --no-deps '
+        '"${PYTHON_BIN}" -m pip install --no-deps --no-build-isolation '
         '-r requirements-tradingagents-source.txt'
     ) in content
     assert "TRADINGAGENTS_REPO" not in content

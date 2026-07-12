@@ -12,7 +12,7 @@ echo "Using Python:"
 "${PYTHON_BIN}" -m pip install --upgrade pip
 "${PYTHON_BIN}" -m pip install -r requirements.txt
 "${PYTHON_BIN}" -m pip install -r requirements-tradingagents-openai-compatible.txt
-"${PYTHON_BIN}" -m pip install --no-deps -r requirements-tradingagents-source.txt
+"${PYTHON_BIN}" -m pip install --no-deps --no-build-isolation -r requirements-tradingagents-source.txt
 
 "${PYTHON_BIN}" - <<'PY'
 import importlib.util
