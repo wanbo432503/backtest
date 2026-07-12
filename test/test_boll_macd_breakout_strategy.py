@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from backtesting import Backtest
 
+from strategy_engine import SimulationPosition, StrategyBarContext
 from strategy_metadata import get_strategy_metadata
 
 
@@ -196,3 +197,74 @@ def test_strategy_defaults_and_metadata_expose_approved_risk_grid():
         assert params[name].min_value == 0.1
         assert params[name].max_value == 10
         assert params[name].step == 0.1
+
+
+def test_boll_definition_emits_entry_and_fixed_risk_exit():
+    module = load_strategy_module()
+    config = module.BollMACDConfig(
+        boll_period=5,
+        fast_period=2,
+        slow_period=5,
+        signal_period=2,
+        macd_confirmation_bars=2,
+    )
+    frame = pd.DataFrame(
+        {
+            "Open": [100.0] * 9,
+            "High": [101.0] * 9,
+            "Low": [99.0] * 9,
+            "Close": [100.0] * 8 + [103.0],
+            "Volume": [1_000_000] * 9,
+            "boll_middle": [98.0] * 8 + [99.0],
+            "boll_upper": [101.0] * 8 + [102.0],
+            "macd_dif": [-0.3, -0.2, -0.1, -0.1, -0.1, -0.1, -0.1, 0.1, 0.3],
+            "macd_dea": [-0.2, -0.15, -0.1, -0.05, 0.0, 0.0, 0.0, 0.0, 0.25],
+        },
+        index=pd.date_range("2026-01-01", periods=9, freq="D"),
+    )
+
+    entry = module.STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext("SH603019", frame, 8, config)
+    )
+    exit_frame = frame.copy()
+    exit_frame.loc[exit_frame.index[-1], "Close"] = 98.0
+    exit_decision = module.STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            exit_frame,
+            8,
+            config,
+            SimulationPosition("SH603019", 100, "2026-01-01", 100.0, holding_bars=2),
+        )
+    )
+
+    assert entry.entry is not None
+    assert entry.entry.order_type == "next_open"
+    assert entry.entry.suggested_position_pct == 0.95
+    assert exit_decision.exit is not None
+    assert exit_decision.exit.reason == "stop_loss"
+
+
+def test_boll_definition_preparation_is_prefix_invariant():
+    module = load_strategy_module()
+    dates = pd.date_range("2025-01-01", periods=80, freq="D")
+    data = pd.DataFrame(
+        {
+            "Open": np.linspace(100, 120, 80),
+            "High": np.linspace(101, 121, 80),
+            "Low": np.linspace(99, 119, 80),
+            "Close": np.linspace(100, 120, 80),
+            "Volume": [1_000_000] * 80,
+        },
+        index=dates,
+    )
+    config = module.BollMACDConfig()
+    prefix = module.STRATEGY_DEFINITION.prepare_frame(data.iloc[:60], config)
+    changed = data.copy()
+    changed.loc[dates[60]:, "Close"] = 10_000
+    full = module.STRATEGY_DEFINITION.prepare_frame(changed, config).iloc[:60]
+
+    pd.testing.assert_frame_equal(
+        prefix[["boll_middle", "boll_upper", "macd_dif", "macd_dea"]],
+        full[["boll_middle", "boll_upper", "macd_dif", "macd_dea"]],
+    )

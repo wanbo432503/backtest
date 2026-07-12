@@ -1,7 +1,11 @@
+import pandas as pd
 from fastapi.testclient import TestClient
 
 import main
+from strategy_engine import SimulationPosition, StrategyBarContext
 from strategies.macd_volume_divergence_risk_control import (
+    MACDVolumeConfig,
+    STRATEGY_DEFINITION,
     get_macd_volume_exit_reason,
     has_bullish_macd_divergence,
     has_volume_confirmation,
@@ -230,3 +234,80 @@ def test_macd_volume_strategy_appears_in_strategy_list():
 def test_is_golden_cross_requires_dif_crossing_up_dea():
     assert is_golden_cross(previous_dif=-0.2, previous_dea=-0.1, current_dif=0.1, current_dea=0.0)
     assert not is_golden_cross(previous_dif=0.2, previous_dea=0.1, current_dif=0.1, current_dea=0.0)
+
+
+def test_macd_volume_definition_emits_entry_and_dead_cross_exit():
+    config = MACDVolumeConfig(
+        fast_period=2,
+        slow_period=5,
+        signal_period=2,
+        volume_lookback=3,
+        divergence_lookback=10,
+        trend_ma=5,
+    )
+    frame = pd.DataFrame(
+        {
+            "Open": [20.0] * 12,
+            "High": [21.0] * 12,
+            "Low": [19.0] * 12,
+            "Close": [20.0] * 12,
+            "Volume": [1_000_000] * 11 + [2_500_000],
+            "macd_dif": [-0.1] * 11 + [0.03],
+            "macd_dea": [-0.05] * 11 + [0.02],
+            "macd_histogram": [-0.05] * 11 + [0.01],
+            "average_volume": [1_000_000] * 12,
+            "trend_ma_value": [19.0] * 12,
+        },
+        index=pd.date_range("2026-01-01", periods=12, freq="D"),
+    )
+    entry = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext("SH603019", frame, 11, config)
+    )
+    exit_frame = frame.copy()
+    exit_frame.loc[exit_frame.index[-2], ["macd_dif", "macd_dea"]] = [0.8, 0.6]
+    exit_frame.loc[exit_frame.index[-1], ["macd_dif", "macd_dea"]] = [0.4, 0.5]
+    exit_decision = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            "SH603019",
+            exit_frame,
+            11,
+            config,
+            SimulationPosition(
+                "SH603019",
+                100,
+                "2026-01-01",
+                20.0,
+                holding_bars=8,
+                highest_price=22.0,
+            ),
+        )
+    )
+
+    assert entry.entry is not None
+    assert entry.entry.order_type == "next_open"
+    assert exit_decision.exit is not None
+    assert exit_decision.exit.reason == "dead_cross"
+
+
+def test_macd_volume_preparation_is_prefix_invariant():
+    dates = pd.date_range("2025-01-01", periods=120, freq="D")
+    data = pd.DataFrame(
+        {
+            "Open": range(100, 220),
+            "High": range(101, 221),
+            "Low": range(99, 219),
+            "Close": range(100, 220),
+            "Volume": range(1_000_000, 1_000_120),
+        },
+        index=dates,
+    )
+    config = MACDVolumeConfig()
+    prefix = STRATEGY_DEFINITION.prepare_frame(data.iloc[:100], config)
+    changed = data.copy()
+    changed.loc[dates[100]:, ["Close", "Volume"]] = [10_000, 99_000_000]
+    full = STRATEGY_DEFINITION.prepare_frame(changed, config).iloc[:100]
+
+    pd.testing.assert_frame_equal(
+        prefix[["macd_dif", "macd_dea", "macd_histogram", "average_volume", "trend_ma_value"]],
+        full[["macd_dif", "macd_dea", "macd_histogram", "average_volume", "trend_ma_value"]],
+    )
