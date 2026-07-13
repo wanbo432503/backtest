@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from strategy_library import StrategyLibrary
 
 
+SIGNAL_EVENT_RESPONSE_LIMIT = 500
+
+
 class SignalUniverseConfig(BaseModel):
     mode: Literal["auto", "manual"] = "manual"
     symbols: list[str] = Field(default_factory=list)
@@ -245,15 +248,30 @@ class SignalPortfolioBacktestResult:
     config: dict[str, Any] = field(default_factory=dict)
 
     def to_api_response(self) -> dict[str, Any]:
+        diagnostics = dict(self.scan_diagnostics)
+        diagnostics.pop("strategy_states", None)
+        total_signal_events = max(
+            int(diagnostics.get("signal_count", 0)),
+            len(self.signal_events),
+        )
+        signal_events = self.signal_events[-SIGNAL_EVENT_RESPONSE_LIMIT:]
+        diagnostics.update(
+            {
+                "signal_count": total_signal_events,
+                "signal_events_returned": len(signal_events),
+                "signal_events_truncated": total_signal_events > len(signal_events),
+                "signal_event_limit": SIGNAL_EVENT_RESPONSE_LIMIT,
+            }
+        )
         return {
             "summary": self.summary,
             "equity_curve": self.equity_curve,
             "positions": self.positions,
             "trades": self.trades,
             "symbol_contributions": self.symbol_contributions,
-            "signal_events": self.signal_events,
+            "signal_events": signal_events,
             "data_warnings": self.data_warnings,
             "risk_flags": self.risk_flags,
-            "scan_diagnostics": self.scan_diagnostics,
+            "scan_diagnostics": diagnostics,
             "config": self.config,
         }

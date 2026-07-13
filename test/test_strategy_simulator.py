@@ -468,6 +468,29 @@ def test_entry_history_gate_counts_from_user_start_not_hidden_preload():
     assert result.diagnostics["insufficient_entry_history_count"] == 2
 
 
+def test_signal_event_retention_is_bounded_without_losing_total_count():
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is None
+        else StrategyDecision()
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": _data(opens=(10, 10, 10, 10, 10))},
+        _simulation(initial_cash=1, max_signal_events=2),
+    )
+
+    assert result.diagnostics["signal_count"] == 5
+    assert result.diagnostics["signal_events_returned"] == 2
+    assert result.diagnostics["signal_events_truncated"] is True
+    assert [event["date"] for event in result.signal_events] == [
+        "2026-01-04",
+        "2026-01-05",
+    ]
+
+
 def test_stop_next_bar_only_fills_when_next_high_reaches_trigger():
     definition = _definition(
         lambda context: StrategyDecision(

@@ -6,6 +6,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from signal_portfolio_models import (
+    SIGNAL_EVENT_RESPONSE_LIMIT,
     SignalMarketFilterConfig,
     SignalPortfolioBacktestRequest,
     SignalPortfolioBacktestResult,
@@ -73,12 +74,19 @@ def run_signal_portfolio_with_data(
         data_by_symbol,
         normalized.market_filter,
     )
+    breadth_signal_counts = {"blocked": 0, "partial": 0}
 
     def risk_multiplier(symbol, date, row, intent) -> float:
         del symbol, row, intent
         if date not in overlay.index:
-            return 0.0 if normalized.market_filter.enabled else 1.0
-        return float(overlay.loc[date, "risk_multiplier"])
+            multiplier = 0.0 if normalized.market_filter.enabled else 1.0
+        else:
+            multiplier = float(overlay.loc[date, "risk_multiplier"])
+        if multiplier == 0:
+            breadth_signal_counts["blocked"] += 1
+        elif 0 < multiplier < 1:
+            breadth_signal_counts["partial"] += 1
+        return multiplier
 
     def forward_progress(event: dict[str, Any]) -> None:
         forwarded = dict(event)
@@ -105,6 +113,7 @@ def run_signal_portfolio_with_data(
                 if definition.portfolio_priority_history_bars > 0
                 else None
             ),
+            max_signal_events=SIGNAL_EVENT_RESPONSE_LIMIT,
         ),
         progress_callback=forward_progress,
         entry_risk_multiplier=risk_multiplier,
@@ -125,7 +134,13 @@ def run_signal_portfolio_with_data(
         signal_events.append(enriched)
 
     result_diagnostics = dict(diagnostics or {})
-    result_diagnostics.update(simulation.diagnostics)
+    result_diagnostics.update(
+        {
+            key: value
+            for key, value in simulation.diagnostics.items()
+            if key != "strategy_states"
+        }
+    )
     result_diagnostics.update(breadth_diagnostics)
     result_diagnostics.update(
         {
@@ -145,14 +160,8 @@ def run_signal_portfolio_with_data(
                 {trade["symbol"] for trade in simulation.trades}
             ),
             "providers": providers or {},
-            "breadth_blocked_signal_count": sum(
-                event.get("market_risk_multiplier") == 0
-                for event in signal_events
-            ),
-            "breadth_partial_signal_count": sum(
-                0 < event.get("market_risk_multiplier", 1) < 1
-                for event in signal_events
-            ),
+            "breadth_blocked_signal_count": breadth_signal_counts["blocked"],
+            "breadth_partial_signal_count": breadth_signal_counts["partial"],
         }
     )
     return SignalPortfolioBacktestResult(

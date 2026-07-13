@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -37,6 +38,7 @@ class SimulationConfig:
     end_date: str | None = None
     min_entry_history_bars: int = 0
     entry_history_start_date: str | None = None
+    max_signal_events: int | None = None
 
 
 @dataclass
@@ -133,7 +135,15 @@ def run_strategy_simulation(
         symbol: {} for symbol in frames
     }
     trades: list[dict[str, Any]] = []
-    signals: list[dict[str, Any]] = []
+    signal_event_limit = simulation_config.max_signal_events
+    if signal_event_limit is not None and signal_event_limit < 0:
+        raise ValueError("max_signal_events must be non-negative")
+    signals: list[dict[str, Any]] | deque[dict[str, Any]] = (
+        deque(maxlen=signal_event_limit)
+        if signal_event_limit is not None
+        else []
+    )
+    signal_count = 0
     equity_curve: list[dict[str, Any]] = []
     contributions: dict[str, dict[str, float | int]] = {}
     diagnostics = {
@@ -408,6 +418,7 @@ def run_strategy_simulation(
                         else 1.0
                     ),
                 )
+                signal_count += 1
                 signals.append(
                     {
                         "date": _date_str(date),
@@ -434,13 +445,15 @@ def run_strategy_simulation(
         )
 
     diagnostics["strategy_states"] = strategy_states
-    diagnostics["signal_count"] = len(signals)
+    diagnostics["signal_count"] = signal_count
+    diagnostics["signal_events_returned"] = len(signals)
+    diagnostics["signal_events_truncated"] = signal_count > len(signals)
     return SimulationResult(
         summary=_summary(equity_curve, trades, simulation_config.initial_cash),
         equity_curve=equity_curve,
         positions=_position_rows(calendar[-1], positions, frames),
         trades=trades,
-        signal_events=signals,
+        signal_events=list(signals),
         symbol_contributions=_contribution_rows(
             contributions,
             positions,

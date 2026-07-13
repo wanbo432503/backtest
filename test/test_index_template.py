@@ -83,6 +83,11 @@ def test_index_template_contains_multi_stock_signal_portfolio_mode():
     assert "平均市场宽度" in template
     assert "宽度拦截" in template
     assert "半风险信号" in template
+    assert 'id="signalPortfolioEventNotice"' in template
+    assert "const maxSignalEventRows = 500" in template
+    assert "signalEvents.slice(-maxSignalEventRows).reverse()" in template
+    assert "仅显示最近" in template
+    assert "(result.signal_events || []).slice().reverse()" not in template
     assert "启用参数优化" in template
     assert "score" in template
     assert "collectOptimizationRequest" in template

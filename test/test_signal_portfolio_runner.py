@@ -7,7 +7,10 @@ from pydantic import BaseModel, ConfigDict
 import signal_portfolio_runner
 from market_data import DataSourceResult
 from portfolio_data import load_portfolio_ohlcv
-from signal_portfolio_models import SignalPortfolioBacktestRequest
+from signal_portfolio_models import (
+    SignalPortfolioBacktestRequest,
+    SignalPortfolioBacktestResult,
+)
 from signal_portfolio_runner import (
     _build_market_breadth_overlay,
     run_signal_portfolio_with_data,
@@ -302,3 +305,63 @@ def test_signal_portfolio_result_preserves_scan_context_and_normalized_config():
     assert payload["scan_diagnostics"]["providers"] == {"SH603019": "mootdx"}
     assert payload["config"]["strategy"]["parameters"]["rsi_period"] == 8
     assert "rsi_buy" in payload["config"]["strategy"]["parameters"]
+
+
+def test_signal_portfolio_api_bounds_event_details_and_removes_strategy_states():
+    response_limit = 500
+    total = response_limit + 3
+    result = SignalPortfolioBacktestResult(
+        summary={"final_equity": 100_000},
+        signal_events=[
+            {"date": f"2026-01-{index:04d}", "symbol": "SH603019"}
+            for index in range(total)
+        ],
+        scan_diagnostics={
+            "signal_count": total,
+            "strategy_states": {"SH603019": {"armed": True}},
+        },
+    )
+
+    payload = result.to_api_response()
+
+    assert len(payload["signal_events"]) == response_limit
+    assert payload["signal_events"][0]["date"] == "2026-01-0003"
+    assert payload["scan_diagnostics"]["signal_count"] == total
+    assert payload["scan_diagnostics"]["signal_events_returned"] == response_limit
+    assert payload["scan_diagnostics"]["signal_events_truncated"] is True
+    assert "strategy_states" not in payload["scan_diagnostics"]
+
+
+def test_signal_portfolio_keeps_exact_breadth_counts_when_events_are_capped():
+    definition = StrategyDefinition(
+        strategy_id="many_blocked_signals",
+        display_name="Many Blocked Signals",
+        description="capacity regression fixture",
+        config_model=_PipelineConfig,
+        parameters=(),
+        prepare_frame=lambda data, config: data.copy(),
+        evaluate=lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is None
+        else StrategyDecision(),
+        min_history_bars=lambda config: 1,
+    )
+    frame = _frame(periods=520, rising=False)
+    request = _request(
+        definition.strategy_id,
+        start_date="2024-01-02",
+        end_date="2026-12-31",
+        initial_cash=1_000,
+        market_filter={"enabled": True, "breadth_ma_period": 2},
+    )
+
+    result = run_signal_portfolio_with_data(
+        request,
+        {"SH603019": frame},
+        strategy_library=StrategyLibrary([definition]),
+    )
+
+    assert result.scan_diagnostics["signal_count"] == 520
+    assert result.scan_diagnostics["breadth_blocked_signal_count"] == 520
+    assert result.scan_diagnostics["signal_events_returned"] == 500
+    assert result.scan_diagnostics["signal_events_truncated"] is True
+    assert len(result.signal_events) == 500
