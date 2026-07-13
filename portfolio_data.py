@@ -9,6 +9,22 @@ import pandas as pd
 from market_data import fetch_ohlcv, prepare_ohlcv
 
 
+BASE_RUNNER_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+DUAL_PRICE_COLUMNS = [
+    "RawOpen",
+    "RawHigh",
+    "RawLow",
+    "RawClose",
+    "AdjFactor",
+]
+CORPORATE_ACTION_COLUMNS = [
+    "CashDividendPer10",
+    "BonusSharesPer10",
+    "RightsSharesPer10",
+    "RightsPrice",
+]
+
+
 @dataclass
 class PortfolioDataBundle:
     data_by_symbol: dict[str, pd.DataFrame] = field(default_factory=dict)
@@ -128,8 +144,15 @@ def _emit_load_progress(
 
 def _prepare_runner_frame(data: pd.DataFrame) -> pd.DataFrame:
     prepared = prepare_ohlcv(data)
-    columns = ["Open", "High", "Low", "Close", "Volume"]
+    columns = list(BASE_RUNNER_COLUMNS)
+    if any(column in prepared.columns for column in DUAL_PRICE_COLUMNS):
+        required = [*DUAL_PRICE_COLUMNS, *CORPORATE_ACTION_COLUMNS]
+        missing = [column for column in required if column not in prepared.columns]
+        if missing:
+            raise ValueError(f"双价格行情缺少必要列: {missing}")
+        columns.extend(required)
     frame = prepared[columns].copy()
+    frame.attrs = dict(prepared.attrs)
     frame.index = pd.to_datetime(frame.index)
     if isinstance(frame.index, pd.DatetimeIndex) and frame.index.tz is not None:
         frame.index = frame.index.tz_localize(None)

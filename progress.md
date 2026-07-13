@@ -49,6 +49,14 @@
   - Added regressions for legitimate large moves, old yfinance caches, Eastmoney raw prices, suspended-stock action dates, and post-bonus plot sizing.
   - Re-ran compilation, full tests, real SZ002475 adjustment, and real MA60 single-stock backtest.
 
+### Follow-up: Signal Portfolio Ingress
+- **Status:** completed
+- Actions taken:
+  - Reproduced the portfolio-only contract loss in `_prepare_runner_frame`.
+  - Added a failing loader regression, then preserved RawOHLC, AdjFactor, all action columns, and DataFrame attrs.
+  - Added an end-to-end loaded signal-portfolio test proving raw fills plus dividend/bonus-share accounting.
+  - Ran a real SH603019/SZ002475 MA60 portfolio: 42 orders and 2 corporate-action cash credits.
+
 ## Test Results
 | Test | Expected | Actual | Status |
 |------|----------|--------|--------|

@@ -24,6 +24,7 @@
 - A fixed 22% rejection threshold is invalid for Beijing Stock Exchange, IPO, and resumed listings; unusual adjusted moves must be warnings rather than universal hard failures.
 - Old yfinance cache rows may come from auto-adjusted history, so a provider-specific raw/action contract marker is required without invalidating the much larger mootdx raw cache.
 - Corporate actions can occur while an individual stock is suspended; their actual dates must be part of the portfolio calendar and suspended valuation must use the theoretical ex-right reference.
+- The real signal-portfolio loader used to reduce every fetched frame to five OHLCV columns. This preserved adjusted signals but silently forced the simulator to recreate `Raw*` from adjusted prices, so portfolio execution and accounting were not actually dual-price.
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -43,6 +44,7 @@
 | Use a yfinance provider-contract cache marker instead of bumping the global cache schema | Refreshes ambiguous yfinance data without discarding reusable mootdx raw history |
 | Treat post-adjustment large moves as audit warnings | Avoids rejecting legitimate 30% or unrestricted trading sessions |
 | Schedule actions independently from K-line dates | Credits suspended holdings on the legal action date and keeps cash available to the rest of the portfolio |
+| Preserve the entire dual-price contract at the portfolio ingress | Ensures universe scanning can use adjusted OHLC while the shared simulator still receives raw execution prices and action metadata |
 
 ## Issues Encountered
 | Issue | Resolution |

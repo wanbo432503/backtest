@@ -40,6 +40,13 @@ Phase 5
 - [x] Review diff, commit, and deliver
 - **Status:** completed
 
+### Phase 6: Signal Portfolio Contract Follow-up
+- [x] Reproduce dual-price column loss in the real portfolio loader
+- [x] Preserve raw, adjusted, and corporate-action fields and metadata
+- [x] Add loader and end-to-end signal-portfolio regressions
+- [x] Verify with a real two-stock MA60 portfolio and the full suite
+- **Status:** completed
+
 ## Key Questions
 1. None currently blocking implementation.
 

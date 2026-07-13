@@ -2,8 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from dataclasses import replace
+from pydantic import BaseModel, ConfigDict
 
 import signal_portfolio_runner
+from market_data import DataSourceResult
+from portfolio_data import load_portfolio_ohlcv
 from signal_portfolio_models import SignalPortfolioBacktestRequest
 from signal_portfolio_runner import (
     _build_market_breadth_overlay,
@@ -11,7 +14,12 @@ from signal_portfolio_runner import (
 )
 from strategy_library import get_strategy_library
 from strategy_library import StrategyLibrary
+from strategy_engine import EntryIntent, StrategyDecision, StrategyDefinition
 from strategies.volume_divergence_rsi_long import STRATEGY_DEFINITION as LONG_DEFINITION
+
+
+class _PipelineConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 def _frame(periods=280, *, rising=True):
@@ -108,6 +116,98 @@ def test_new_strategy_portfolio_path_fills_ten_percent_and_trailing_stop():
     assert buys[0]["amount"] <= 10_000
     assert sells[0]["reason"] == "stop_loss"
     assert sells[0]["price"] == pytest.approx(103.88 * (1 - 0.0005))
+
+
+def test_loaded_signal_portfolio_executes_at_raw_price(monkeypatch):
+    definition = StrategyDefinition(
+        strategy_id="dual_price_pipeline",
+        display_name="Dual Price Pipeline",
+        description="integration fixture",
+        config_model=_PipelineConfig,
+        parameters=(),
+        prepare_frame=lambda data, config: data.copy(),
+        evaluate=lambda context: StrategyDecision(
+            entry=EntryIntent("next_open")
+        )
+        if context.bar_index == 0 and context.position is None
+        else StrategyDecision(),
+        min_history_bars=lambda config: 1,
+    )
+    library = StrategyLibrary([definition])
+    dual_frame = pd.DataFrame(
+        {
+            "Open": [6.6, 6.6, 6.6],
+            "High": [6.7, 6.7, 6.7],
+            "Low": [6.5, 6.5, 6.5],
+            "Close": [6.6, 6.6, 6.6],
+            "Volume": [1_000, 1_000, 1_000],
+            "RawOpen": [10.0, 10.0, 6.6],
+            "RawHigh": [10.1, 10.1, 6.7],
+            "RawLow": [9.9, 9.9, 6.5],
+            "RawClose": [10.0, 10.0, 6.6],
+            "AdjFactor": [0.66, 0.66, 1.0],
+            "CashDividendPer10": [0.0, 0.0, 1.0],
+            "BonusSharesPer10": [0.0, 0.0, 5.0],
+            "RightsSharesPer10": [0.0, 0.0, 0.0],
+            "RightsPrice": [0.0, 0.0, 0.0],
+        },
+        index=pd.bdate_range("2024-01-02", periods=3),
+    )
+    dual_frame.attrs["corporate_actions"] = [
+        {
+            "date": "2024-01-04",
+            "CashDividendPer10": 1.0,
+            "BonusSharesPer10": 5.0,
+            "RightsSharesPer10": 0.0,
+            "RightsPrice": 0.0,
+            "RawReferencePrice": 6.6,
+        }
+    ]
+    monkeypatch.setattr(
+        "portfolio_data.fetch_ohlcv",
+        lambda *args: DataSourceResult(dual_frame, "mootdx", []),
+    )
+    bundle = load_portfolio_ohlcv(
+        ["SH603019"],
+        "2024-01-02",
+        "2024-01-04",
+        min_history_bars=1,
+    )
+    request = _request(
+        definition.strategy_id,
+        initial_cash=1_000,
+        market_filter={"enabled": False},
+        risk={
+            "max_positions": 1,
+            "max_position_pct": 1,
+            "target_gross_exposure": 1,
+            "max_drawdown_stop_pct": None,
+        },
+        trading={
+            "t_plus_one": True,
+            "lot_size": 1,
+            "limit_up_down_filter": False,
+            "volume_filter": False,
+            "slippage_pct": 0,
+            "buy_commission_pct": 0,
+            "sell_commission_pct": 0,
+            "stamp_tax_pct": 0,
+            "min_commission": 0,
+        },
+    )
+
+    result = run_signal_portfolio_with_data(
+        request,
+        bundle.data_by_symbol,
+        strategy_library=library,
+    )
+
+    buy = result.trades[0]
+    assert buy["price"] == 10
+    assert buy["shares"] == 100
+    assert result.positions[0]["shares"] == 150
+    assert result.scan_diagnostics["corporate_action_events"][0]["cash_dividend"] == 10
+    assert result.summary["final_equity"] == 1_000
 
 
 def test_market_breadth_is_independent_and_uses_configured_period():

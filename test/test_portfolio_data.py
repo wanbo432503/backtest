@@ -100,6 +100,56 @@ def test_load_portfolio_ohlcv_prepares_columns_for_runner(monkeypatch):
     assert data["Volume"].tolist() == [0, 0]
 
 
+def test_load_portfolio_ohlcv_preserves_dual_price_contract(monkeypatch):
+    dual_frame = pd.DataFrame(
+        {
+            "Open": [6.6, 6.6],
+            "High": [6.7, 6.7],
+            "Low": [6.5, 6.5],
+            "Close": [6.6, 6.6],
+            "Volume": [1_000, 1_200],
+            "RawOpen": [10.0, 6.6],
+            "RawHigh": [10.1, 6.7],
+            "RawLow": [9.9, 6.5],
+            "RawClose": [10.0, 6.6],
+            "AdjFactor": [0.66, 1.0],
+            "CashDividendPer10": [0.0, 1.0],
+            "BonusSharesPer10": [0.0, 5.0],
+            "RightsSharesPer10": [0.0, 0.0],
+            "RightsPrice": [0.0, 0.0],
+        },
+        index=pd.to_datetime(["2025-01-02", "2025-01-03"]),
+    )
+    dual_frame.attrs["corporate_actions"] = [
+        {
+            "date": "2025-01-03",
+            "CashDividendPer10": 1.0,
+            "BonusSharesPer10": 5.0,
+            "RightsSharesPer10": 0.0,
+            "RightsPrice": 0.0,
+            "RawReferencePrice": 6.6,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "portfolio_data.fetch_ohlcv",
+        lambda *args: DataSourceResult(dual_frame, "mootdx", []),
+    )
+
+    bundle = load_portfolio_ohlcv(
+        ["SZ002475"],
+        "2025-01-01",
+        "2025-12-31",
+        min_history_bars=1,
+    )
+    data = bundle.data_by_symbol["SZ002475"]
+
+    assert data["RawClose"].tolist() == [10.0, 6.6]
+    assert data["AdjFactor"].tolist() == [0.66, 1.0]
+    assert data["BonusSharesPer10"].tolist() == [0.0, 5.0]
+    assert data.attrs["corporate_actions"][0]["date"] == "2025-01-03"
+
+
 def test_load_portfolio_ohlcv_normalizes_timezone_aware_index(monkeypatch):
     raw_frame = pd.DataFrame(
         {
