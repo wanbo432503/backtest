@@ -41,6 +41,47 @@ def _data(
     )
 
 
+def _dual_data(
+    adjusted_opens,
+    raw_opens,
+    *,
+    adjusted_highs=None,
+    adjusted_lows=None,
+    adjusted_closes=None,
+    raw_highs=None,
+    raw_lows=None,
+    raw_closes=None,
+    factors=None,
+    cash_dividend_per10=None,
+    bonus_shares_per10=None,
+) -> pd.DataFrame:
+    count = len(adjusted_opens)
+    adjusted_highs = adjusted_highs or adjusted_opens
+    adjusted_lows = adjusted_lows or adjusted_opens
+    adjusted_closes = adjusted_closes or adjusted_opens
+    raw_highs = raw_highs or raw_opens
+    raw_lows = raw_lows or raw_opens
+    raw_closes = raw_closes or raw_opens
+    factors = factors or tuple(1.0 for _ in range(count))
+    return pd.DataFrame(
+        {
+            "Open": adjusted_opens,
+            "High": adjusted_highs,
+            "Low": adjusted_lows,
+            "Close": adjusted_closes,
+            "Volume": [1_000_000] * count,
+            "RawOpen": raw_opens,
+            "RawHigh": raw_highs,
+            "RawLow": raw_lows,
+            "RawClose": raw_closes,
+            "AdjFactor": factors,
+            "CashDividendPer10": cash_dividend_per10 or [0.0] * count,
+            "BonusSharesPer10": bonus_shares_per10 or [0.0] * count,
+        },
+        index=pd.date_range("2026-01-01", periods=count, freq="D"),
+    )
+
+
 def _trading(**overrides) -> AShareTradingConfig:
     values = {
         "t_plus_one": True,
@@ -101,6 +142,260 @@ def test_close_signal_fills_at_next_open_without_lookahead():
     assert buy["side"] == "buy"
     assert buy["date"] == "2026-01-02"
     assert buy["price"] == 11
+
+
+def test_adjusted_signal_context_executes_and_values_at_raw_prices():
+    observed_entry_prices = []
+
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is not None:
+            observed_entry_prices.append(context.position.entry_price)
+        return StrategyDecision()
+
+    data = _dual_data(
+        adjusted_opens=(100, 102, 104),
+        raw_opens=(50, 51, 52),
+        factors=(2, 2, 2),
+    )
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SH603019": data},
+        _simulation(initial_cash=5_100),
+    )
+
+    assert result.trades[0]["price"] == 51
+    assert result.trades[0]["shares"] == 100
+    assert observed_entry_prices == [102, 102]
+    assert result.positions[0]["price"] == 52
+    assert result.summary["final_equity"] == 5_200
+
+
+def test_adjusted_protective_stop_maps_fill_back_to_raw_price():
+    definition = _definition(
+        lambda context: StrategyDecision(
+            entry=EntryIntent("next_open", risk=RiskIntent(stop_price=95))
+        )
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+    data = _dual_data(
+        adjusted_opens=(100, 100, 96),
+        raw_opens=(50, 50, 48),
+        adjusted_highs=(101, 101, 100),
+        adjusted_lows=(99, 99, 94),
+        raw_highs=(50.5, 50.5, 50),
+        raw_lows=(49.5, 49.5, 47),
+        factors=(2, 2, 2),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": data},
+        _simulation(),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["price"] == 47.5
+
+
+def test_adjusted_risk_per_share_is_converted_to_raw_cash_risk():
+    definition = _definition(
+        lambda context: StrategyDecision(
+            entry=EntryIntent(
+                "next_open",
+                risk=RiskIntent(risk_per_share=2, risk_budget_pct=0.01),
+            )
+        )
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+    data = _dual_data(
+        adjusted_opens=(100, 100),
+        raw_opens=(50, 50),
+        factors=(2, 2),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SH603019": data},
+        _simulation(initial_cash=10_000),
+    )
+
+    assert result.trades[0]["shares"] == 100
+
+
+def test_dividend_and_bonus_shares_are_applied_before_ex_date_valuation():
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+    data = _dual_data(
+        adjusted_opens=(6.6, 6.6, 6.6),
+        raw_opens=(10, 10, 6.6),
+        adjusted_closes=(6.6, 6.6, 6.6),
+        raw_closes=(10, 10, 6.6),
+        factors=(0.66, 0.66, 1),
+        cash_dividend_per10=(0, 0, 1),
+        bonus_shares_per10=(0, 0, 5),
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SZ002475": data},
+        _simulation(initial_cash=1_000),
+    )
+
+    assert result.positions[0]["shares"] == 150
+    assert result.positions[0]["market_value"] == 990
+    assert result.positions[0]["unrealized_pnl"] == 0
+    assert result.summary["final_equity"] == 1_000
+    event = result.diagnostics["corporate_action_events"][0]
+    assert event["cash_dividend"] == 10
+    assert event["bonus_shares"] == 50
+
+
+def test_suspended_stock_corporate_action_is_applied_on_actual_date():
+    from price_adjustment import apply_corporate_actions
+
+    raw = pd.DataFrame(
+        {
+            "Open": [10, 10, 6.6],
+            "High": [10, 10, 6.6],
+            "Low": [10, 10, 6.6],
+            "Close": [10, 10, 6.6],
+            "Volume": [1_000, 1_000, 1_000],
+        },
+        index=pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-05"]),
+    )
+    actions = pd.DataFrame(
+        {
+            "category": [1],
+            "fenhong": [1.0],
+            "songzhuangu": [5.0],
+            "peigu": [0.0],
+            "peigujia": [0.0],
+        },
+        index=pd.to_datetime(["2026-01-03"]),
+    )
+    data = apply_corporate_actions(raw, actions)
+    definition = _definition(
+        lambda context: StrategyDecision(entry=EntryIntent("next_open"))
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SZ002475": data},
+        _simulation(initial_cash=1_000),
+    )
+
+    event = result.diagnostics["corporate_action_events"][0]
+    assert event["date"] == "2026-01-03"
+    assert any(point["date"] == "2026-01-03" and point["cash"] == 10 for point in result.equity_curve)
+
+
+def test_ex_right_raw_gap_does_not_create_false_limit_down_block():
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is not None and context.bar_index == 1:
+            return StrategyDecision(exit=ExitIntent("signal_exit"))
+        return StrategyDecision()
+
+    data = _dual_data(
+        adjusted_opens=(6.6, 6.6, 6.5),
+        raw_opens=(10, 10, 6.5),
+        adjusted_highs=(6.7, 6.7, 6.6),
+        adjusted_lows=(6.5, 6.5, 6.4),
+        adjusted_closes=(6.6, 6.6, 6.5),
+        raw_highs=(10.1, 10.1, 6.6),
+        raw_lows=(9.9, 9.9, 6.4),
+        raw_closes=(10, 10, 6.5),
+        factors=(0.66, 0.66, 1),
+        bonus_shares_per10=(0, 0, 5),
+    )
+
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SZ002475": data},
+        _simulation(
+            initial_cash=1_000,
+            trading=_trading(limit_up_down_filter=True),
+        ),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["price"] == 6.5
+    assert sell["shares"] == 150
+
+
+def test_cash_dividend_is_included_in_realized_pnl():
+    def evaluator(context):
+        if context.position is None and context.bar_index == 0:
+            return StrategyDecision(entry=EntryIntent("next_open"))
+        if context.position is not None and context.bar_index == 1:
+            return StrategyDecision(exit=ExitIntent("signal_exit"))
+        return StrategyDecision()
+
+    data = _dual_data(
+        adjusted_opens=(6.6, 6.6, 6.6),
+        raw_opens=(10, 10, 6.6),
+        factors=(0.66, 0.66, 1),
+        cash_dividend_per10=(0, 0, 1),
+        bonus_shares_per10=(0, 0, 5),
+    )
+    result = run_strategy_simulation(
+        _definition(evaluator),
+        FakeConfig(),
+        {"SZ002475": data},
+        _simulation(initial_cash=1_000),
+    )
+
+    sell = [trade for trade in result.trades if trade["side"] == "sell"][0]
+    assert sell["shares"] == 150
+    assert sell["pnl"] == 0
+    assert result.summary["final_equity"] == 1_000
+
+
+def test_rights_issue_subscribes_only_with_available_cash():
+    definition = _definition(
+        lambda context: StrategyDecision(
+            entry=EntryIntent("next_open", suggested_position_pct=2 / 3)
+        )
+        if context.bar_index == 0
+        else StrategyDecision()
+    )
+    data = _dual_data(
+        adjusted_opens=(9.333333, 9.333333, 9.333333),
+        raw_opens=(10, 10, 9.333333),
+        factors=(0.9333333, 0.9333333, 1),
+    )
+    data["RightsSharesPer10"] = (0, 0, 5)
+    data["RightsPrice"] = (0, 0, 8)
+
+    result = run_strategy_simulation(
+        definition,
+        FakeConfig(),
+        {"SZ002475": data},
+        _simulation(initial_cash=1_500),
+    )
+
+    assert result.positions[0]["shares"] == 150
+    assert result.positions[0]["entry_price"] == pytest.approx(1400 / 150)
+    event = result.diagnostics["corporate_action_events"][0]
+    assert event["rights_entitlement"] == 50
+    assert event["rights_subscribed"] == 50
+    assert event["rights_cash"] == 400
 
 
 def test_next_open_sell_uses_execution_price_not_future_close_for_limit_down():

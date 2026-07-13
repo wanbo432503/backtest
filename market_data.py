@@ -16,6 +16,9 @@ from market_data_cache import (
     slice_daily_cache,
     uncovered_date_ranges,
 )
+from price_adjustment import apply_corporate_actions, detect_unexplained_discontinuities
+
+YFINANCE_RAW_CACHE_MARKER = "internal:yfinance_raw_actions_v1"
 
 
 @dataclass(frozen=True)
@@ -87,7 +90,30 @@ def to_yfinance_symbol(symbol: str) -> str:
 
 def prepare_ohlcv(data: pd.DataFrame) -> pd.DataFrame:
     frame = data.copy()
-    frame.columns = [str(col).title() for col in frame.columns]
+    canonical_columns = {
+        "open": "Open",
+        "high": "High",
+        "low": "Low",
+        "close": "Close",
+        "volume": "Volume",
+        "amount": "Amount",
+        "rawopen": "RawOpen",
+        "rawhigh": "RawHigh",
+        "rawlow": "RawLow",
+        "rawclose": "RawClose",
+        "adjfactor": "AdjFactor",
+        "cashdividendper10": "CashDividendPer10",
+        "bonussharesper10": "BonusSharesPer10",
+        "rightssharesper10": "RightsSharesPer10",
+        "rightsprice": "RightsPrice",
+        "dividends": "Dividends",
+        "stock splits": "Stock Splits",
+        "adj close": "Adj Close",
+    }
+    frame.columns = [
+        canonical_columns.get(str(column).strip().lower(), str(column).title())
+        for column in frame.columns
+    ]
 
     required_columns = ["Open", "High", "Low", "Close"]
     missing_columns = [col for col in required_columns if col not in frame.columns]
@@ -97,7 +123,22 @@ def prepare_ohlcv(data: pd.DataFrame) -> pd.DataFrame:
     if "Volume" not in frame.columns:
         frame["Volume"] = 0
 
-    for col in required_columns + ["Volume"]:
+    numeric_columns = [
+        *required_columns,
+        "Volume",
+        "RawOpen",
+        "RawHigh",
+        "RawLow",
+        "RawClose",
+        "AdjFactor",
+        "CashDividendPer10",
+        "BonusSharesPer10",
+        "RightsSharesPer10",
+        "RightsPrice",
+    ]
+    for col in numeric_columns:
+        if col not in frame.columns:
+            continue
         frame[col] = pd.to_numeric(frame[col], errors="coerce")
     if "Amount" in frame.columns:
         frame["Amount"] = pd.to_numeric(frame["Amount"], errors="coerce")
@@ -112,7 +153,13 @@ def prepare_ohlcv(data: pd.DataFrame) -> pd.DataFrame:
 def fetch_yfinance_ohlcv(symbol: str, start_date: str, end_date: str, interval: str) -> DataSourceResult:
     yfinance_symbol = to_yfinance_symbol(symbol)
     inclusive_end = (date.fromisoformat(end_date) + timedelta(days=1)).isoformat()
-    data = yf.Ticker(yfinance_symbol).history(start=start_date, end=inclusive_end, interval=interval)
+    data = yf.Ticker(yfinance_symbol).history(
+        start=start_date,
+        end=inclusive_end,
+        interval=interval,
+        auto_adjust=False,
+        actions=True,
+    )
     if data.empty:
         raise ValueError("yfinance returned empty data")
     warnings = []
@@ -159,7 +206,7 @@ def fetch_eastmoney_daily_ohlcv(
         "fields1": "f1,f2,f3,f4,f5,f6",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
         "klt": "101",
-        "fqt": "1",
+        "fqt": "0",
         "secid": _eastmoney_secid(symbol),
         "beg": start_date.replace("-", ""),
         "end": end_date.replace("-", ""),
@@ -175,7 +222,7 @@ def fetch_eastmoney_daily_ohlcv(
     return DataSourceResult(
         data=frame,
         provider="eastmoney",
-        warnings=["东方财富前复权日 K 线作为 A 股免费备用数据源；批量请求需控制频率。"],
+        warnings=["东方财富不复权日 K 线；公司行动由双价格层统一处理。"],
     )
 
 
@@ -257,6 +304,17 @@ def fetch_mootdx_ohlcv(
     )
 
 
+def fetch_mootdx_corporate_actions(symbol: NormalizedSymbol) -> pd.DataFrame:
+    try:
+        from mootdx.utils.adjust import get_xdxr
+    except ImportError as exc:
+        raise ValueError("mootdx is not installed") from exc
+    actions = get_xdxr(symbol.code)
+    if actions is None:
+        raise ValueError("mootdx xdxr returned no result")
+    return actions
+
+
 def fetch_tencent_quote(codes: list[str]) -> dict[str, dict]:
     prefixed = []
     for raw_code in codes:
@@ -331,16 +389,106 @@ def fetch_ohlcv(
     if normalized.market != "CN":
         raise ValueError("仅支持 A 股代码，请输入 6 位 A 股代码或 SH/SZ/BJ 前缀代码")
 
-    if interval == "1d" and daily_cache_enabled():
-        return _fetch_cached_daily_ohlcv(
+    if interval != "1d":
+        return _fetch_live_ohlcv(symbol, normalized, start_date, end_date, interval, provider)
+
+    def load_raw(selected_provider: str) -> DataSourceResult:
+        if daily_cache_enabled():
+            return _fetch_cached_daily_ohlcv(
+                symbol,
+                normalized,
+                start_date,
+                end_date,
+                selected_provider,
+            )
+        return _fetch_live_ohlcv(
             symbol,
             normalized,
             start_date,
             end_date,
-            provider,
+            interval,
+            selected_provider,
         )
 
-    return _fetch_live_ohlcv(symbol, normalized, start_date, end_date, interval, provider)
+    raw_result = load_raw(provider)
+    try:
+        return _finalize_daily_result(raw_result, normalized)
+    except Exception as exc:
+        if provider.lower() != "auto" or raw_result.provider != "mootdx":
+            raise
+        fallback = load_raw("yfinance")
+        finalized = _finalize_daily_result(fallback, normalized)
+        finalized.warnings = [f"mootdx 除权数据获取失败: {exc}"] + finalized.warnings
+        return finalized
+
+
+def _finalize_daily_result(
+    result: DataSourceResult,
+    symbol: NormalizedSymbol,
+) -> DataSourceResult:
+    warnings = list(result.warnings)
+    warnings = [warning for warning in warnings if warning != YFINANCE_RAW_CACHE_MARKER]
+    if result.provider in {"mootdx", "eastmoney"}:
+        actions = fetch_mootdx_corporate_actions(symbol)
+        data = apply_corporate_actions(result.data, actions)
+        warnings = [
+            warning
+            for warning in warnings
+            if "不复权原始价" not in warning
+        ]
+        warnings.append(
+            "已启用双价格体系：复权价用于信号与图表，"
+            f"{result.provider} 原始价用于成交与账户核算。"
+        )
+    elif result.provider == "yfinance":
+        data = apply_corporate_actions(result.data, _yfinance_corporate_actions(result.data))
+        warnings.append("已启用双价格体系；yfinance 公司行动数据仅作为 mootdx 不可用时的备用。")
+    else:
+        data = apply_corporate_actions(result.data, None)
+        warnings.append("该数据源未提供原始价与公司行动的完整拆分，成交价按其返回行情近似处理。")
+    discontinuities = detect_unexplained_discontinuities(data)
+    if discontinuities:
+        first = discontinuities[0]
+        warnings.append(
+            "复权后检测到大幅波动，请结合上市/复牌状态核验: "
+            f"{first['date']} {first['change_pct']:+.2f}%"
+        )
+    return DataSourceResult(
+        data=data,
+        provider=result.provider,
+        warnings=warnings,
+        cache_hit=result.cache_hit,
+        cache_status=result.cache_status,
+    )
+
+
+def _yfinance_corporate_actions(data: pd.DataFrame) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame()
+    dividends = (
+        pd.to_numeric(data["Dividends"], errors="coerce").fillna(0.0)
+        if "Dividends" in data.columns
+        else pd.Series(0.0, index=data.index)
+    )
+    splits = (
+        pd.to_numeric(data["Stock Splits"], errors="coerce").fillna(0.0)
+        if "Stock Splits" in data.columns
+        else pd.Series(0.0, index=data.index)
+    )
+    active = (dividends != 0) | (splits != 0)
+    if not active.any():
+        return pd.DataFrame()
+    split_ratios = splits.where(splits > 0, 1.0)
+    return pd.DataFrame(
+        {
+            "category": 1,
+            "fenhong": dividends[active] * 10,
+            "songzhuangu": (split_ratios[active] - 1) * 10,
+            "peigu": 0.0,
+            "peigujia": 0.0,
+        },
+        index=pd.DatetimeIndex(data.index[active]),
+    )
 
 
 def _fetch_cached_daily_ohlcv(
@@ -356,6 +504,11 @@ def _fetch_cached_daily_ohlcv(
     for provider_name in candidates:
         snapshot = load_daily_cache(normalized.symbol, provider_name)
         if snapshot is None:
+            continue
+        if (
+            snapshot.provider == "yfinance"
+            and YFINANCE_RAW_CACHE_MARKER not in snapshot.warnings
+        ):
             continue
         cached = slice_daily_cache(snapshot, start_date, end_date)
         if snapshot.covers(start_date, end_date) and not cached.empty:
@@ -417,7 +570,14 @@ def _fetch_cached_daily_ohlcv(
         live.provider,
         live.data,
         [(date.fromisoformat(start_date), date.fromisoformat(end_date))],
-        live.warnings,
+        [
+            *live.warnings,
+            *(
+                [YFINANCE_RAW_CACHE_MARKER]
+                if live.provider == "yfinance"
+                else []
+            ),
+        ],
     )
     cached = slice_daily_cache(snapshot, start_date, end_date)
     return DataSourceResult(

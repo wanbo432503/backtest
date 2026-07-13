@@ -34,6 +34,7 @@ class BacktestResult:
     positions: list[dict[str, Any]] = field(default_factory=list)
     trades: list[dict[str, Any]] = field(default_factory=list)
     signal_events: list[dict[str, Any]] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def to_api_response(self) -> dict[str, Any]:
         return {
@@ -50,6 +51,7 @@ class BacktestResult:
             "positions": self.positions,
             "trades": self.trades,
             "signal_events": self.signal_events,
+            "diagnostics": self.diagnostics,
         }
 
 
@@ -127,6 +129,7 @@ def run_single_backtest(
         positions=simulation.positions,
         trades=simulation.trades,
         signal_events=simulation.signal_events,
+        diagnostics=simulation.diagnostics,
     )
 
 
@@ -171,7 +174,7 @@ def _render_backtesting_plot_html(
     plot_data.index = pd.DatetimeIndex(plot_data.index).normalize()
     plot_data = plot_data.sort_index()
     equity = _aligned_plot_equity(plot_data.index, equity_curve, initial_cash)
-    plot_trades = _backtesting_trade_frame(plot_data, trades)
+    plot_trades = _backtesting_trade_frame(data, trades)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -272,7 +275,7 @@ def _backtesting_trade_frame(
 
     if pending_buy is not None:
         final_date = data.index[-1]
-        final_price = float(data.iloc[-1]["Close"])
+        final_price = float(data.iloc[-1].get("RawClose", data.iloc[-1]["Close"]))
         shares = int(pending_buy["shares"])
         entry_price = float(pending_buy["price"])
         rows.append(
@@ -301,17 +304,22 @@ def _plot_trade_row(
     exit_time = pd.Timestamp(sell["date"]).normalize()
     entry_bar = _plot_bar_index(data.index, entry_time)
     exit_bar = _plot_bar_index(data.index, exit_time)
-    shares = int(buy["shares"])
-    entry_price = float(buy["price"])
-    exit_price = float(sell["price"])
+    entry_shares = int(buy["shares"])
+    display_shares = int(sell.get("shares") or entry_shares)
+    raw_entry_price = float(buy["price"])
+    raw_exit_price = float(sell["price"])
+    entry_factor = float(data.iloc[entry_bar].get("AdjFactor", 1.0))
+    exit_factor = float(data.iloc[exit_bar].get("AdjFactor", 1.0))
+    entry_price = raw_entry_price * entry_factor
+    exit_price = raw_exit_price * exit_factor
     pnl = float(
         sell.get("pnl")
         if sell.get("pnl") is not None
-        else shares * (exit_price - entry_price)
+        else entry_shares * (raw_exit_price - raw_entry_price)
     )
-    entry_value = shares * entry_price + float(buy.get("cost") or 0)
+    entry_value = entry_shares * raw_entry_price + float(buy.get("cost") or 0)
     return {
-        "Size": shares,
+        "Size": display_shares,
         "EntryBar": entry_bar,
         "ExitBar": exit_bar,
         "EntryPrice": entry_price,

@@ -185,6 +185,42 @@ def test_plot_html_calls_backtesting_plot(monkeypatch):
     assert captured["plot_trades"] is True
 
 
+def test_backtesting_plot_maps_raw_trade_prices_to_adjusted_candles():
+    data = _sample_ohlcv(4)
+    data["RawOpen"] = data["Open"] / 2
+    data["RawHigh"] = data["High"] / 2
+    data["RawLow"] = data["Low"] / 2
+    data["RawClose"] = data["Close"] / 2
+    data["AdjFactor"] = 2.0
+    trades = [
+        {
+            "date": data.index[1].strftime("%Y-%m-%d"),
+            "side": "buy",
+            "shares": 10,
+            "price": float(data.iloc[1]["RawOpen"]),
+            "cost": 0,
+            "pnl": None,
+        },
+        {
+            "date": data.index[2].strftime("%Y-%m-%d"),
+            "side": "sell",
+            "shares": 15,
+            "price": float(data.iloc[2]["RawOpen"]),
+            "cost": 0,
+            "pnl": 1,
+        },
+    ]
+
+    plot_trades = backtest_runner._backtesting_trade_frame(data, trades)
+
+    assert plot_trades.iloc[0]["EntryPrice"] == data.iloc[1]["Open"]
+    assert plot_trades.iloc[0]["ExitPrice"] == data.iloc[2]["Open"]
+    assert plot_trades.iloc[0]["Size"] == 15
+    assert plot_trades.iloc[0]["ReturnPct"] == pytest.approx(
+        1 / (10 * float(data.iloc[1]["RawOpen"]))
+    )
+
+
 def test_new_volume_divergence_rsi_strategy_runs_in_single_stock_mode(monkeypatch):
     monkeypatch.setattr(
         "backtest_runner.fetch_ohlcv",
@@ -297,9 +333,11 @@ def test_backtest_api_keeps_legacy_response_shape(monkeypatch):
         "positions",
         "trades",
         "signal_events",
+        "diagnostics",
     }
     assert payload["data_provider"] == "test"
     assert payload["data_warnings"] == ["source warning"]
+    assert "corporate_action_events" in payload["diagnostics"]
     assert "综合评分" in payload["stats"]
     assert "Volume" in payload["plot_html"]
 

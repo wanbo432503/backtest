@@ -1,81 +1,79 @@
-# Progress Log
+# Progress Log: Dual-Price Backtesting
 
-## Session: 2026-07-12
+## Session: 2026-07-13
 
-### Phase 1: Requirements & Discovery
-- **Status:** complete
+### Phase 1: Data and Execution Contract
+- **Status:** completed
 - Actions taken:
-  - Traced single-stock API, simulator summary, formatter, and Bokeh plot generation.
-  - Reproduced the reported SH603019 behavior against cached market data.
-  - Confirmed the previous backtesting.py implementation and the intentional unified-engine migration.
-  - Selected the existing portfolio table renderer for single-stock position and trade details.
-- Files created/modified:
-  - `task_plan.md` (created)
-  - `findings.md` (created)
-  - `progress.md` (created)
+  - Reproduced all major SZ002475 raw price discontinuities from the local mootdx cache.
+  - Matched discontinuity dates to mootdx category-1 xdxr events.
+  - Verified the 2015 event is a genuine roughly -4.29% move after theoretical ex-right adjustment, not -36.29%.
+  - Inspected cache storage and mootdx adjustment implementations.
+  - Traced strategy risk, position, valuation, contribution, and fill price assumptions through the simulator.
+  - Finalized the frame contract, fail-closed mootdx xdxr behavior, and cash-limited rights subscription behavior.
+  - Wrote the implementation design in `docs/plans/2026-07-13-dual-price-backtest-design.md`.
+- Files modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+  - `docs/plans/2026-07-13-dual-price-backtest-design.md`
 
-### Phase 2: Contract Tests
-- **Status:** complete
+### Phase 2: Failing Contract Tests
+- **Status:** completed
 - Actions taken:
-  - Defined contracts for exposure time, benchmark return, additive API details, and UI detail rendering.
-  - Ran four new tests and observed all fail for the expected missing behavior.
-- Files created/modified:
-  - `test/test_strategy_simulator.py`
-  - `test/test_backtest_runner.py`
-  - `test/test_index_template.py`
+  - Added adjustment-engine tests for raw preservation, event factors, future-event isolation, and invalid factors.
+  - Added simulator contract tests for adjusted signal/raw fill, adjusted stop/raw fill, dividends, bonus shares, valuation, and ex-date limit checks.
+  - Added market-data tests for post-cache enrichment and fail-closed `auto` fallback.
 
-### Phase 3: Backend Implementation
-- **Status:** complete
+### Phase 3: Adjustment Pipeline
+- **Status:** completed
 - Actions taken:
-  - Added full-period exposure time to simulator summaries.
-  - Calculated single-stock buy-and-hold benchmark from the requested close series.
-  - Added summary, equity curve, positions, trades, and signal events to the API response.
-- Files created/modified:
-  - `strategy_simulator.py`
-  - `backtest_runner.py`
+  - Implemented project-owned xdxr normalization and multiplicative forward-adjustment factors.
+  - Kept daily cache content raw and enriched only returned frames.
+  - Added mootdx xdxr retrieval, yfinance raw/action fallback, and impossible-gap validation.
 
-### Phase 4: UI Implementation
-- **Status:** complete
+### Phase 4: Simulator and Reporting
+- **Status:** completed
 - Actions taken:
-  - Added a collapsible single-stock details panel with current positions and complete trade history.
-  - Added accurate period-exposure and final-position context to the panel empty state.
-  - Reused the existing escaped responsive table renderer.
-- Files created/modified:
-  - `templates/index.html`
+  - Split adjusted strategy prices from raw execution/accounting prices.
+  - Applied cash dividends, bonus shares, and cash-limited rights subscriptions before ex-date trading.
+  - Corrected raw valuation, realized/unrealized PnL, risk sizing, and limit checks.
+  - Preserved dual-price columns through repeated OHLCV preparation.
+  - Kept backtesting.py candles and trade markers in adjusted coordinates while returning raw ledger fills.
+  - Exposed corporate-action diagnostics in both single-stock and signal-portfolio results.
 
-### Phase 5: Verification & Delivery
-- **Status:** complete
+### Phase 5: Verification and Delivery
+- **Status:** completed
 - Actions taken:
-  - Focused backend and template suite: 59 passed.
-  - Full test suite: 462 passed.
-  - Browser reproduction confirmed corrected metrics, 18 trade rows, empty-position explanation, full-width charts, and no console errors.
-  - Fixed a browser-discovered chart flex-collapse regression and independently reverified a 680px chart card with details below it.
-  - Addressed the independent review's only finding by removing inert symbol buttons from the single-stock tables.
-  - Final verification: 463 tests passed, Python compilation succeeded, and `git diff --check` reported no errors.
-- Files created/modified:
+  - Completed an independent code review and fixed all four Important findings plus the plotting Minor.
+  - Added regressions for legitimate large moves, old yfinance caches, Eastmoney raw prices, suspended-stock action dates, and post-bonus plot sizing.
+  - Re-ran compilation, full tests, real SZ002475 adjustment, and real MA60 single-stock backtest.
 
 ## Test Results
-| Test | Input | Expected | Actual | Status |
-|------|-------|----------|--------|--------|
-| New contract tests before implementation | 4 focused tests | Fail for missing behavior | 4 failed as expected | ✓ RED |
-| Focused regression suite | simulator, runner, template tests | All pass | 59 passed | ✓ GREEN |
-| Initial full automated suite | `pytest -q` | All pass | 462 passed, 1 dependency deprecation warning | ✓ |
-| Reported browser scenario | SH603019 MACD, 2023-08-11 to 2026-07-12 | Nonzero benchmark/exposure, detailed trades | 164.52% benchmark, 11.24% exposure, 18 order rows | ✓ |
-| Responsive chart regression | Two Bokeh figures | Fill iframe width | Both 556px wide | ✓ |
-| Final post-review verification | pytest, compileall, diff check | All succeed | 463 passed; compile and diff checks clean | ✓ |
+| Test | Expected | Actual | Status |
+|------|----------|--------|--------|
+| Raw SZ002475 discontinuity scan | Large jumps align with corporate actions | Six 22%-36% jumps align with annual xdxr events | confirmed |
+| New dual-price contract tests (RED) | Fail before implementation | Collection fails because `price_adjustment` does not exist | expected failure |
+| Provider integration tests (RED) | Cache remains raw and xdxr failure falls back | Missing RawClose; provider remains mootdx | expected failure |
+| Focused dual-price suite | All data, simulator, cache, single, portfolio, optimization regressions pass | 106 passed | passed |
+| Real SZ002475 2015 regression | Raw -36.29% gap becomes genuine adjusted move | Adjusted return -4.29%; raw cache unchanged | passed |
+| Full project suite after review fixes | No regressions | 515 passed, 1 dependency deprecation warning | passed |
+| Real MA60 SZ002475 run | Uses backtesting.py chart, raw fills, and action accounting | 26 orders; 2 action events; plot generated | passed |
 
 ## Error Log
-| Timestamp | Error | Attempt | Resolution |
-|-----------|-------|---------|------------|
-| 2026-07-12 | Four expected contract failures | 1 | Implemented missing summary, response, and UI behavior |
-| 2026-07-12 | Expanded details collapsed chart card height to zero | 1 | Added tested 680px flex basis/min-height; browser now measures chart card at 680px |
-| 2026-07-12 | Reviewer found inert symbol buttons | 1 | Switched new tables to escaped plain-text symbols |
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `NDFrame.fillna(method=...)` TypeError in mootdx `_reversion` | 1 | Rejected built-in implementation |
+| KeyError from mootdx `baoli_qfq` positional indexing | 1 | Rejected built-in implementation |
+| 2026-07-13 | Missing `test/test_market_data.py` | 1 | Locate the actual market-data test filenames with `rg --files` |
+| 2026-07-13 | Hard-coded adjusted return differed by 0.0001 percentage point | 1 | Derive the assertion from the theoretical ex-right reference price |
+| 2026-07-13 | Design-doc patch context mismatch | 1 | Re-read the exact file and apply smaller patches |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Complete |
-| Where am I going? | Commit and deliver |
-| What's the goal? | Correct and complete unified-engine single-stock reports |
+| Where am I? | Phase 1, tracing simulator dependencies |
+| Where am I going? | Contract tests, adjustment pipeline, simulator integration, verification |
+| What's the goal? | Continuous adjusted signals plus accurate raw-price execution/accounting |
 | What have I learned? | See `findings.md` |
-| What have I done? | Correct metrics, complete API details, UI tables, layout fix, full verification |
+| What have I done? | Reproduced and classified the discontinuity; selected the data contract direction |

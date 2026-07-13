@@ -45,17 +45,20 @@ class _Position:
     shares: int
     entry_date: str
     entry_price: float
+    entry_adjusted_price: float
     entry_cost: float
     holding_bars: int = 0
     highest_price: float | None = None
     risk: RiskIntent | None = None
+    dividend_income: float = 0.0
+    corporate_action_valuation_price: float | None = None
 
     def public(self) -> SimulationPosition:
         return SimulationPosition(
             symbol=self.symbol,
             shares=self.shares,
             entry_date=self.entry_date,
-            entry_price=self.entry_price,
+            entry_price=self.entry_adjusted_price,
             entry_cost=self.entry_cost,
             holding_bars=self.holding_bars,
             highest_price=self.highest_price,
@@ -87,7 +90,12 @@ def run_strategy_simulation(
     if not data_by_symbol:
         raise ValueError("strategy simulation requires at least one symbol")
     frames = {}
+    corporate_action_schedules: dict[str, dict[pd.Timestamp, pd.Series]] = {}
+    symbols_with_action_metadata: set[str] = set()
     for symbol, data in data_by_symbol.items():
+        if "corporate_actions" in data.attrs:
+            symbols_with_action_metadata.add(symbol)
+            corporate_action_schedules[symbol] = _corporate_action_schedule(data)
         try:
             frames[symbol] = definition.prepare_frame(
                 _normalized_frame(data),
@@ -97,7 +105,16 @@ def run_strategy_simulation(
             raise RuntimeError(
                 f"strategy '{definition.strategy_id}' symbol {symbol} preparation failed: {exc}"
             ) from exc
-    calendar = build_trading_calendar(frames)
+    calendar = sorted(
+        {
+            *build_trading_calendar(frames),
+            *(
+                action_date
+                for schedule in corporate_action_schedules.values()
+                for action_date in schedule
+            ),
+        }
+    )
     if simulation_config.start_date:
         calendar = [date for date in calendar if date >= pd.Timestamp(simulation_config.start_date)]
     if simulation_config.end_date:
@@ -124,6 +141,7 @@ def run_strategy_simulation(
         "rejected_entry_count": 0,
         "insufficient_entry_history_count": 0,
         "drawdown_entry_stop": False,
+        "corporate_action_events": [],
     }
     entry_history_start_date = (
         pd.Timestamp(simulation_config.entry_history_start_date)
@@ -140,10 +158,24 @@ def run_strategy_simulation(
             current_date=_date_str(date),
         )
         for symbol, position in positions.items():
+            action_row = corporate_action_schedules.get(symbol, {}).get(date)
+            if action_row is not None:
+                action_row = _action_row_with_factor(action_row, frames[symbol], date)
+            elif symbol not in symbols_with_action_metadata and date in frames[symbol].index:
+                action_row = frames[symbol].loc[date]
+            if action_row is not None:
+                cash, action_event = _apply_position_corporate_action(
+                    date,
+                    position,
+                    action_row,
+                    cash,
+                )
+                if action_event is not None:
+                    diagnostics["corporate_action_events"].append(action_event)
             if date in frames[symbol].index and _date_str(date) != position.entry_date:
                 position.holding_bars += 1
                 position.highest_price = max(
-                    position.highest_price or position.entry_price,
+                    position.highest_price or position.entry_adjusted_price,
                     float(frames[symbol].loc[date, "Close"]),
                 )
 
@@ -152,14 +184,14 @@ def run_strategy_simulation(
                 continue
             position = positions[symbol]
             row = frames[symbol].loc[date]
-            reason, raw_price = _exit_for_bar(
+            reason, adjusted_fill_price = _exit_for_bar(
                 row,
                 position,
                 pending_exits.get(symbol),
             )
-            if reason is None or raw_price is None:
+            if reason is None or adjusted_fill_price is None:
                 continue
-            execution_row = {**row.to_dict(), "Close": raw_price}
+            execution_row = {**row.to_dict(), "Close": adjusted_fill_price}
             allowed, _ = can_sell(
                 execution_row,
                 _previous_close(frames[symbol], date),
@@ -168,10 +200,17 @@ def run_strategy_simulation(
             )
             if not allowed:
                 continue
-            price = apply_slippage(raw_price, "sell", simulation_config.trading.slippage_pct)
+            raw_fill_price = _raw_price_from_adjusted(row, adjusted_fill_price)
+            price = apply_slippage(raw_fill_price, "sell", simulation_config.trading.slippage_pct)
             amount = position.shares * price
             cost = calculate_trade_cost(amount, "sell", simulation_config.trading)
-            pnl = amount - cost - position.shares * position.entry_price - position.entry_cost
+            pnl = (
+                amount
+                - cost
+                - position.shares * position.entry_price
+                - position.entry_cost
+                + position.dividend_income
+            )
             cash += amount - cost
             trades.append(
                 _trade(date, symbol, "sell", position.shares, price, amount, cost, reason, pnl)
@@ -216,9 +255,9 @@ def run_strategy_simulation(
                 pending_entries.pop(symbol, None)
                 continue
             row = frame.loc[date]
-            raw_price = _entry_price(pending.intent, row)
+            adjusted_fill_price = _entry_price(pending.intent, row)
             pending.attempts += 1
-            if raw_price is None:
+            if adjusted_fill_price is None:
                 if pending.attempts >= pending.intent.expires_after_bars:
                     diagnostics["expired_entry_count"] += 1
                     pending_entries.pop(symbol, None)
@@ -233,7 +272,7 @@ def run_strategy_simulation(
                 diagnostics["rejected_entry_count"] += 1
                 pending_entries.pop(symbol, None)
                 continue
-            execution_row = {**row.to_dict(), "Close": raw_price}
+            execution_row = {**row.to_dict(), "Close": adjusted_fill_price}
             allowed, _ = can_buy(
                 execution_row,
                 _previous_close(frame, date),
@@ -247,7 +286,9 @@ def run_strategy_simulation(
             equity = _portfolio_value_at_execution(date, cash, positions, frames)
             gross = _gross_exposure_at_execution(date, positions, frames)
             multiplier = pending.risk_multiplier
-            price = apply_slippage(raw_price, "buy", simulation_config.trading.slippage_pct)
+            raw_fill_price = _raw_price_from_adjusted(row, adjusted_fill_price)
+            price = apply_slippage(raw_fill_price, "buy", simulation_config.trading.slippage_pct)
+            adjusted_price = price * _adjustment_factor(row)
             suggested_budget = equity * pending.intent.suggested_position_pct * multiplier
             position_cap = equity * simulation_config.max_position_pct
             exposure_cap = max(0.0, equity * simulation_config.target_gross_exposure - gross)
@@ -256,7 +297,7 @@ def run_strategy_simulation(
                 position_budget / price,
                 simulation_config.trading.lot_size,
             )
-            risk = _risk_for_fill(pending.intent, price)
+            risk = _risk_for_fill(pending.intent, adjusted_price)
             risk_shares = budget_shares
             if (
                 risk is not None
@@ -265,7 +306,10 @@ def run_strategy_simulation(
                 and risk.risk_per_share > 0
             ):
                 risk_shares = round_lot_shares(
-                    equity * risk.risk_budget_pct * multiplier / risk.risk_per_share,
+                    equity
+                    * risk.risk_budget_pct
+                    * multiplier
+                    / (risk.risk_per_share / _adjustment_factor(row)),
                     simulation_config.trading.lot_size,
                 )
             shares = min(budget_shares, risk_shares)
@@ -287,8 +331,9 @@ def run_strategy_simulation(
                 shares=shares,
                 entry_date=_date_str(date),
                 entry_price=price,
+                entry_adjusted_price=adjusted_price,
                 entry_cost=cost,
-                highest_price=price,
+                highest_price=adjusted_price,
                 risk=risk,
             )
             contributions.setdefault(symbol, {"realized_pnl": 0.0, "round_trips": 0})
@@ -409,7 +454,121 @@ def run_strategy_simulation(
 def _normalized_frame(data: pd.DataFrame) -> pd.DataFrame:
     frame = data.copy()
     frame.index = pd.DatetimeIndex(frame.index).normalize()
+    for price_name in ("Open", "High", "Low", "Close"):
+        raw_name = f"Raw{price_name}"
+        if raw_name not in frame.columns:
+            frame[raw_name] = frame[price_name]
+    if "AdjFactor" not in frame.columns:
+        frame["AdjFactor"] = 1.0
+    for action_name in (
+        "CashDividendPer10",
+        "BonusSharesPer10",
+        "RightsSharesPer10",
+        "RightsPrice",
+    ):
+        if action_name not in frame.columns:
+            frame[action_name] = 0.0
     return frame.sort_index()
+
+
+def _corporate_action_schedule(data: pd.DataFrame) -> dict[pd.Timestamp, pd.Series]:
+    schedule = {}
+    for event in data.attrs.get("corporate_actions", []):
+        action_date = pd.Timestamp(event["date"]).normalize()
+        schedule[action_date] = pd.Series(event)
+    return schedule
+
+
+def _action_row_with_factor(
+    action: pd.Series,
+    frame: pd.DataFrame,
+    date: pd.Timestamp,
+) -> pd.Series:
+    row = action.copy()
+    future = frame[frame.index >= date]
+    if not future.empty:
+        row["AdjFactor"] = float(future.iloc[0].get("AdjFactor", 1.0))
+    else:
+        row["AdjFactor"] = 1.0
+    return row
+
+
+def _adjustment_factor(row: pd.Series) -> float:
+    factor = float(row.get("AdjFactor", 1.0))
+    if not math.isfinite(factor) or factor <= 0:
+        raise ValueError(f"invalid adjustment factor: {factor!r}")
+    return factor
+
+
+def _raw_price(row: pd.Series, price_name: str) -> float:
+    return float(row.get(f"Raw{price_name}", row[price_name]))
+
+
+def _raw_price_from_adjusted(row: pd.Series, adjusted_price: float) -> float:
+    return float(adjusted_price) / _adjustment_factor(row)
+
+
+def _apply_position_corporate_action(
+    date: pd.Timestamp,
+    position: _Position,
+    row: pd.Series,
+    cash: float,
+) -> tuple[float, dict[str, Any] | None]:
+    cash_per_10 = float(row.get("CashDividendPer10", 0.0) or 0.0)
+    bonus_per_10 = float(row.get("BonusSharesPer10", 0.0) or 0.0)
+    rights_per_10 = float(row.get("RightsSharesPer10", 0.0) or 0.0)
+    rights_price = float(row.get("RightsPrice", 0.0) or 0.0)
+    if not any(value > 0 for value in (cash_per_10, bonus_per_10, rights_per_10)):
+        return cash, None
+
+    original_shares = position.shares
+    raw_cost_basis = position.shares * position.entry_price
+    cash_dividend = original_shares * cash_per_10 / 10.0
+    cash += cash_dividend
+    position.dividend_income += cash_dividend
+
+    bonus_shares = max(0, int(math.floor(original_shares * bonus_per_10 / 10.0 + 1e-9)))
+    position.shares += bonus_shares
+
+    rights_entitlement = max(
+        0,
+        int(math.floor(original_shares * rights_per_10 / 10.0 + 1e-9)),
+    )
+    affordable_rights = (
+        int(math.floor(cash / rights_price + 1e-9))
+        if rights_price > 0
+        else rights_entitlement
+    )
+    rights_subscribed = min(rights_entitlement, affordable_rights)
+    rights_cash = rights_subscribed * rights_price
+    cash -= rights_cash
+    raw_cost_basis += rights_cash
+    position.shares += rights_subscribed
+    if position.shares > 0:
+        position.entry_price = raw_cost_basis / position.shares
+        effective_adjusted_basis = max(
+            0.0,
+            raw_cost_basis - position.dividend_income,
+        )
+        position.entry_adjusted_price = (
+            effective_adjusted_basis
+            * _adjustment_factor(row)
+            / position.shares
+        )
+    reference_price = row.get("RawReferencePrice")
+    if reference_price is not None and not pd.isna(reference_price):
+        position.corporate_action_valuation_price = float(reference_price)
+
+    return cash, {
+        "date": _date_str(date),
+        "symbol": position.symbol,
+        "cash_dividend": round(cash_dividend, 6),
+        "bonus_shares": bonus_shares,
+        "rights_entitlement": rights_entitlement,
+        "rights_subscribed": rights_subscribed,
+        "rights_unsubscribed": rights_entitlement - rights_subscribed,
+        "rights_cash": round(rights_cash, 6),
+    }
 
 
 def _entry_price(intent: EntryIntent, row: pd.Series) -> float | None:
@@ -475,7 +634,9 @@ def _gross_exposure(
     for symbol, position in positions.items():
         row = _row_at(frames[symbol], date)
         if row is not None:
-            total += position.shares * float(row["Close"])
+            total += position.shares * _position_raw_price(
+                frames[symbol], date, position, "Close"
+            )
     return total
 
 
@@ -488,12 +649,13 @@ def _gross_exposure_at_execution(
     for symbol, position in positions.items():
         frame = frames[symbol]
         if date in frame.index:
-            price = float(frame.loc[date, "Open"])
+            price = _raw_price(frame.loc[date], "Open")
+            position.corporate_action_valuation_price = None
         else:
             row = _row_at(frame, date)
             if row is None:
                 continue
-            price = float(row["Close"])
+            price = _position_raw_price(frame, date, position, "Close")
         total += position.shares * price
     return total
 
@@ -514,6 +676,22 @@ def _portfolio_value_at_execution(
     frames: dict[str, pd.DataFrame],
 ) -> float:
     return cash + _gross_exposure_at_execution(date, positions, frames)
+
+
+def _position_raw_price(
+    frame: pd.DataFrame,
+    date: pd.Timestamp,
+    position: _Position,
+    price_name: str,
+) -> float:
+    if date not in frame.index and position.corporate_action_valuation_price is not None:
+        return position.corporate_action_valuation_price
+    row = _row_at(frame, date)
+    if row is None:
+        raise ValueError(f"missing valuation price for {position.symbol} at {_date_str(date)}")
+    if date in frame.index:
+        position.corporate_action_valuation_price = None
+    return _raw_price(row, price_name)
 
 
 def _trade(date, symbol, side, shares, price, amount, cost, reason, pnl):
@@ -578,7 +756,7 @@ def _position_rows(date, positions, frames):
         row = _row_at(frames[symbol], date)
         if row is None:
             continue
-        price = float(row["Close"])
+        price = _position_raw_price(frames[symbol], date, position, "Close")
         rows.append(
             {
                 "symbol": symbol,
@@ -588,7 +766,9 @@ def _position_rows(date, positions, frames):
                 "price": round(price, 6),
                 "market_value": round(position.shares * price, 6),
                 "unrealized_pnl": round(
-                    position.shares * (price - position.entry_price) - position.entry_cost,
+                    position.shares * (price - position.entry_price)
+                    - position.entry_cost
+                    + position.dividend_income,
                     6,
                 ),
                 "holding_bars": position.holding_bars,
@@ -607,8 +787,13 @@ def _contribution_rows(contributions, positions, date, frames):
             row = _row_at(frames[symbol], date)
             if row is not None:
                 unrealized = (
-                    position.shares * (float(row["Close"]) - position.entry_price)
+                    position.shares
+                    * (
+                        _position_raw_price(frames[symbol], date, position, "Close")
+                        - position.entry_price
+                    )
                     - position.entry_cost
+                    + position.dividend_income
                 )
         realized = float(bucket["realized_pnl"])
         rows.append(

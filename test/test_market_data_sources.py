@@ -1,20 +1,31 @@
+from datetime import date
+
+import pandas as pd
+import pytest
+
 from market_data import (
     DataSourceResult,
     detect_market,
+    fetch_eastmoney_daily_ohlcv,
     fetch_ohlcv,
     fetch_mootdx_ohlcv,
     normalize_symbol,
     parse_eastmoney_kline_payload,
+    prepare_ohlcv,
     to_yfinance_symbol,
 )
-import pandas as pd
-import pytest
+from market_data_cache import load_daily_cache, save_daily_cache
 
 
 @pytest.fixture(autouse=True)
 def isolate_market_data_cache(monkeypatch, tmp_path):
     monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path / "market-cache"))
     monkeypatch.setenv("MARKET_DATA_CACHE_ENABLED", "true")
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: pd.DataFrame(),
+        raising=False,
+    )
 
 
 def test_detects_a_share_formats():
@@ -95,6 +106,178 @@ def test_auto_a_share_prefers_mootdx(monkeypatch):
 
     assert result.provider == "mootdx"
     assert calls == ["mootdx"]
+
+
+def test_daily_mootdx_result_is_adjusted_after_raw_cache_is_loaded(monkeypatch):
+    raw = pd.DataFrame(
+        {
+            "Open": [52.5, 35.28],
+            "High": [53.8, 35.8],
+            "Low": [52.0, 33.0],
+            "Close": [53.05, 33.8],
+            "Volume": [1_000, 2_000],
+        },
+        index=pd.to_datetime(["2015-06-18", "2015-06-19"]),
+    )
+    actions = pd.DataFrame(
+        {
+            "category": [1],
+            "fenhong": [0.8],
+            "songzhuangu": [5.0],
+            "peigu": [0.0],
+            "peigujia": [0.0],
+        },
+        index=pd.to_datetime(["2015-06-19"]),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "mootdx", []),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: actions,
+    )
+
+    result = fetch_ohlcv("SZ002475", "2015-06-18", "2015-06-19", "1d", "mootdx")
+
+    assert result.data.loc["2015-06-18", "RawClose"] == 53.05
+    assert result.data.loc["2015-06-18", "Close"] == pytest.approx(35.3133333333)
+    assert any("双价格" in warning for warning in result.warnings)
+    snapshot = load_daily_cache("sz002475", "mootdx")
+    assert snapshot is not None
+    assert "RawClose" not in snapshot.data.columns
+    assert snapshot.data.loc["2015-06-18", "Close"] == 53.05
+
+    prepared_again = prepare_ohlcv(result.data)
+    assert "RawClose" in prepared_again.columns
+    assert "AdjFactor" in prepared_again.columns
+    assert "CashDividendPer10" in prepared_again.columns
+
+
+def test_auto_falls_back_when_mootdx_corporate_actions_are_unavailable(monkeypatch):
+    calls = []
+    raw = pd.DataFrame(
+        {
+            "Open": [10],
+            "High": [11],
+            "Low": [9],
+            "Close": [10.5],
+            "Volume": [1_000],
+        },
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+
+    def mootdx_source(*args, **kwargs):
+        calls.append("mootdx")
+        return DataSourceResult(raw, "mootdx", [])
+
+    def yfinance_source(*args, **kwargs):
+        calls.append("yfinance")
+        return DataSourceResult(raw, "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_mootdx_ohlcv", mootdx_source)
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", yfinance_source)
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: (_ for _ in ()).throw(ValueError("xdxr unavailable")),
+    )
+
+    result = fetch_ohlcv("SZ002475", "2026-07-03", "2026-07-03", "1d", "auto")
+
+    assert result.provider == "yfinance"
+    assert calls == ["mootdx", "yfinance"]
+    assert any("xdxr unavailable" in warning for warning in result.warnings)
+
+
+def test_mootdx_warns_without_rejecting_large_legitimate_move(monkeypatch):
+    raw = pd.DataFrame(
+        {
+            "Open": [52.5, 35.28],
+            "High": [53.8, 35.8],
+            "Low": [52.0, 33.0],
+            "Close": [53.05, 33.8],
+            "Volume": [1_000, 2_000],
+        },
+        index=pd.to_datetime(["2015-06-18", "2015-06-19"]),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "mootdx", []),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: pd.DataFrame(),
+    )
+
+    result = fetch_ohlcv("BJ830001", "2015-06-18", "2015-06-19", "1d", "mootdx")
+
+    assert result.provider == "mootdx"
+    assert any("大幅波动" in warning for warning in result.warnings)
+
+
+def test_old_yfinance_cache_without_raw_contract_is_refetched(monkeypatch):
+    old = pd.DataFrame(
+        {
+            "Open": [10],
+            "High": [11],
+            "Low": [9],
+            "Close": [10.5],
+            "Volume": [1_000],
+        },
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+    save_daily_cache(
+        "sz002475",
+        "yfinance",
+        old,
+        [(date(2026, 7, 3), date(2026, 7, 3))],
+        [],
+    )
+    calls = []
+    fresh = old.assign(
+        **{
+            "Adj Close": [10.4],
+            "Dividends": [0.0],
+            "Stock Splits": [0.0],
+        }
+    )
+
+    def yfinance_source(*args, **kwargs):
+        calls.append("yfinance")
+        return DataSourceResult(fresh, "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", yfinance_source)
+
+    result = fetch_ohlcv("SZ002475", "2026-07-03", "2026-07-03", "1d", "yfinance")
+
+    assert calls == ["yfinance"]
+    assert result.data.loc["2026-07-03", "RawClose"] == 10.5
+
+
+def test_eastmoney_requests_raw_prices(monkeypatch):
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "rc": 0,
+                "data": {"klines": ["2026-07-03,10,10.5,11,9,1000,10000"]},
+            }
+
+    def fake_get(url, **kwargs):
+        captured.update(kwargs["params"])
+        return Response()
+
+    monkeypatch.setattr("market_data.requests.get", fake_get)
+
+    fetch_eastmoney_daily_ohlcv(
+        normalize_symbol("SZ002475"), "2026-07-03", "2026-07-03"
+    )
+
+    assert captured["fqt"] == "0"
 
 
 def test_auto_a_share_falls_back_to_yfinance_when_mootdx_fails(monkeypatch):
