@@ -110,6 +110,13 @@ def test_ma60_metadata_exposes_optimizable_slope_and_gap_parameters():
 
     assert params["ma_slope_lookback_bars"].default == 20
     assert params["ma_slope_lookback_bars"].search_values == [10, 20, 30, 40]
+    assert params["min_breakout_ma_slope_return_pct"].default == 0
+    assert params["min_breakout_ma_slope_return_pct"].search_values == [
+        -0.5,
+        0,
+        0.5,
+        1,
+    ]
     assert params["min_ma_slope_return_pct"].default == 1
     assert params["min_ma_slope_return_pct"].search_values == [0, 0.5, 1, 2]
     assert params["max_entry_gap_pct"].default == 3

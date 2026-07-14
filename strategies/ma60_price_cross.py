@@ -28,6 +28,7 @@ class MA60PriceCrossConfig(BaseModel):
 
     position_pct: float = Field(default=0.15, ge=0.05, le=0.15)
     ma_slope_lookback_bars: int = Field(default=20, ge=5, le=60)
+    min_breakout_ma_slope_return_pct: float = Field(default=0.0, ge=-5, le=5)
     min_ma_slope_return_pct: float = Field(default=1.0, ge=-5, le=5)
     max_entry_gap_pct: float = Field(default=3.0, ge=0, le=20)
 
@@ -133,8 +134,12 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
     ):
         return StrategyDecision()
     is_breakout_setup = current_close <= entry_threshold
-    minimum_slope_return = config.min_ma_slope_return_pct / 100
-    if not is_breakout_setup and ma_slope_return < minimum_slope_return:
+    minimum_slope_return = (
+        config.min_breakout_ma_slope_return_pct
+        if is_breakout_setup
+        else config.min_ma_slope_return_pct
+    ) / 100
+    if ma_slope_return < minimum_slope_return:
         return StrategyDecision()
     entry_mode = (
         "breakout"
@@ -175,7 +180,7 @@ def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="每日收盘后按当日 MA60 与 ATR 预挂次日 0.5 ATR 上轨突破单，首次突破不受斜率限制；已经站上上轨的趋势延续入场需满足可配置的 MA60 斜率，并限制跳空追价；持仓后使用 0.25 ATR 下轨保护，卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易。",
+    description="每日收盘后按当日 MA60 与 ATR 预挂次日 0.5 ATR 上轨突破单；首次突破和已经站上上轨后的趋势延续分别使用可配置的 MA60 最低斜率，并限制跳空追价；持仓后使用 0.25 ATR 下轨保护，卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(
@@ -197,11 +202,22 @@ STRATEGY_DEFINITION = StrategyDefinition(
             min_value=5,
             max_value=60,
             step=5,
-            description="仅用于趋势延续入场，计算 MA60 在指定交易日内的变化。",
+            description="用于首次突破和趋势延续入场，计算 MA60 在指定交易日内的变化。",
+        ),
+        StrategyParamMeta(
+            name="min_breakout_ma_slope_return_pct",
+            label="首次突破最低MA60斜率收益(%)",
+            type="float",
+            default=0.0,
+            search_values=[-0.5, 0, 0.5, 1],
+            min_value=-5,
+            max_value=5,
+            step=0.5,
+            description="仅限制价格尚未站上 ATR 上轨时创建的首次突破挂单；负值允许 MA60 轻微下行。",
         ),
         StrategyParamMeta(
             name="min_ma_slope_return_pct",
-            label="最低MA60斜率收益(%)",
+            label="趋势延续最低MA60斜率收益(%)",
             type="float",
             default=1.0,
             search_values=[0, 0.5, 1, 2],

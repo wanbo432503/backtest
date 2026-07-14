@@ -151,10 +151,10 @@ def test_entry_places_intraday_stop_order_before_upper_band_breakout():
     assert decision.entry.risk.stop_price == 9.9
 
 
-def test_fresh_breakout_setup_does_not_wait_for_ma60_slope_confirmation():
-    frame = _filtered_signal_frame(current=9.95, slope=-0.05)
+def test_fresh_breakout_uses_independent_configurable_ma60_slope_threshold():
+    frame = _filtered_signal_frame(current=9.95, slope=-0.005)
 
-    decision = STRATEGY_DEFINITION.evaluate(
+    blocked = STRATEGY_DEFINITION.evaluate(
         StrategyBarContext(
             symbol="SH603019",
             frame=frame,
@@ -162,10 +162,21 @@ def test_fresh_breakout_setup_does_not_wait_for_ma60_slope_confirmation():
             config=MA60PriceCrossConfig(),
         )
     )
+    allowed = STRATEGY_DEFINITION.evaluate(
+        StrategyBarContext(
+            symbol="SH603019",
+            frame=frame,
+            bar_index=len(frame) - 1,
+            config=MA60PriceCrossConfig(
+                min_breakout_ma_slope_return_pct=-1,
+            ),
+        )
+    )
 
-    assert decision.entry is not None
-    assert decision.entry.trigger_price == 10.2
-    assert decision.entry.metadata["entry_mode"] == "breakout"
+    assert blocked.entry is None
+    assert allowed.entry is not None
+    assert allowed.entry.trigger_price == 10.2
+    assert allowed.entry.metadata["entry_mode"] == "breakout"
 
 
 def test_trend_continuation_uses_configurable_ma60_slope_threshold():
@@ -227,7 +238,7 @@ def test_ma60_entry_exposes_configurable_gap_limit_to_execution_engine():
     assert decision.entry.metadata["max_entry_gap_pct"] == 3
 
 
-def test_sh603019_like_breakout_fills_on_the_breakout_session():
+def test_sh603019_like_breakout_is_blocked_while_ma60_is_falling():
     frame = _filtered_signal_frame(current=36.12, atr=2.0064, slope=-0.044947)
     frame["ma_value"] = 36.5402
     signal_date = frame.index[-1]
@@ -259,9 +270,8 @@ def test_sh603019_like_breakout_fills_on_the_breakout_session():
         ),
     )
 
-    buys = [trade for trade in result.trades if trade["side"] == "buy"]
-    assert buys[0]["date"] == fill_date.strftime("%Y-%m-%d")
-    assert buys[0]["price"] == 38.50
+    assert result.signal_events == []
+    assert result.trades == []
 
 
 def test_ma60_rejects_delayed_entry_far_above_the_atr_trigger():
