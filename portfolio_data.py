@@ -32,6 +32,7 @@ class PortfolioDataBundle:
     providers: dict[str, str] = field(default_factory=dict)
     cache_hits: int = 0
     cache_misses: int = 0
+    stale_cache_hits: int = 0
 
 
 def load_portfolio_ohlcv(
@@ -60,11 +61,19 @@ def load_portfolio_ohlcv(
     failed_count = 0
     cache_hits = 0
     cache_misses = 0
+    stale_cache_hits = 0
 
     for batch_index, batch in enumerate(_chunks(symbols, batch_size)):
         for symbol_index, symbol in enumerate(batch):
             try:
-                source_result = fetch_ohlcv(symbol, start_date, end_date, interval, provider)
+                source_result = fetch_ohlcv(
+                    symbol,
+                    start_date,
+                    end_date,
+                    interval,
+                    provider,
+                    prefer_cached_tail=True,
+                )
                 data = _prepare_runner_frame(source_result.data)
                 if min_history_bars and len(data) < min_history_bars:
                     warnings.append(
@@ -77,6 +86,8 @@ def load_portfolio_ohlcv(
                     warnings.extend(source_result.warnings)
                     if source_result.cache_hit:
                         cache_hits += 1
+                        if source_result.cache_status == "stale":
+                            stale_cache_hits += 1
                     else:
                         cache_misses += 1
             except Exception as exc:
@@ -90,6 +101,7 @@ def load_portfolio_ohlcv(
                 symbol,
                 cache_hits,
                 cache_misses,
+                stale_cache_hits,
             )
 
             if request_delay_seconds and symbol_index < len(batch) - 1:
@@ -103,10 +115,11 @@ def load_portfolio_ohlcv(
 
     return PortfolioDataBundle(
         data_by_symbol=data_by_symbol,
-        warnings=warnings,
+        warnings=list(dict.fromkeys(warnings)),
         providers=providers,
         cache_hits=cache_hits,
         cache_misses=cache_misses,
+        stale_cache_hits=stale_cache_hits,
     )
 
 
@@ -128,6 +141,7 @@ def _emit_load_progress(
     current_symbol: str,
     cache_hits: int,
     cache_misses: int,
+    stale_cache_hits: int,
 ) -> None:
     if progress_callback is None:
         return
@@ -138,6 +152,7 @@ def _emit_load_progress(
         "failed_count": failed_count,
         "cache_hits": cache_hits,
         "cache_misses": cache_misses,
+        "stale_cache_hits": stale_cache_hits,
         "current_symbol": current_symbol,
     })
 

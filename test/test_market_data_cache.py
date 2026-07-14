@@ -60,6 +60,125 @@ def test_daily_market_data_cache_fetches_only_uncovered_tail(monkeypatch, tmp_pa
     assert snapshot.covers("2026-07-01", "2026-07-06")
 
 
+def test_portfolio_cache_policy_uses_cached_tail_without_refetch(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
+    calls = []
+
+    def source(symbol, start_date, end_date, interval):
+        calls.append((start_date, end_date))
+        return DataSourceResult(_daily_frame(start_date, end_date), "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", source)
+
+    fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-03", "1d", "yfinance")
+    result = fetch_ohlcv(
+        "SZ002241",
+        "2026-07-01",
+        "2026-07-04",
+        "1d",
+        "yfinance",
+        prefer_cached_tail=True,
+    )
+
+    assert calls == [("2026-07-01", "2026-07-03")]
+    assert result.cache_hit is True
+    assert result.cache_status == "stale"
+    assert result.data.index.max() == pd.Timestamp("2026-07-03")
+    assert any(
+        "请求截至 2026-07-04" in warning and "行情仅截至 2026-07-03" in warning
+        for warning in result.warnings
+    )
+
+
+def test_portfolio_cache_policy_does_not_hide_missing_leading_history(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
+    calls = []
+
+    def source(symbol, start_date, end_date, interval):
+        calls.append((start_date, end_date))
+        return DataSourceResult(_daily_frame(start_date, end_date), "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", source)
+
+    fetch_ohlcv("SZ002241", "2026-07-03", "2026-07-05", "1d", "yfinance")
+    result = fetch_ohlcv(
+        "SZ002241",
+        "2026-07-01",
+        "2026-07-05",
+        "1d",
+        "yfinance",
+        prefer_cached_tail=True,
+    )
+
+    assert calls == [("2026-07-03", "2026-07-05"), ("2026-07-01", "2026-07-02")]
+    assert result.cache_status == "extended"
+    assert result.data.index.min() == pd.Timestamp("2026-07-01")
+
+
+def test_portfolio_cache_policy_does_not_use_overly_stale_tail(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
+    calls = []
+
+    def source(symbol, start_date, end_date, interval):
+        calls.append((start_date, end_date))
+        return DataSourceResult(_daily_frame(start_date, end_date), "yfinance", [])
+
+    monkeypatch.setattr("market_data.fetch_yfinance_ohlcv", source)
+
+    fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-03", "1d", "yfinance")
+    result = fetch_ohlcv(
+        "SZ002241",
+        "2026-07-01",
+        "2026-07-31",
+        "1d",
+        "yfinance",
+        prefer_cached_tail=True,
+    )
+
+    assert calls == [("2026-07-01", "2026-07-03"), ("2026-07-04", "2026-07-31")]
+    assert result.cache_status == "extended"
+
+
+def test_auto_portfolio_cache_policy_prefers_stale_mootdx_over_yfinance(monkeypatch, tmp_path):
+    monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
+
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda symbol, interval, start_date, end_date: DataSourceResult(
+            _daily_frame(start_date, end_date),
+            "mootdx",
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_yfinance_ohlcv",
+        lambda symbol, start_date, end_date, interval: DataSourceResult(
+            _daily_frame(start_date, end_date),
+            "yfinance",
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: pd.DataFrame(),
+    )
+
+    fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-03", "1d", "mootdx")
+    fetch_ohlcv("SZ002241", "2026-07-01", "2026-07-04", "1d", "yfinance")
+    result = fetch_ohlcv(
+        "SZ002241",
+        "2026-07-01",
+        "2026-07-04",
+        "1d",
+        "auto",
+        prefer_cached_tail=True,
+    )
+
+    assert result.provider == "mootdx"
+    assert result.cache_status == "stale"
+    assert result.data.index.max() == pd.Timestamp("2026-07-03")
+
+
 def test_daily_cache_extends_naive_cache_with_timezone_aware_data(monkeypatch, tmp_path):
     monkeypatch.setenv("MARKET_DATA_CACHE_DIR", str(tmp_path))
     calls = []

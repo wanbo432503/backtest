@@ -10,8 +10,16 @@ def test_load_portfolio_ohlcv_fetches_each_symbol_and_preserves_warnings(monkeyp
     fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
     calls = []
 
-    def fake_fetch(symbol, start_date, end_date, interval, provider):
-        calls.append((symbol, start_date, end_date, interval, provider))
+    def fake_fetch(
+        symbol,
+        start_date,
+        end_date,
+        interval,
+        provider,
+        *,
+        prefer_cached_tail=False,
+    ):
+        calls.append((symbol, start_date, end_date, interval, provider, prefer_cached_tail))
         return DataSourceResult(
             data=fixture[symbol],
             provider="mootdx",
@@ -29,8 +37,8 @@ def test_load_portfolio_ohlcv_fetches_each_symbol_and_preserves_warnings(monkeyp
     )
 
     assert calls == [
-        ("SH603019", "2025-01-01", "2025-12-31", "1d", "auto"),
-        ("SZ002241", "2025-01-01", "2025-12-31", "1d", "auto"),
+        ("SH603019", "2025-01-01", "2025-12-31", "1d", "auto", True),
+        ("SZ002241", "2025-01-01", "2025-12-31", "1d", "auto", True),
     ]
     assert set(bundle.data_by_symbol) == {"SH603019", "SZ002241"}
     assert bundle.providers == {"SH603019": "mootdx", "SZ002241": "mootdx"}
@@ -41,7 +49,7 @@ def test_load_portfolio_ohlcv_fetches_each_symbol_and_preserves_warnings(monkeyp
 def test_load_portfolio_ohlcv_keeps_successful_symbols_when_one_fetch_fails(monkeypatch):
     fixture = build_portfolio_ohlcv_fixture(["SH603019"])
 
-    def fake_fetch(symbol, *args):
+    def fake_fetch(symbol, *args, **kwargs):
         if symbol == "SZ002241":
             raise ValueError("temporary unavailable")
         return DataSourceResult(data=fixture[symbol], provider="yfinance", warnings=[])
@@ -55,7 +63,7 @@ def test_load_portfolio_ohlcv_keeps_successful_symbols_when_one_fetch_fails(monk
 
 
 def test_load_portfolio_ohlcv_raises_when_all_symbols_fail(monkeypatch):
-    def fake_fetch(symbol, *args):
+    def fake_fetch(symbol, *args, **kwargs):
         raise ValueError(f"{symbol} unavailable")
 
     monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
@@ -67,7 +75,7 @@ def test_load_portfolio_ohlcv_raises_when_all_symbols_fail(monkeypatch):
 def test_load_portfolio_ohlcv_drops_insufficient_history_with_warning(monkeypatch):
     short_frame = build_ohlcv_frame(periods=20)
 
-    def fake_fetch(symbol, *args):
+    def fake_fetch(symbol, *args, **kwargs):
         return DataSourceResult(data=short_frame, provider="mootdx", warnings=[])
 
     monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
@@ -87,7 +95,7 @@ def test_load_portfolio_ohlcv_prepares_columns_for_runner(monkeypatch):
         index=["2025-01-02", "2025-01-03"],
     )
 
-    def fake_fetch(symbol, *args):
+    def fake_fetch(symbol, *args, **kwargs):
         return DataSourceResult(data=raw_frame, provider="mootdx", warnings=[])
 
     monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
@@ -133,7 +141,7 @@ def test_load_portfolio_ohlcv_preserves_dual_price_contract(monkeypatch):
 
     monkeypatch.setattr(
         "portfolio_data.fetch_ohlcv",
-        lambda *args: DataSourceResult(dual_frame, "mootdx", []),
+        lambda *args, **kwargs: DataSourceResult(dual_frame, "mootdx", []),
     )
 
     bundle = load_portfolio_ohlcv(
@@ -162,7 +170,7 @@ def test_load_portfolio_ohlcv_normalizes_timezone_aware_index(monkeypatch):
         index=pd.date_range("2025-01-02", periods=2, freq="D", tz="Asia/Shanghai"),
     )
 
-    def fake_fetch(symbol, *args):
+    def fake_fetch(symbol, *args, **kwargs):
         return DataSourceResult(data=raw_frame, provider="yfinance", warnings=[])
 
     monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
@@ -185,7 +193,7 @@ def test_load_portfolio_ohlcv_applies_batch_rate_limits_and_reports_progress(mon
     sleep_calls = []
     progress_events = []
 
-    def fake_fetch(symbol, start_date, end_date, interval, provider):
+    def fake_fetch(symbol, start_date, end_date, interval, provider, **kwargs):
         fetch_calls.append(symbol)
         return DataSourceResult(data=fixture[symbol], provider="fixture", warnings=[])
 
@@ -214,4 +222,30 @@ def test_load_portfolio_ohlcv_applies_batch_rate_limits_and_reports_progress(mon
         "current_symbol": "SZ000001",
         "cache_hits": 0,
         "cache_misses": 3,
+        "stale_cache_hits": 0,
     }
+
+
+def test_load_portfolio_ohlcv_deduplicates_shared_warnings(monkeypatch):
+    fixture = build_portfolio_ohlcv_fixture(["SH603019", "SZ002241"])
+
+    def fake_fetch(symbol, *args, **kwargs):
+        return DataSourceResult(
+            data=fixture[symbol],
+            provider="mootdx",
+            warnings=["共享缓存告警"],
+            cache_hit=True,
+            cache_status="stale",
+        )
+
+    monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
+
+    bundle = load_portfolio_ohlcv(
+        ["SH603019", "SZ002241"],
+        "2025-01-01",
+        "2025-12-31",
+    )
+
+    assert bundle.warnings.count("共享缓存告警") == 1
+    assert bundle.cache_hits == 2
+    assert bundle.stale_cache_hits == 2

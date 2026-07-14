@@ -3829,6 +3829,7 @@ SZ000651</textarea>
                 `扫描: ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载: ${diagnostics.loaded_count ?? '-'}`,
                 `缓存命中: ${diagnostics.cache_hits ?? '-'}`,
+                `尾部缓存: ${diagnostics.stale_cache_hits ?? 0}`,
                 `筛后: ${diagnostics.screened_count ?? '-'}`,
                 `评分: ${diagnostics.scored_count ?? diagnostics.candidate_ranking_rows ?? '-'}`,
                 `入选: ${diagnostics.selected_count ?? (diagnostics.selected_symbols || []).length ?? '-'}`,
@@ -4134,6 +4135,7 @@ SZ000651</textarea>
                 `计划扫描 ${diagnostics.scan_symbol_count ?? '-'}`,
                 `加载股票 ${diagnostics.loaded_symbols ?? '-'}`,
                 `缓存命中 ${diagnostics.cache_hits ?? '-'}`,
+                `尾部缓存 ${diagnostics.stale_cache_hits ?? 0}`,
                 `策略 ${diagnostics.strategy_name ?? diagnostics.strategy_id ?? '-'}`,
                 `观察期起点 ${diagnostics.entry_observation_start_date ?? '-'}`,
                 `观察期要求 ${diagnostics.entry_observation_bars_required ?? 0}根`,
@@ -4244,7 +4246,7 @@ SZ000651</textarea>
                 const warningText = result.data_warnings && result.data_warnings.length
                     ? `；${result.data_warnings.map(escapeHtml).join('；')}`
                     : '';
-                const cacheLabels = { hit: '缓存命中', miss: '已写入缓存', extended: '缓存已补齐' };
+                const cacheLabels = { hit: '缓存命中', miss: '已写入缓存', extended: '缓存已补齐', stale: '使用最后可用缓存' };
                 const cacheText = cacheLabels[result.data_cache_status] ? `；${cacheLabels[result.data_cache_status]}` : '';
                 providerDiv.innerHTML = `<i class="fas fa-database"></i><span>数据源: ${escapeHtml(result.data_provider)}${cacheText}${warningText}</span>`;
                 statsContent.appendChild(providerDiv);

@@ -19,6 +19,7 @@ from market_data_cache import (
 from price_adjustment import apply_corporate_actions, detect_unexplained_discontinuities
 
 YFINANCE_RAW_CACHE_MARKER = "internal:yfinance_raw_actions_v1"
+PORTFOLIO_CACHE_MAX_STALE_DAYS = 14
 
 
 @dataclass(frozen=True)
@@ -384,6 +385,8 @@ def fetch_ohlcv(
     end_date: str,
     interval: str = "1d",
     provider: str = "auto",
+    *,
+    prefer_cached_tail: bool = False,
 ) -> DataSourceResult:
     normalized = normalize_symbol(symbol)
     if normalized.market != "CN":
@@ -400,6 +403,7 @@ def fetch_ohlcv(
                 start_date,
                 end_date,
                 selected_provider,
+                prefer_cached_tail=prefer_cached_tail,
             )
         return _fetch_live_ohlcv(
             symbol,
@@ -497,6 +501,8 @@ def _fetch_cached_daily_ohlcv(
     start_date: str,
     end_date: str,
     provider: str,
+    *,
+    prefer_cached_tail: bool = False,
 ) -> DataSourceResult:
     normalized_provider = provider.lower()
     candidates = _cache_provider_candidates(normalized_provider)
@@ -518,6 +524,27 @@ def _fetch_cached_daily_ohlcv(
                 warnings=list(snapshot.warnings),
                 cache_hit=True,
                 cache_status="hit",
+            )
+        gaps = uncovered_date_ranges(snapshot.covered_ranges, start_date, end_date)
+        if (
+            prefer_cached_tail
+            and not cached.empty
+            and _is_recent_trailing_gap(gaps, start_date, end_date)
+        ):
+            last_available_date = pd.Timestamp(cached.index.max()).date().isoformat()
+            return DataSourceResult(
+                data=prepare_ohlcv(cached),
+                provider=snapshot.provider,
+                warnings=[
+                    *snapshot.warnings,
+                    (
+                        f"组合缓存优先模式：请求截至 {end_date}，"
+                        f"{snapshot.provider} 行情仅截至 {last_available_date}；"
+                        "使用最后可用缓存交易日，未触发逐股联网补全。"
+                    ),
+                ],
+                cache_hit=True,
+                cache_status="stale",
             )
         if partial_snapshot is None:
             partial_snapshot = snapshot
@@ -595,6 +622,23 @@ def _cache_provider_candidates(provider: str) -> list[str]:
     if provider in {"mootdx", "yfinance", "eastmoney"}:
         return [provider]
     return []
+
+
+def _is_recent_trailing_gap(
+    gaps: list[tuple[date, date]],
+    start_date: str,
+    end_date: str,
+) -> bool:
+    if len(gaps) != 1:
+        return False
+    requested_start = date.fromisoformat(start_date)
+    requested_end = date.fromisoformat(end_date)
+    gap_start, gap_end = gaps[0]
+    return (
+        gap_start > requested_start
+        and gap_end == requested_end
+        and (gap_end - gap_start).days + 1 <= PORTFOLIO_CACHE_MAX_STALE_DAYS
+    )
 
 
 def _fetch_provider_ohlcv(

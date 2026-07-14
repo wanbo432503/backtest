@@ -168,7 +168,7 @@ def test_loaded_signal_portfolio_executes_at_raw_price(monkeypatch):
     ]
     monkeypatch.setattr(
         "portfolio_data.fetch_ohlcv",
-        lambda *args: DataSourceResult(dual_frame, "mootdx", []),
+        lambda *args, **kwargs: DataSourceResult(dual_frame, "mootdx", []),
     )
     bundle = load_portfolio_ohlcv(
         ["SH603019"],

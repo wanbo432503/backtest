@@ -81,6 +81,7 @@ def load_universe_scan_data(
         "load_failed_count": max(len(symbols) - len(bundle.data_by_symbol), 0),
         "cache_hits": bundle.cache_hits,
         "cache_misses": bundle.cache_misses,
+        "stale_cache_hits": bundle.stale_cache_hits,
         "prefilter_skipped_count": sum(prefilter_counts.values()),
         "screened_count": len(filtered_data),
         "skipped_by_reason": dict(sorted(skipped_by_reason.items())),
