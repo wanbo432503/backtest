@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Callable
 import urllib.request
 
@@ -38,6 +39,7 @@ class DataSourceResult:
     warnings: list[str]
     cache_hit: bool = False
     cache_status: str = "disabled"
+    corporate_action_cache_status: str = "disabled"
 
 
 def detect_market(symbol: str) -> str:
@@ -316,6 +318,28 @@ def fetch_mootdx_corporate_actions(symbol: NormalizedSymbol) -> pd.DataFrame:
     return actions
 
 
+def load_mootdx_corporate_actions_cache(
+    symbol: NormalizedSymbol,
+) -> tuple[pd.DataFrame, date] | None:
+    path = _mootdx_corporate_actions_cache_path(symbol)
+    if not path.exists():
+        return None
+    try:
+        actions = pd.read_pickle(path)
+        if not isinstance(actions, pd.DataFrame):
+            return None
+        refreshed_date = datetime.fromtimestamp(path.stat().st_mtime).date()
+        return actions, refreshed_date
+    except (OSError, ValueError, TypeError, EOFError):
+        return None
+
+
+def _mootdx_corporate_actions_cache_path(symbol: NormalizedSymbol) -> Path:
+    from mootdx.config import get_config_path
+
+    return Path(get_config_path(f"xdxr/{symbol.code}.plk"))
+
+
 def fetch_tencent_quote(codes: list[str]) -> dict[str, dict]:
     prefixed = []
     for raw_code in codes:
@@ -416,12 +440,20 @@ def fetch_ohlcv(
 
     raw_result = load_raw(provider)
     try:
-        return _finalize_daily_result(raw_result, normalized)
+        return _finalize_daily_result(
+            raw_result,
+            normalized,
+            prefer_cached_corporate_actions=prefer_cached_tail,
+        )
     except Exception as exc:
         if provider.lower() != "auto" or raw_result.provider != "mootdx":
             raise
         fallback = load_raw("yfinance")
-        finalized = _finalize_daily_result(fallback, normalized)
+        finalized = _finalize_daily_result(
+            fallback,
+            normalized,
+            prefer_cached_corporate_actions=prefer_cached_tail,
+        )
         finalized.warnings = [f"mootdx 除权数据获取失败: {exc}"] + finalized.warnings
         return finalized
 
@@ -429,23 +461,34 @@ def fetch_ohlcv(
 def _finalize_daily_result(
     result: DataSourceResult,
     symbol: NormalizedSymbol,
+    *,
+    prefer_cached_corporate_actions: bool = False,
 ) -> DataSourceResult:
     warnings = list(result.warnings)
     warnings = [warning for warning in warnings if warning != YFINANCE_RAW_CACHE_MARKER]
+    corporate_action_cache_status = result.corporate_action_cache_status
     if result.provider in {"mootdx", "eastmoney"}:
-        actions = fetch_mootdx_corporate_actions(symbol)
+        actions, action_warnings, corporate_action_cache_status = (
+            _resolve_mootdx_corporate_actions(
+                result.data,
+                symbol,
+                prefer_cached=prefer_cached_corporate_actions,
+            )
+        )
         data = apply_corporate_actions(result.data, actions)
         warnings = [
             warning
             for warning in warnings
             if "不复权原始价" not in warning
         ]
+        warnings.extend(action_warnings)
         warnings.append(
             "已启用双价格体系：复权价用于信号与图表，"
             f"{result.provider} 原始价用于成交与账户核算。"
         )
     elif result.provider == "yfinance":
         data = apply_corporate_actions(result.data, _yfinance_corporate_actions(result.data))
+        corporate_action_cache_status = "provider_fallback"
         warnings.append("已启用双价格体系；yfinance 公司行动数据仅作为 mootdx 不可用时的备用。")
     else:
         data = apply_corporate_actions(result.data, None)
@@ -463,7 +506,51 @@ def _finalize_daily_result(
         warnings=warnings,
         cache_hit=result.cache_hit,
         cache_status=result.cache_status,
+        corporate_action_cache_status=corporate_action_cache_status,
     )
+
+
+def _resolve_mootdx_corporate_actions(
+    data: pd.DataFrame,
+    symbol: NormalizedSymbol,
+    *,
+    prefer_cached: bool,
+) -> tuple[pd.DataFrame, list[str], str]:
+    if not prefer_cached:
+        return fetch_mootdx_corporate_actions(symbol), [], "refreshed"
+
+    cached = load_mootdx_corporate_actions_cache(symbol)
+    last_kline_date = pd.Timestamp(data.index.max()).date()
+    if cached is not None:
+        cached_actions, refreshed_date = cached
+        if refreshed_date >= last_kline_date:
+            return (
+                cached_actions,
+                [
+                    "组合除权缓存复用："
+                    f"缓存刷新至 {refreshed_date.isoformat()}，"
+                    f"覆盖行情最后交易日 {last_kline_date.isoformat()}，"
+                    "未触发逐股联网刷新。"
+                ],
+                "cache_reused",
+            )
+
+    try:
+        return fetch_mootdx_corporate_actions(symbol), [], "refreshed"
+    except Exception as exc:
+        if cached is None:
+            raise
+        cached_actions, refreshed_date = cached
+        return (
+            cached_actions,
+            [
+                "mootdx 除权刷新失败，使用旧缓存；"
+                f"除权缓存仅刷新至 {refreshed_date.isoformat()}，"
+                f"行情截至 {last_kline_date.isoformat()}，"
+                f"可能缺少近期公司行动: {exc}"
+            ],
+            "stale_fallback",
+        )
 
 
 def _yfinance_corporate_actions(data: pd.DataFrame) -> pd.DataFrame:

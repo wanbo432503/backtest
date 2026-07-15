@@ -82,6 +82,7 @@ def load_universe_scan_data(
         "cache_hits": bundle.cache_hits,
         "cache_misses": bundle.cache_misses,
         "stale_cache_hits": bundle.stale_cache_hits,
+        "corporate_action_cache_hits": bundle.corporate_action_cache_hits,
         "prefilter_skipped_count": sum(prefilter_counts.values()),
         "screened_count": len(filtered_data),
         "skipped_by_reason": dict(sorted(skipped_by_reason.items())),

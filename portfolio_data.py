@@ -33,6 +33,7 @@ class PortfolioDataBundle:
     cache_hits: int = 0
     cache_misses: int = 0
     stale_cache_hits: int = 0
+    corporate_action_cache_hits: int = 0
 
 
 def load_portfolio_ohlcv(
@@ -62,6 +63,7 @@ def load_portfolio_ohlcv(
     cache_hits = 0
     cache_misses = 0
     stale_cache_hits = 0
+    corporate_action_cache_hits = 0
 
     for batch_index, batch in enumerate(_chunks(symbols, batch_size)):
         for symbol_index, symbol in enumerate(batch):
@@ -90,6 +92,11 @@ def load_portfolio_ohlcv(
                             stale_cache_hits += 1
                     else:
                         cache_misses += 1
+                    if source_result.corporate_action_cache_status in {
+                        "cache_reused",
+                        "stale_fallback",
+                    }:
+                        corporate_action_cache_hits += 1
             except Exception as exc:
                 failed_count += 1
                 warnings.append(f"{symbol} 获取失败: {exc}")
@@ -102,6 +109,7 @@ def load_portfolio_ohlcv(
                 cache_hits,
                 cache_misses,
                 stale_cache_hits,
+                corporate_action_cache_hits,
             )
 
             if request_delay_seconds and symbol_index < len(batch) - 1:
@@ -120,6 +128,7 @@ def load_portfolio_ohlcv(
         cache_hits=cache_hits,
         cache_misses=cache_misses,
         stale_cache_hits=stale_cache_hits,
+        corporate_action_cache_hits=corporate_action_cache_hits,
     )
 
 
@@ -142,6 +151,7 @@ def _emit_load_progress(
     cache_hits: int,
     cache_misses: int,
     stale_cache_hits: int,
+    corporate_action_cache_hits: int,
 ) -> None:
     if progress_callback is None:
         return
@@ -153,6 +163,7 @@ def _emit_load_progress(
         "cache_hits": cache_hits,
         "cache_misses": cache_misses,
         "stale_cache_hits": stale_cache_hits,
+        "corporate_action_cache_hits": corporate_action_cache_hits,
         "current_symbol": current_symbol,
     })
 

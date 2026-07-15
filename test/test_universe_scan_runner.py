@@ -57,6 +57,7 @@ def test_universe_scan_selects_final_holdings_under_five(monkeypatch):
             providers={symbol: "fixture" for symbol in symbols},
             cache_hits=len(symbols),
             stale_cache_hits=len(symbols),
+            corporate_action_cache_hits=len(symbols),
         ),
     )
 
@@ -66,6 +67,7 @@ def test_universe_scan_selects_final_holdings_under_five(monkeypatch):
     assert result.diagnostics["total_universe_size"] == 6
     assert result.diagnostics["loaded_count"] == 6
     assert result.diagnostics["stale_cache_hits"] == 6
+    assert result.diagnostics["corporate_action_cache_hits"] == 6
     assert result.diagnostics["scored_count"] >= len(result.selected_symbols)
     assert result.diagnostics["selected_count"] == len(result.selected_symbols)
 

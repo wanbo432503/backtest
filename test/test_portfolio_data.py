@@ -223,6 +223,7 @@ def test_load_portfolio_ohlcv_applies_batch_rate_limits_and_reports_progress(mon
         "cache_hits": 0,
         "cache_misses": 3,
         "stale_cache_hits": 0,
+        "corporate_action_cache_hits": 0,
     }
 
 
@@ -236,6 +237,7 @@ def test_load_portfolio_ohlcv_deduplicates_shared_warnings(monkeypatch):
             warnings=["共享缓存告警"],
             cache_hit=True,
             cache_status="stale",
+            corporate_action_cache_status="cache_reused",
         )
 
     monkeypatch.setattr("portfolio_data.fetch_ohlcv", fake_fetch)
@@ -249,3 +251,4 @@ def test_load_portfolio_ohlcv_deduplicates_shared_warnings(monkeypatch):
     assert bundle.warnings.count("共享缓存告警") == 1
     assert bundle.cache_hits == 2
     assert bundle.stale_cache_hits == 2
+    assert bundle.corporate_action_cache_hits == 2

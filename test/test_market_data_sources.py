@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+import os
 
 import pandas as pd
 import pytest
@@ -187,6 +188,174 @@ def test_auto_falls_back_when_mootdx_corporate_actions_are_unavailable(monkeypat
     assert result.provider == "yfinance"
     assert calls == ["mootdx", "yfinance"]
     assert any("xdxr unavailable" in warning for warning in result.warnings)
+
+
+def test_portfolio_reuses_xdxr_cache_covering_last_kline_without_refresh(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_CACHE_ENABLED", "false")
+    calls = []
+    raw = pd.DataFrame(
+        {
+            "Open": [52.5, 35.28],
+            "High": [53.8, 35.8],
+            "Low": [52.0, 33.0],
+            "Close": [53.05, 33.8],
+            "Volume": [1_000, 2_000],
+        },
+        index=pd.to_datetime(["2026-07-02", "2026-07-03"]),
+    )
+    actions = pd.DataFrame(
+        {
+            "category": [1],
+            "fenhong": [0.8],
+            "songzhuangu": [5.0],
+            "peigu": [0.0],
+            "peigujia": [0.0],
+        },
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "mootdx", []),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_yfinance_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "yfinance", []),
+    )
+    monkeypatch.setattr(
+        "market_data.load_mootdx_corporate_actions_cache",
+        lambda symbol: (actions, date(2026, 7, 3)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: calls.append("refresh") or (_ for _ in ()).throw(
+            AssertionError("covered xdxr cache must not refresh")
+        ),
+    )
+
+    result = fetch_ohlcv(
+        "SZ002475",
+        "2026-07-02",
+        "2026-07-03",
+        "1d",
+        "auto",
+        prefer_cached_tail=True,
+    )
+
+    assert result.provider == "mootdx"
+    assert result.corporate_action_cache_status == "cache_reused"
+    assert calls == []
+    assert result.data.loc["2026-07-02", "Close"] == pytest.approx(35.3133333333)
+
+
+def test_loads_existing_mootdx_xdxr_file_even_after_library_ttl(tmp_path, monkeypatch):
+    from market_data import load_mootdx_corporate_actions_cache
+
+    cache_path = tmp_path / "002475.plk"
+    actions = pd.DataFrame(
+        {"category": [1], "fenhong": [0.8]},
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+    actions.to_pickle(cache_path)
+    refreshed_at = datetime(2026, 7, 13, 12, 0).timestamp()
+    os.utime(cache_path, (refreshed_at, refreshed_at))
+    monkeypatch.setattr(
+        "market_data._mootdx_corporate_actions_cache_path",
+        lambda symbol: cache_path,
+        raising=False,
+    )
+
+    cached_actions, refreshed_date = load_mootdx_corporate_actions_cache(
+        normalize_symbol("SZ002475")
+    )
+
+    pd.testing.assert_frame_equal(cached_actions, actions)
+    assert refreshed_date == date(2026, 7, 13)
+
+
+def test_portfolio_uses_older_xdxr_cache_when_refresh_fails(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_CACHE_ENABLED", "false")
+    raw = pd.DataFrame(
+        {
+            "Open": [10],
+            "High": [11],
+            "Low": [9],
+            "Close": [10.5],
+            "Volume": [1_000],
+        },
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+    actions = pd.DataFrame()
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "mootdx", []),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_yfinance_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "yfinance", []),
+    )
+    monkeypatch.setattr(
+        "market_data.load_mootdx_corporate_actions_cache",
+        lambda symbol: (actions, date(2026, 7, 2)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: (_ for _ in ()).throw(ValueError("xdxr unavailable")),
+    )
+
+    result = fetch_ohlcv(
+        "SZ002475",
+        "2026-07-03",
+        "2026-07-03",
+        "1d",
+        "auto",
+        prefer_cached_tail=True,
+    )
+
+    assert result.provider == "mootdx"
+    assert result.corporate_action_cache_status == "stale_fallback"
+    assert any("除权缓存仅刷新至 2026-07-02" in warning for warning in result.warnings)
+
+
+def test_single_stock_still_refreshes_corporate_actions(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_CACHE_ENABLED", "false")
+    calls = []
+    raw = pd.DataFrame(
+        {
+            "Open": [10],
+            "High": [11],
+            "Low": [9],
+            "Close": [10.5],
+            "Volume": [1_000],
+        },
+        index=pd.to_datetime(["2026-07-03"]),
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_ohlcv",
+        lambda *args, **kwargs: DataSourceResult(raw, "mootdx", []),
+    )
+    monkeypatch.setattr(
+        "market_data.load_mootdx_corporate_actions_cache",
+        lambda symbol: (pd.DataFrame(), date(2026, 7, 3)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "market_data.fetch_mootdx_corporate_actions",
+        lambda symbol: calls.append(symbol.code) or pd.DataFrame(),
+    )
+
+    result = fetch_ohlcv(
+        "SZ002475",
+        "2026-07-03",
+        "2026-07-03",
+        "1d",
+        "mootdx",
+    )
+
+    assert result.provider == "mootdx"
+    assert calls == ["002475"]
 
 
 def test_mootdx_warns_without_rejecting_large_legitimate_move(monkeypatch):
