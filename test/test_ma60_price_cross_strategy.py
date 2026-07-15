@@ -450,6 +450,7 @@ def test_definition_emits_intraday_entry_with_hidden_cross_count_priority():
     assert decision.entry.order_type == "stop_next_bar"
     assert decision.entry.strength == -3
     assert decision.entry.metadata["ma_cross_count"] == 3
+    assert decision.entry.metadata["priority_tiebreaker"] == 0.02
 
 
 def test_definition_updates_intraday_exit_only_for_held_position():
@@ -535,4 +536,39 @@ def test_signal_portfolio_buys_fewer_cross_stock_first():
     buys = [trade for trade in result.trades if trade["side"] == "buy"]
     strengths = {event["symbol"]: event["strength"] for event in result.signal_events}
     assert strengths["SZ002241"] > strengths["SH603019"]
+    assert [trade["symbol"] for trade in buys] == ["SZ002241"]
+
+
+def test_signal_portfolio_prefers_higher_ma60_slope_when_cross_counts_match():
+    close = [9.0] * 78 + [11.0, 11.0, 11.0]
+    lower_slope = _frame(close, [10.0] * len(close))
+    higher_slope = _frame(close, [10.0] * len(close))
+    for frame, slope in ((lower_slope, 0.02), (higher_slope, 0.05)):
+        frame["atr_value"] = 0.4
+        frame["ma_slope_return"] = slope
+    definition = replace(
+        STRATEGY_DEFINITION,
+        prepare_frame=lambda data, config: data.copy(),
+    )
+    signal_date = lower_slope.index[-2]
+
+    result = run_strategy_simulation(
+        definition,
+        MA60PriceCrossConfig(max_entry_gap_pct=20),
+        {
+            "SH603019": lower_slope,
+            "SZ002241": higher_slope,
+        },
+        SimulationConfig(
+            initial_cash=100_000,
+            max_positions=1,
+            max_position_pct=1,
+            target_gross_exposure=1,
+            trading=_trading(),
+            start_date=signal_date.strftime("%Y-%m-%d"),
+            end_date=lower_slope.index[-1].strftime("%Y-%m-%d"),
+        ),
+    )
+
+    buys = [trade for trade in result.trades if trade["side"] == "buy"]
     assert [trade["symbol"] for trade in buys] == ["SZ002241"]

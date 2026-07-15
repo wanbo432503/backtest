@@ -253,7 +253,11 @@ def run_strategy_simulation(
 
         candidates = sorted(
             pending_entries.values(),
-            key=lambda pending: (-float(pending.intent.strength), pending.symbol),
+            key=lambda pending: (
+                -float(pending.intent.strength),
+                -float(pending.intent.metadata.get("priority_tiebreaker", 0.0)),
+                pending.symbol,
+            ),
         )
         for pending in candidates:
             symbol = pending.symbol

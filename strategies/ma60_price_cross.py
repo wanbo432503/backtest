@@ -165,6 +165,7 @@ def evaluate_ma60_price_cross(context: StrategyBarContext) -> StrategyDecision:
                 "ma_cross_count": cross_count,
                 "entry_threshold": round(entry_threshold, 6),
                 "ma_slope_return": round(ma_slope_return, 8),
+                "priority_tiebreaker": ma_slope_return,
                 "entry_mode": entry_mode,
                 "max_entry_gap_pct": config.max_entry_gap_pct,
             },
@@ -180,7 +181,7 @@ def ma60_price_cross_min_history_bars(config: BaseModel) -> int:
 STRATEGY_DEFINITION = StrategyDefinition(
     strategy_id="ma60_price_cross",
     display_name="MA60价格穿越策略",
-    description="每日收盘后按当日 MA60 与 ATR 预挂次日 0.5 ATR 上轨突破单；首次突破和已经站上上轨后的趋势延续分别使用可配置的 MA60 最低斜率，并限制跳空追价；持仓后使用 0.25 ATR 下轨保护，卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易。",
+    description="每日收盘后按当日 MA60 与 ATR 预挂次日 0.5 ATR 上轨突破单；首次突破和已经站上上轨后的趋势延续分别使用可配置的 MA60 最低斜率，并限制跳空追价；持仓后使用 0.25 ATR 下轨保护，卖出后冷却 10 日；组合回测开始后的前 250 根 K 线只观察不交易，候选股票先按 MA60 穿越次数少、再按 MA60 向上斜率高排序。",
     config_model=MA60PriceCrossConfig,
     parameters=(
         StrategyParamMeta(
